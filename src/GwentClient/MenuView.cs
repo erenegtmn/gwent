@@ -32,7 +32,7 @@ public sealed class MenuView : Grid
     private string _myLeader = "";
     private string? _oppFaction; // null = rastgele
     private string _deckChoice = DeckAll;
-    private readonly CheckBox _nextGen = new() { Content = "Yeni nesil içerik (Roach, Geralt/Ciri Toplanma)", Margin = new Thickness(0, 12, 0, 0) };
+    private readonly ToggleButton _nextGen = Ornate.Option("Yeni nesil içerik", "Roach, Geralt/Ciri Toplanma", false);
     private readonly Action<MatchConfig> _start;
     private readonly Action<string, bool> _openBuilder;
     private readonly StackPanel _leaderPanel = new();
@@ -336,35 +336,33 @@ public sealed class MenuView : Grid
 
     private Border BuildSetup()
     {
-        var root = new StackPanel { Width = 740 };
-        var head = Ui.Text("Maçı hazırla", 26, Theme.B("#f0d890"), true);
-        head.FontFamily = Theme.Serif;
-        head.Margin = new Thickness(0, 0, 0, 10);
-        root.Children.Add(head);
+        var root = new StackPanel { Width = 690 };
+        root.Children.Add(Ornate.Heading("Maçı hazırla", null, 34));
+        var rule = Ornate.Rule(560, 12);
+        rule.HorizontalAlignment = HorizontalAlignment.Left;
+        root.Children.Add(rule);
 
-        var deckHead = new Grid { Margin = new Thickness(0, 6, 0, 4) };
-        deckHead.Children.Add(Ui.Text("Deste", 13, Theme.TextDim, true));
+        var deckHead = new Grid { Margin = new Thickness(0, 0, 0, 0) };
+        deckHead.Children.Add(Ornate.Caption("Deste", 4));
         var edit = Ui.Button("Desteleri düzenle…", () => _openBuilder(_myFaction, NextGen));
         edit.HorizontalAlignment = HorizontalAlignment.Right;
-        edit.Padding = new Thickness(12, 3, 12, 3);
+        edit.Padding = new Thickness(14, 4, 14, 4);
         edit.FontSize = 12;
         deckHead.Children.Add(edit);
         root.Children.Add(deckHead);
         root.Children.Add(_deckPanel);
 
-        _leaderLabel.Margin = new Thickness(0, 12, 0, 4);
+        _leaderLabel.Text = Ornate.Spaced("LİDER");
+        _leaderLabel.Margin = new Thickness(0, 12, 0, 6);
         root.Children.Add(_leaderLabel);
         root.Children.Add(_leaderPanel);
 
-        var oppLabel = Ui.Text("Rakip fraksiyon", 13, Theme.TextDim, true);
-        oppLabel.Margin = new Thickness(0, 12, 0, 4);
-        root.Children.Add(oppLabel);
+        root.Children.Add(Ornate.Caption("Rakip fraksiyon"));
         root.Children.Add(OppRow());
 
-        var diffLabel = Ui.Text("Rakip zorluğu", 13, Theme.TextDim, true);
-        diffLabel.Margin = new Thickness(0, 12, 0, 4);
-        root.Children.Add(diffLabel);
+        root.Children.Add(Ornate.Caption("Rakip zorluğu"));
         root.Children.Add(DifficultyRow());
+        _nextGen.Margin = new Thickness(0, 14, 0, 0);
         root.Children.Add(_nextGen);
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 22, 0, 0) };
@@ -379,18 +377,11 @@ public sealed class MenuView : Grid
         buttons.Children.Add(go);
         root.Children.Add(buttons);
 
-        return new Border
-        {
-            Child = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 8, 0) },
-            Background = Theme.B("#e0140e08"),
-            BorderBrush = Theme.B("#8a6e2c"),
-            BorderThickness = new Thickness(1.5),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(26, 20, 18, 22),
-            VerticalAlignment = VerticalAlignment.Center,
-            MaxHeight = 940,
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 40, ShadowDepth = 0, Opacity = 0.85 }
-        };
+        var framed = Ornate.Panel(new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 10, 0) },
+            new Thickness(40, 30, 32, 34), 20, 54);
+        framed.VerticalAlignment = VerticalAlignment.Center;
+        framed.MaxHeight = 980;
+        return new Border { Child = framed, VerticalAlignment = VerticalAlignment.Center };
     }
 
     private void ToggleSetup()
@@ -615,28 +606,38 @@ public sealed class MenuView : Grid
         var leaders = CardCatalog.Default.Leaders(_myFaction).Where(l => l.Edition != "nextgen").ToList();
         _myLeader = leaders[0].Id;
         var buttons = new List<ToggleButton>();
+        var wrap = new WrapPanel();
+        var desc = Ui.Text(Texts.LeaderText(leaders[0]), 15, Theme.B("#c9c0aa"), false, TextAlignment.Left, true);
+        desc.FontStyle = FontStyles.Italic;
+        desc.Margin = new Thickness(2, 2, 0, 0);
         foreach (var l in leaders)
         {
             var leader = l;
-            var sp = new StackPanel();
-            sp.Children.Add(Ui.Text(leader.Name, 13, Theme.Text, true));
-            sp.Children.Add(Ui.Text(Texts.LeaderText(leader), 12, Theme.TextDim, false, TextAlignment.Left, true));
+            var sp = new StackPanel { Width = 104 };
+            sp.Children.Add(new GwintCard(leader, 104, null, null, height: 104 * GwintCard.Aspect) { IsHitTestVisible = false });
+            var nm = Ui.Text(leader.Name.Contains(':') ? leader.Name[(leader.Name.IndexOf(':') + 1)..].Trim() : leader.Name, 12, Theme.Text, true, TextAlignment.Center, true);
+            nm.Margin = new Thickness(0, 5, 0, 0);
+            sp.Children.Add(nm);
             var tb = new ToggleButton
             {
                 Style = (Style)Application.Current.FindResource("GToggle"),
                 Content = sp,
-                Margin = new Thickness(0, 2, 0, 2),
-                Padding = new Thickness(10, 5, 10, 5),
-                Tag = leader.Id
+                Margin = new Thickness(0, 0, 8, 8),
+                Padding = new Thickness(6, 6, 6, 6),
+                Tag = leader.Id,
+                ToolTip = leader.Name
             };
             tb.Click += (_, _) =>
             {
                 _myLeader = leader.Id;
+                desc.Text = Texts.LeaderText(leader);
                 foreach (var b in buttons) b.IsChecked = (string)b.Tag == _myLeader;
             };
             buttons.Add(tb);
-            _leaderPanel.Children.Add(tb);
+            wrap.Children.Add(tb);
         }
+        _leaderPanel.Children.Add(wrap);
+        _leaderPanel.Children.Add(desc);
         buttons[0].IsChecked = true;
         UpdateLeaderVisibility();
     }

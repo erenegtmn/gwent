@@ -170,16 +170,11 @@ public sealed class DeckBuilderView : Grid
         BuildDeck();
     }
 
-    private static Border PanelBox(UIElement child, Thickness pad) => new()
+    private static FrameworkElement PanelBox(UIElement child, Thickness pad)
     {
-        Child = child,
-        Background = Theme.B("#e0140e08"),
-        BorderBrush = Theme.B("#8a6e2c"),
-        BorderThickness = new Thickness(1.5),
-        CornerRadius = new CornerRadius(6),
-        Padding = pad,
-        Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 36, ShadowDepth = 0, Opacity = 0.8 }
-    };
+        var p = Ornate.Panel(child, pad, 18, 46);
+        return p;
+    }
 
     private static Rectangle GoldLine(double width, double margin = 0) => new()
     {
@@ -210,10 +205,9 @@ public sealed class DeckBuilderView : Grid
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         top.Children.Add(NavLink("‹ Menü", _close));
-        var title = Ui.Text("Deste kurucu", 40, Theme.B("#e8c970"), true);
-        title.Margin = new Thickness(26, 0, 0, 0);
-        title.VerticalAlignment = VerticalAlignment.Center;
-        title.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 10, ShadowDepth = 1.5, Opacity = 0.95 };
+        var title = Ornate.Heading("Deste kurucu", null, 38);
+        ((FrameworkElement)title).Margin = new Thickness(26, 0, 0, 0);
+        ((FrameworkElement)title).VerticalAlignment = VerticalAlignment.Center;
         SetColumn(title, 1);
         top.Children.Add(title);
         _header.Children.Add(top);
@@ -235,15 +229,18 @@ public sealed class DeckBuilderView : Grid
             var name = Ui.Text(Texts.FactionShort(f), 17, sel ? Theme.B("#f0d890") : Theme.B("#c9c0aa"), true);
             name.VerticalAlignment = VerticalAlignment.Center;
             inner.Children.Add(name);
-            var b = new Border
+            var frame = new ChamferFrame
             {
-                Child = inner, Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 6, 14, 6), Cursor = Cursors.Hand,
-                CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1.5),
-                BorderBrush = sel ? Theme.B("#c9a24a") : Brushes.Transparent,
-                Background = sel ? Theme.B("#55c9a24a") : Theme.B("#33000000")
+                Fill = sel ? Theme.B("#3a2c14") : Theme.B("#1a130b"), Edge = sel ? Ornate.GoldEdge : Theme.B("#4a3b28"), Inner = sel ? Theme.B("#88e0bf6a") : null,
+                Cut = 9, Inset = 4
             };
-            b.MouseEnter += (_, _) => { if (key != _faction) b.Background = Theme.B("#33c9a24a"); };
-            b.MouseLeave += (_, _) => { if (key != _faction) b.Background = Theme.B("#33000000"); };
+            var b = new Grid { Margin = new Thickness(0, 0, 8, 0), Cursor = Cursors.Hand, Background = Brushes.Transparent };
+            b.Children.Add(frame);
+            inner.Margin = new Thickness(12, 7, 16, 7);
+            b.Children.Add(inner);
+            if (sel) b.Effect = new DropShadowEffect { Color = Color.FromRgb(255, 200, 90), BlurRadius = 16, ShadowDepth = 0, Opacity = 0.5 };
+            b.MouseEnter += (_, _) => { if (key != _faction) frame.Edge = Theme.B("#a88a40"); };
+            b.MouseLeave += (_, _) => { if (key != _faction) frame.Edge = Theme.B("#4a3b28"); };
             b.MouseLeftButtonUp += (_, e) => { e.Handled = true; Sfx.Play("cursor_movement"); SwitchFaction(key); };
             fr.Children.Add(b);
         }
@@ -378,7 +375,7 @@ public sealed class DeckBuilderView : Grid
         _poolScroll = scroll;
         SetRow(scroll, 1);
         root.Children.Add(scroll);
-        var box = PanelBox(root, new Thickness(22, 16, 10, 8));
+        var box = PanelBox(root, new Thickness(24, 20, 14, 14));
         box.Margin = new Thickness(34, 4, 14, 26);
         _poolHost.Child = box;
     }
@@ -403,10 +400,8 @@ public sealed class DeckBuilderView : Grid
         }
         _preview.Child = new Border
         {
-            Child = new Grid { Children = { sp }, VerticalAlignment = VerticalAlignment.Center },
-            Background = Theme.B("#fa0f0a06"), BorderBrush = Theme.B("#8a6e2c"), BorderThickness = new Thickness(1.5),
-            CornerRadius = new CornerRadius(6), Padding = new Thickness(14, 14, 14, 16),
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 30, ShadowDepth = 0, Opacity = 0.85 }
+            Child = Ornate.Panel(new Grid { Children = { sp }, VerticalAlignment = VerticalAlignment.Center }, new Thickness(18, 20, 18, 22), 16, 0),
+            VerticalAlignment = VerticalAlignment.Center
         };
         // Koleksiyondan gelinen kartın önizlemesi deste panelinin üstünde (koleksiyonu kapatmaz); deste satırından gelinense koleksiyonun sağ üstünde.
         SetColumn(_preview, overDeck ? 1 : 0);
@@ -528,7 +523,7 @@ public sealed class DeckBuilderView : Grid
         SetRow(bottom, 2);
         root.Children.Add(bottom);
 
-        var box = PanelBox(root, new Thickness(18, 16, 18, 16));
+        var box = PanelBox(root, new Thickness(28, 26, 26, 24));
         box.Margin = new Thickness(0, 4, 34, 26);
         _deckHost.Child = box;
     }

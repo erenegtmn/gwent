@@ -20,6 +20,7 @@ public partial class App : Application
             catch { }
         };
         Sfx.LoadSettings();
+        Ornate.Animate = !e.Args.Any(a => a.StartsWith("--shot") || a.StartsWith("--selftest") || a == "--perf");   // sınamalar animasyonsuz
         if (e.Args.Contains("--noassets")) Assets.Override = ""; // varlıksız (yer tutucu) modu denemek için
         // --shot <klasör>: pencere açmadan ekranları PNG'ye çizer (görsel doğrulama için)
         var t = Array.IndexOf(e.Args, "--selftest");

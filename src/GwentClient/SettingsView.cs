@@ -62,27 +62,10 @@ public sealed class SettingsView : Grid
         Background = embedded ? Brushes.Transparent : Theme.Bg;   // oyun içinde: oyun alanının üstünde yüzer
         ClipToBounds = true;
 
-        var pano = embedded ? null : Assets.Ui("pano_kaer_morhen");
-        if (pano != null) Children.Add(new System.Windows.Controls.Image { Source = pano, Stretch = Stretch.UniformToFill, IsHitTestVisible = false });
-        if (!embedded) Children.Add(new Border
-        {
-            IsHitTestVisible = false,
-            Background = new RadialGradientBrush
-            {
-                Center = new Point(0.5, 0.5), GradientOrigin = new Point(0.5, 0.5), RadiusX = 0.8, RadiusY = 0.9,
-                GradientStops = { new GradientStop(Color.FromArgb(0x30, 0, 0, 0), 0), new GradientStop(Color.FromArgb(0xc0, 0, 0, 0), 1) }
-            }
-        });
-
         var root = new StackPanel { Width = 760 };
-        var title = Ui.Text("Ayarlar", 44, Theme.B("#e8c970"), true);
-        title.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 10, ShadowDepth = 1.5, Opacity = 0.95 };
-        root.Children.Add(title);
-        root.Children.Add(new Rectangle
-        {
-            Height = 1.5, Width = 560, Margin = new Thickness(0, 8, 0, 22), HorizontalAlignment = HorizontalAlignment.Left,
-            Fill = new LinearGradientBrush(new GradientStopCollection { new GradientStop(Color.FromRgb(0xc9, 0xa2, 0x4a), 0), new GradientStop(Color.FromArgb(0, 0xc9, 0xa2, 0x4a), 1) }, 0)
-        });
+        root.Children.Add(Ornate.Heading("Ayarlar", "Ses, müzik ve görüntü"));
+        root.Children.Add(Ornate.Rule(560, 16));
+        ((FrameworkElement)root.Children[^1]).HorizontalAlignment = HorizontalAlignment.Left;
 
         root.Children.Add(VolumeRow("Ses efektleri", () => Sfx.Enabled, v => Sfx.Enabled = v, () => Settings.SfxVolume,
             v => Settings.SfxVolume = v, () => Sfx.Play("lock_in")));
@@ -101,13 +84,12 @@ public sealed class SettingsView : Grid
         backBtn.Margin = new Thickness(0, 26, 0, 0);
         root.Children.Add(backBtn);
 
-        Children.Add(new Border
-        {
-            Child = root, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-            Background = Theme.B("#e6140e08"), BorderBrush = Theme.B("#8a6e2c"), BorderThickness = new Thickness(1.5), CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(44, 34, 44, 38),
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 40, ShadowDepth = 0, Opacity = 0.85 }
-        });
+        var panel = Ornate.Panel(root, new Thickness(54, 42, 54, 46));
+        panel.HorizontalAlignment = HorizontalAlignment.Center;
+        panel.VerticalAlignment = VerticalAlignment.Center;
+        if (embedded) Children.Add(panel);
+        else Children.Add(Ornate.Stage(panel));
+        Ornate.Reveal(root.Children.Cast<UIElement>());
         KeyDown += (_, e) => { if (e.Key == Key.Escape) { Settings.Save(); _back(); } };
         Focusable = true;
         Loaded += (_, _) => Focus();

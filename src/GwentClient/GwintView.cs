@@ -1490,18 +1490,10 @@ public sealed class GwintView : Viewbox
             return;
         }
         _overlay.Background = Theme.B("#d00b0805");
-        _overlay.Children.Add(new Border
-        {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Background = Theme.B("#f01c130c"),
-            BorderBrush = Theme.GoldDim,
-            BorderThickness = new Thickness(2),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(40),
-            MaxWidth = 1500,
-            Child = content
-        });
+        var framed = Ornate.Panel(new ContentControl { Content = content, MaxWidth = 1500 }, new Thickness(54, 40, 54, 44), 22, 62);
+        framed.HorizontalAlignment = HorizontalAlignment.Center;
+        framed.VerticalAlignment = VerticalAlignment.Center;
+        _overlay.Children.Add(framed);
         _overlay.Visibility = Visibility.Visible;
     }
 
@@ -1686,8 +1678,9 @@ public sealed class GwintView : Viewbox
         var myRounds = G.History.Count(r => r.Winner == Me);
         var oppRounds = G.History.Count(r => r.Winner == Opp);
         var sub = Txt($"Raund skoru   {myRounds} – {oppRounds}", 30, Theme.B("#e8dcc4"), false, TextAlignment.Center);
-        sub.Margin = new Thickness(0, 2, 0, 20);
+        sub.Margin = new Thickness(0, 2, 0, 4);
         sp.Children.Add(sub);
+        sp.Children.Add(Ornate.Rule(560, 14));
 
         // Raund tablosu
         var table = new Grid { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 8) };

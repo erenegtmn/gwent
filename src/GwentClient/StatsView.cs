@@ -15,23 +15,10 @@ public sealed class StatsView : Grid
         ClipToBounds = true;
         var all = records ?? Stats.Load();
 
-        var pano = Assets.Ui("pano_kaer_morhen");
-        if (pano != null) Children.Add(new Image { Source = pano, Stretch = Stretch.UniformToFill, IsHitTestVisible = false });
-        Children.Add(new Border
-        {
-            IsHitTestVisible = false,
-            Background = new RadialGradientBrush
-            {
-                Center = new Point(0.5, 0.5), GradientOrigin = new Point(0.5, 0.5), RadiusX = 0.8, RadiusY = 0.9,
-                GradientStops = { new GradientStop(Color.FromArgb(0x30, 0, 0, 0), 0), new GradientStop(Color.FromArgb(0xc0, 0, 0, 0), 1) }
-            }
-        });
-
         var root = new StackPanel { Width = 820 };
-        var title = Ui.Text("İstatistikler", 44, Theme.B("#e8c970"), true);
-        title.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 10, ShadowDepth = 1.5, Opacity = 0.95 };
-        root.Children.Add(title);
-        root.Children.Add(new Border { Height = 1.5, Width = 560, Margin = new Thickness(0, 8, 0, 18), HorizontalAlignment = HorizontalAlignment.Left, Background = Theme.B("#8a6e2c") });
+        root.Children.Add(Ornate.Heading("İstatistikler", "Bu bilgisayarda oynadığın maçlar"));
+        root.Children.Add(Ornate.Rule(560, 16));
+        ((FrameworkElement)root.Children[^1]).HorizontalAlignment = HorizontalAlignment.Left;
 
         if (all.Count == 0)
             root.Children.Add(Ui.Text("Henüz biten maç yok. Bir maç oyna, sonuçlar burada görünür.", 20, Theme.TextDim, wrap: true));
@@ -76,13 +63,11 @@ public sealed class StatsView : Grid
         }
         root.Children.Add(bar);
 
-        Children.Add(new Border
-        {
-            Child = root, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-            Background = Theme.B("#e6140e08"), BorderBrush = Theme.B("#8a6e2c"), BorderThickness = new Thickness(1.5), CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(44, 34, 44, 38),
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 40, ShadowDepth = 0, Opacity = 0.85 }
-        });
+        var panel = Ornate.Panel(root, new Thickness(54, 42, 54, 46));
+        panel.HorizontalAlignment = HorizontalAlignment.Center;
+        panel.VerticalAlignment = VerticalAlignment.Center;
+        Children.Add(Ornate.Stage(panel));
+        Ornate.Reveal(root.Children.Cast<UIElement>());
         KeyDown += (_, e) => { if (e.Key == Key.Escape) onBack(); };
         Focusable = true;
         Loaded += (_, _) => Focus();
