@@ -15,3 +15,11 @@ tools/_downloads/
 # Orijinal oyundan çıkarılan görsel/ses: yayınlanmaz (tools/OKUBENI.md)
 assets/
 dist/
+
+# Yalnız yerelde: belgeler ve orijinal oyundan varlık çıkarma araçları (oyunu çalıştırmak için gerekmez)
+*.md
+__pycache__/
+tools/AssetExtractor/
+tools/build_kartlar_md.py
+tools/extract_assets.py
+tools/w3*.py
