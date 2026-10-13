@@ -91,6 +91,8 @@ public sealed class FakeClient : IGwentClient
         return _svc.SetLoadout(Session, new LoadoutDto(faction, leader, cards));
     }
 
+    public Reply SetLoadout(LoadoutDto l) => _svc.SetLoadout(Session, l);
+
     public Reply Ready(bool ready = true) => _svc.SetReady(Session, ready);
 
     /// <summary>Bağlantıyı yeni bir oturumla yeniden kurar (eski durum — oyun kopyası, sıra no — korunur).</summary>

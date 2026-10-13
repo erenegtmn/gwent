@@ -33,6 +33,12 @@ public sealed class GameSession
     /// <summary>Bu oturumdaki oyuncunun koltuğu (yerelde hep 0; online'da host 0, konuk 1).</summary>
     public int MySeat { get; }
     public int OppSeat => 1 - MySeat;
+
+    /// <summary>Ekranda gösterilen ad ve portreler: online'da kurulumdan, yerelde profilden (rakip yapay zekâ lider yüzüyle).</summary>
+    public string MyName => OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Nick0 : OnlineSetup.Nick1) : (string.IsNullOrWhiteSpace(Settings.Nick) ? "Sen" : Settings.Nick);
+    public string OppName => OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Nick1 : OnlineSetup.Nick0) : "Rakip";
+    public string MyAvatar => OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Seat0 : OnlineSetup.Seat1).Avatar ?? Portraits.Default : Settings.Portrait;
+    public string OppAvatar => (OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Seat1 : OnlineSetup.Seat0).Avatar : null) ?? Config.OppLeaderId;
     public bool IsRemote => _link != null;
     public IMatchLink? Link => _link;
     public MatchSetup? OnlineSetup { get; }

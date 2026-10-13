@@ -23,3 +23,10 @@ tools/AssetExtractor/
 tools/build_kartlar_md.py
 tools/extract_assets.py
 tools/w3*.py
+
+# Kullanıcıya özel yerel veriler (profil, istatistik, ayarlar, son maç): normalde %AppData%\Gwent içindedir, depoya asla girmesin
+settings.json
+stats.json
+last_match.json
+crash.log
+decks.json

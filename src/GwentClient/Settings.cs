@@ -10,9 +10,10 @@ public static class Settings
 {
     public static int SfxVolume { get; set; } = 60;     // 0-100
     public static int MusicVolume { get; set; } = 35;   // 0-100
-    public static bool Fullscreen { get; set; }
+    public static bool Fullscreen { get; set; } = true;   // varsayılan tam ekran
     public static Difficulty Difficulty { get; set; } = Difficulty.Normal;
     public static string Nick { get; set; } = "";
+    public static string Portrait { get; set; } = Portraits.Default;
     public static string LastAddress { get; set; } = "";
 
     private static string Path_ => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Gwent", "settings.json");
@@ -27,8 +28,10 @@ public static class Settings
             if (r.TryGetProperty("music", out var m)) Music.Enabled = m.GetBoolean();
             if (r.TryGetProperty("sfxVolume", out var sv)) SfxVolume = Math.Clamp(sv.GetInt32(), 0, 100);
             if (r.TryGetProperty("musicVolume", out var mv)) MusicVolume = Math.Clamp(mv.GetInt32(), 0, 100);
-            if (r.TryGetProperty("fullscreen", out var f)) Fullscreen = f.GetBoolean();
+            // Sürüm alanı olmayan eski ayar dosyaları bir kez tam ekrana geçer; sonrasında seçim kullanıcıya aittir
+            if (r.TryGetProperty("fullscreen", out var f) && r.TryGetProperty("settingsVersion", out _)) Fullscreen = f.GetBoolean();
             if (r.TryGetProperty("nick", out var nk)) Nick = nk.GetString() ?? "";
+            if (r.TryGetProperty("portrait", out var pt)) Portrait = Portraits.Normalize(pt.GetString());
             if (r.TryGetProperty("lastAddress", out var la)) LastAddress = la.GetString() ?? "";
             if (r.TryGetProperty("difficulty", out var d) && Enum.IsDefined(typeof(Difficulty), d.GetInt32())) Difficulty = (Difficulty)d.GetInt32();
         }
@@ -43,7 +46,7 @@ public static class Settings
             File.WriteAllText(Path_, JsonSerializer.Serialize(new
             {
                 sound = Sfx.Enabled, music = Music.Enabled, sfxVolume = SfxVolume, musicVolume = MusicVolume,
-                fullscreen = Fullscreen, difficulty = (int)Difficulty, nick = Nick, lastAddress = LastAddress
+                fullscreen = Fullscreen, settingsVersion = 2, difficulty = (int)Difficulty, nick = Nick, portrait = Portrait, lastAddress = LastAddress
             }));
         }
         catch { }

@@ -8,7 +8,7 @@ using GwentCore;
 
 namespace GwentClient;
 
-public sealed record VsSideInfo(string Name, string Faction, string LeaderId, bool Mine);
+public sealed record VsSideInfo(string Name, string Faction, string LeaderId, bool Mine, string? Avatar = null);
 
 /// <summary>
 /// Maç başlamadan önce iki oyuncunun karşı karşıya geldiği sinematik ekran (yerel ve online ortak): ekran çapraz bir kılıç darbesiyle
@@ -177,6 +177,11 @@ public sealed class VsScreen : Grid
         var tone = FactionTone(info.Faction);
         var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Width = 560 };
 
+        var portrait = Portraits.Medallion(info.Avatar ?? (info.Mine ? Settings.Portrait : info.LeaderId), 124, glow: true);
+        portrait.HorizontalAlignment = HorizontalAlignment.Center;
+        portrait.Margin = new Thickness(0, 0, 0, 6);
+        sp.Children.Add(portrait);
+
         // Oyuncu adı: büyük, aralıklı harfler; altında fraksiyon kalkanı
         var name = Ui.Text(Ornate.Spaced(info.Name.ToUpper(new System.Globalization.CultureInfo("tr-TR"))), 50, Theme.B("#f4e2a8"), true, TextAlignment.Center);
         name.FontFamily = Theme.Serif;
@@ -194,7 +199,7 @@ public sealed class VsScreen : Grid
         sp.Children.Add(row);
 
         // Lider kartı: büyük, fraksiyon renginde parlayan; hafif eğik
-        var card = new GwintCard(leader, 330, null, null, height: 330 * GwintCard.Aspect) { IsHitTestVisible = false };
+        var card = new GwintCard(leader, 300, null, null, height: 300 * GwintCard.Aspect) { IsHitTestVisible = false };
         card.Effect = new DropShadowEffect { Color = tone, BlurRadius = 60, ShadowDepth = 0, Opacity = 0.85 };
         card.HorizontalAlignment = HorizontalAlignment.Center;
         card.RenderTransformOrigin = new Point(0.5, 0.5);

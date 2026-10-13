@@ -102,6 +102,8 @@ public sealed class Room
     internal string? ValidateLoadout(LoadoutDto l)
     {
         if (!Factions.Contains(l.Faction)) return "Bilinmeyen fraksiyon.";
+        // Portre yalnızca kısa bir kimliktir (istemci gösterir); rastgele uzun/garip metin yayınlanmasın
+        if (l.Avatar != null && (l.Avatar.Length > 64 || !l.Avatar.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-'))) return "Geçersiz portre.";
         var opts = new GameOptions { NextGen = NextGen };
         var leader = CardCatalog.Default.Leaders(l.Faction).FirstOrDefault(x => x.Id == l.LeaderId && (x.Edition != "nextgen" || NextGen));
         if (leader == null) return "Bu lider bu fraksiyonda yok ya da yeni nesil kapalı.";

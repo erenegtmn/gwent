@@ -61,7 +61,7 @@ public sealed class LobbyView : Grid
             var saved = DeckStore.For(_faction).FirstOrDefault(d => d.Name == _deckName);
             if (saved != null) { cards = saved.CardIds.ToList(); leader = saved.LeaderId; }
         }
-        var r = await _c.Link.SetLoadoutAsync(new LoadoutDto(_faction, leader, cards));
+        var r = await _c.Link.SetLoadoutAsync(new LoadoutDto(_faction, leader, cards, Settings.Portrait));
         _error = r.Ok ? "" : r.Error ?? "Seçim gönderilemedi.";
         Rebuild();
     }
@@ -284,18 +284,23 @@ public sealed class LobbyView : Grid
     private static string BannerFor(string faction) => Assets.Ui("banner_" + faction) != null ? "banner_" + faction : "banner_neutral";
 
     /// <summary>Koltuk başlığı: küçük etiket + büyük takma ad + sağda mühür.</summary>
-    private static UIElement SeatHeader(string label, string nick, UIElement seal)
+    private static UIElement SeatHeader(string label, string nick, UIElement seal, string? avatar)
     {
         var g = new Grid();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var sp = new StackPanel();
+        var medal = Portraits.Medallion(avatar, 86, glow: true);
+        medal.Margin = new Thickness(0, 0, 14, 0);
+        g.Children.Add(medal);
+        var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(sp, 1);
         sp.Children.Add(Ui.Text(Ornate.Spaced(label), 13, Theme.B("#a8905a"), true));
         var n = Ui.Text(nick, 36, Theme.B("#f0d890"), true);
         n.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 2, Opacity = 0.9 };
         sp.Children.Add(n);
         g.Children.Add(sp);
-        Grid.SetColumn(seal, 1);
+        Grid.SetColumn(seal, 2);
         g.Children.Add(seal);
         return g;
     }
@@ -306,7 +311,7 @@ public sealed class LobbyView : Grid
         var stamp = meReady && !_meReadyShown;
         _meReadyShown = meReady;
         var root = new StackPanel();
-        root.Children.Add(SeatHeader("SEN", Me?.Nick ?? "", Seal(meReady, stamp)));
+        root.Children.Add(SeatHeader("SEN", Me?.Nick ?? "", Seal(meReady, stamp), Settings.Portrait));
         var rule = Ornate.Rule(560, 10);
         rule.HorizontalAlignment = HorizontalAlignment.Left;
         root.Children.Add(rule);
@@ -429,7 +434,7 @@ public sealed class LobbyView : Grid
         var stamp = oppReady && !_oppReadyShown;
         _oppReadyShown = oppReady;
         var sp = new StackPanel();
-        sp.Children.Add(SeatHeader("RAKİP", Opp?.Nick ?? "—", Seal(oppReady, stamp)));
+        sp.Children.Add(SeatHeader("RAKİP", Opp?.Nick ?? "—", Seal(oppReady, stamp), Opp?.Loadout?.Avatar ?? Opp?.Loadout?.LeaderId));
         sp.Children.Add(Ornate.Rule(430, 10));
         if (Opp == null)
         {

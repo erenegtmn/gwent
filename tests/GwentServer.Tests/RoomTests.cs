@@ -342,4 +342,22 @@ public class RoomTests
         Assert.StartsWith($"p{ProtocolInfo.Number}-", ProtocolInfo.Version);
         Assert.Equal(ProtocolInfo.Version, ProtocolInfo.Version);
     }
+
+    [Fact]
+    public void Avatar_id_is_relayed_to_the_opponent_but_must_be_a_short_plain_id()
+    {
+        var svc = new RoomService();
+        var host = new FakeClient(svc, "Geralt");
+        var guest = new FakeClient(svc, "Yennefer");
+        var code = host.Create().Value!;
+        guest.Join(code);
+
+        Assert.True(host.SetLoadout(new LoadoutDto("northern_realms", "foltest_the_siegemaster", null, "avatar_geralt")).Ok);
+        FakeClient.Pump(host, guest);
+        Assert.Equal("avatar_geralt", guest.State!.Players.First(p => p.Seat == 0).Loadout!.Avatar);
+
+        Assert.False(host.SetLoadout(new LoadoutDto("northern_realms", "foltest_the_siegemaster", null, "<b>../../x</b>")).Ok);
+        Assert.False(host.SetLoadout(new LoadoutDto("northern_realms", "foltest_the_siegemaster", null, new string('a', 65))).Ok);
+        Assert.True(host.SetLoadout(new LoadoutDto("northern_realms", "foltest_the_siegemaster")).Ok); // portresiz de olur
+    }
 }

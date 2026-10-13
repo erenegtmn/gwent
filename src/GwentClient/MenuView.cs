@@ -122,6 +122,7 @@ public sealed class MenuView : Grid
         Grid.SetColumn(strip, 2);
         layout.Children.Add(strip);
         Children.Add(layout);
+        if (_openStats != null) Children.Add(ProfileChip());
 
         BuildDecks();
         BuildLeaders();
@@ -139,6 +140,28 @@ public sealed class MenuView : Grid
             Slide(stage, 0, 30, 900, 800);
             Slide(strip, 40, 0, 900, 1000);
         }
+    }
+
+    /// <summary>Sol üst köşede portre + takma ad: tıklayınca profil açılır.</summary>
+    private UIElement ProfileChip()
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(Portraits.Medallion(Settings.Portrait, 78, glow: true));
+        var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+        var nick = Ui.Text(string.IsNullOrWhiteSpace(Settings.Nick) ? "Oyuncu" : Settings.Nick, 24, Theme.B("#f0d890"), true);
+        nick.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 2, Opacity = 0.95 };
+        texts.Children.Add(nick);
+        texts.Children.Add(Ui.Text("Profil", 14, Theme.TextDim));
+        row.Children.Add(texts);
+        var host = new Border
+        {
+            Child = row, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(36, 28, 0, 0),
+            Padding = new Thickness(4, 2, 18, 2), Background = Brushes.Transparent, Cursor = Cursors.Hand, Tag = "profile-chip", Opacity = 0.9
+        };
+        host.MouseEnter += (_, _) => host.Opacity = 1;
+        host.MouseLeave += (_, _) => host.Opacity = 0.9;
+        host.MouseLeftButtonUp += (_, e) => { e.Handled = true; Sfx.Play("lock_in"); _openStats!(); };
+        return host;
     }
 
     // ---------- Sol: logo ve yazı menüsü ----------
@@ -175,7 +198,7 @@ public sealed class MenuView : Grid
         list.Children.Add(MenuItem("Oyna", ToggleSetup));
         if (_openOnline != null) list.Children.Add(MenuItem("Online", () => _openOnline()));
         list.Children.Add(MenuItem("Deste Kurucu", () => _openBuilder(_myFaction, NextGen)));
-        if (_openStats != null) list.Children.Add(MenuItem("İstatistikler", () => _openStats()));
+        if (_openStats != null) list.Children.Add(MenuItem("Profil", () => _openStats()));
         list.Children.Add(MenuItem("Ayarlar", () => _openSettings?.Invoke()));
         list.Children.Add(MenuItem("Çıkış", () => Application.Current.Shutdown()));
         left.Children.Add(list);
@@ -671,7 +694,7 @@ public sealed class MenuView : Grid
     {
         if (_starting) return;
         _starting = true;
-        Children.Add(new VsScreen(new VsSideInfo("Sen", cfg.MyFaction, cfg.MyLeaderId, true), new VsSideInfo("Rakip", cfg.OppFaction, cfg.OppLeaderId, false),
+        Children.Add(new VsScreen(new VsSideInfo(string.IsNullOrWhiteSpace(Settings.Nick) ? "Sen" : Settings.Nick, cfg.MyFaction, cfg.MyLeaderId, true, Settings.Portrait), new VsSideInfo("Rakip", cfg.OppFaction, cfg.OppLeaderId, false, cfg.OppLeaderId),
             () => { if (_animate) _start(cfg); }, _animate));
     }
 }

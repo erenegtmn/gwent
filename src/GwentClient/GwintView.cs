@@ -583,20 +583,12 @@ public sealed class GwintView : Viewbox
         var shield = Pic("shield_" + ps.Faction, 58, 58);
         if (shield.Source != null) { Panel.SetZIndex(shield, 10); Put(_board, shield, 108, baseY + 4); }
 
-        // Avatar
-        var avatar = new Grid { Width = 116, Height = 116, IsHitTestVisible = false };
-        var inner = Assets.Ui(p == Me ? "avatar_geralt" : "avatar_silhouette");
-        if (inner != null)
-            avatar.Children.Add(new Image { Source = inner, Width = 84, Height = 84, Stretch = Stretch.UniformToFill, Clip = new EllipseGeometry(new Point(42, 42), 42, 42) });
-        else
-            avatar.Children.Add(new Ellipse { Width = 84, Height = 84, Fill = Theme.B("#c98a3a") });
-        var ring = Pic("ring", 116, 116);
-        if (ring.Source != null) avatar.Children.Add(ring);
+        // Avatar (profil portresi; rakip yapay zekâysa lider yüzü)
         var turn = G.Phase == Phase.Playing && G.Pending == null && G.Current == p && !ps.Passed;
-        if (turn) avatar.Effect = new DropShadowEffect { Color = Color.FromRgb(255, 215, 110), BlurRadius = 22, ShadowDepth = 0, Opacity = 1 };
+        var avatar = Portraits.Medallion(p == Me ? _s.MyAvatar : _s.OppAvatar, 116, glow: turn);
         Put(_board, avatar, 120, baseY + 10);
 
-        Put(_board, Txt(p == Me ? "Sen" : "Rakip", 26, Theme.B("#e8c970"), true), 252, baseY + 6);
+        Put(_board, Txt(p == Me ? _s.MyName : _s.OppName, 26, Theme.B("#e8c970"), true, TextAlignment.Left, 190), 252, baseY + 6);
         Put(_board, Txt(Texts.FactionShort(ps.Faction), 18, Theme.B("#c9c0aa")), 252, baseY + 40);
 
         // El sayısı + mücevherler

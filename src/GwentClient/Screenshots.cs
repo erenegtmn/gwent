@@ -19,7 +19,7 @@ public static class Screenshots
         var rec = DeckValidator.RecommendedDeck("northern_realms");
         DeckStore.Save(new SavedDeck("Hızlı Saldırı", rec.Faction, rec.LeaderId, rec.CardIds.ToList()));
         DeckStore.Save(new SavedDeck("Yarım deste", "northern_realms", rec.LeaderId, rec.CardIds.Take(8).ToList()));
-        Save(new MenuView(_ => { }, (_, _) => { }, animate: false), "menu.png");
+        Save(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }), "menu.png");
         var setupMenu = new MenuView(_ => { }, (_, _) => { }, animate: false);
         typeof(MenuView).GetMethod("ToggleSetup", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(setupMenu, null);
         Save(setupMenu, "menu_setup.png");
@@ -147,8 +147,8 @@ public static class Screenshots
                 new(d.AddDays(-1), true, "Yennefer", "northern_realms", "skellige", 1),
                 new(d, false, "Yapay zekâ (Zor)", "monsters", "nilfgaard", 0),
             };
-            Save(new StatsView(() => { }, statRecs), "stats.png");
-            Save(new StatsView(() => { }, new List<MatchRecord>()), "stats_empty.png");
+            Save(new ProfileView(() => { }, statRecs, persist: false), "stats.png");
+            Save(new ProfileView(() => { }, new List<MatchRecord>(), persist: false), "stats_empty.png");
         }
         // Online: giriş ekranı, bekleme odası (iki oyuncu), oyun içi onay ve rakip koptu çubuğu
         Save(new OnlineMenuView(() => { }, _ => { }), "online_menu.png");

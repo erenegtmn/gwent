@@ -19,6 +19,7 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) => { var c = _online; _online = null; if (c != null) _ = c.DisposeAsync(); };
         ShowMenu();
+        Music.Start();   // müzik uygulama açılır açılmaz başlar (yalnız maçta değil)
     }
 
     private string? _lastFaction;
@@ -26,7 +27,7 @@ public partial class MainWindow : Window
 
     private void ShowMenu() => Host.Content = new MenuView(StartGame, ShowBuilder, _lastFaction, _lastNextGen, openSettings: ShowSettings, openStats: ShowStats, openOnline: ShowOnlineMenu);
 
-    private void ShowStats() => Host.Content = new StatsView(ShowMenu);
+    private void ShowStats() => Host.Content = new ProfileView(ShowMenu);
 
     private void ShowSettings() => Host.Content = new SettingsView(ShowMenu);
 
@@ -92,8 +93,8 @@ public partial class MainWindow : Window
         _pendingNotices.Clear();
         Music.Start();
         Host.Content = new VsScreen(
-            new VsSideInfo(Nick(me), mine.Faction, mine.LeaderId, true),
-            new VsSideInfo(Nick(1 - me), theirs.Faction, theirs.LeaderId, false),
+            new VsSideInfo(Nick(me), mine.Faction, mine.LeaderId, true, mine.Avatar),
+            new VsSideInfo(Nick(1 - me), theirs.Faction, theirs.LeaderId, false, theirs.Avatar ?? theirs.LeaderId),
             () => ShowOnlineGame(session), animate: true);
     }
 
