@@ -1,0 +1,17 @@
+bin/
+obj/
+.vs/
+*.user
+# Orijinal oyundan çıkarılan görsel/ses dosyaları depoya girmez
+assets/extracted/
+assets/sfx/
+*.db
+*.db-shm
+*.db-wal
+
+# Indirilen araçlar
+tools/_downloads/
+
+# Orijinal oyundan çıkarılan görsel/ses: yayınlanmaz (tools/OKUBENI.md)
+assets/
+dist/

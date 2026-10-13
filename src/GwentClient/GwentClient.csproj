@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>Gwent</AssemblyName>
+    <RootNamespace>GwentClient</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GwentCore\GwentCore.csproj" />
+    <ProjectReference Include="..\GwentAI\GwentAI.csproj" />
+    <ProjectReference Include="..\GwentNet\GwentNet.csproj" />
+    <ProjectReference Include="..\GwentServer\GwentServer.csproj" />
+    <ProjectReference Include="..\GwentHost\GwentHost.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,2310 @@
+[
+ {
+  "id": "avallach",
+  "name": "Avallac'h",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 0,
+  "hero": true,
+  "abilities": [
+   "spy"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "decoy",
+  "name": "Decoy",
+  "faction": "neutral",
+  "type": "special",
+  "edition": "base",
+  "abilities": [
+   "decoy"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "biting_frost",
+  "name": "Biting Frost",
+  "faction": "neutral",
+  "type": "weather",
+  "edition": "base",
+  "abilities": [
+   "frost"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "cirilla_fiona_elen_riannon",
+  "name": "Cirilla Fiona Elen Riannon",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 15,
+  "hero": true,
+  "abilities": [],
+  "musterGroup": "Roach",
+  "copies": 1,
+  "nextgenAbilities": [
+   "muster"
+  ]
+ },
+ {
+  "id": "clear_weather",
+  "name": "Clear Weather",
+  "faction": "neutral",
+  "type": "weather",
+  "edition": "base",
+  "abilities": [
+   "clear"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "commanders_horn",
+  "name": "Commander's Horn",
+  "faction": "neutral",
+  "type": "special",
+  "edition": "base",
+  "abilities": [
+   "horn"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "dandelion",
+  "name": "Dandelion",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 2,
+  "hero": false,
+  "abilities": [
+   "horn"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "emiel_regis_rohellec_terzieff",
+  "name": "Emiel Regis Rohellec Terzieff",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "geralt_of_rivia",
+  "name": "Geralt of Rivia",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 15,
+  "hero": true,
+  "abilities": [],
+  "musterGroup": "Roach",
+  "copies": 1,
+  "nextgenAbilities": [
+   "muster"
+  ]
+ },
+ {
+  "id": "impenetrable_fog",
+  "name": "Impenetrable Fog",
+  "faction": "neutral",
+  "type": "weather",
+  "edition": "base",
+  "abilities": [
+   "fog"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "scorch",
+  "name": "Scorch",
+  "faction": "neutral",
+  "type": "special",
+  "edition": "base",
+  "abilities": [
+   "scorch"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "torrential_rain",
+  "name": "Torrential Rain",
+  "faction": "neutral",
+  "type": "weather",
+  "edition": "base",
+  "abilities": [
+   "rain"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "triss_merigold",
+  "name": "Triss Merigold",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 7,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "vesemir",
+  "name": "Vesemir",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "villentretenmerth",
+  "name": "Villentretenmerth",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 7,
+  "hero": false,
+  "abilities": [
+   "scorch_c"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "yennefer_of_vengerberg",
+  "name": "Yennefer of Vengerberg",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 7,
+  "hero": true,
+  "abilities": [
+   "medic"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "zoltan_chivay",
+  "name": "Zoltan Chivay",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "olgierd_von_everec",
+  "name": "Olgierd von Everec",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "hos",
+  "row": "agile",
+  "strength": 6,
+  "hero": false,
+  "abilities": [
+   "morale"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "gaunter_odimm",
+  "name": "Gaunter O'Dimm",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "hos",
+  "row": "siege",
+  "strength": 2,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Gaunter O'Dimm",
+  "copies": 1
+ },
+ {
+  "id": "gaunter_odimm_darkness",
+  "name": "Gaunter O'Dimm: Darkness",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "hos",
+  "row": "ranged",
+  "strength": 4,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Gaunter O'Dimm",
+  "copies": 3
+ },
+ {
+  "id": "cow",
+  "name": "Cow",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "hos",
+  "row": "ranged",
+  "strength": 0,
+  "hero": false,
+  "abilities": [
+   "avenger"
+  ],
+  "copies": 1,
+  "summons": "bovine_defense_force"
+ },
+ {
+  "id": "bovine_defense_force",
+  "name": "Bovine Defense Force",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "hos",
+  "row": "close",
+  "strength": 8,
+  "hero": false,
+  "abilities": [],
+  "token": true,
+  "copies": 0
+ },
+ {
+  "id": "foltest_king_of_temeria",
+  "name": "Foltest: King of Temeria",
+  "faction": "northern_realms",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Pick an Impenetrable Fog card from your deck and play it instantly."
+ },
+ {
+  "id": "foltest_lord_commander_of_the_north",
+  "name": "Foltest: Lord Commander of the North",
+  "faction": "northern_realms",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Clear any weather effects in play."
+ },
+ {
+  "id": "foltest_the_siegemaster",
+  "name": "Foltest: The Siegemaster",
+  "faction": "northern_realms",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Doubles the strength of all your Siege units (unless a Commander's Horn is on that row)."
+ },
+ {
+  "id": "foltest_the_steel_forged",
+  "name": "Foltest: The Steel-Forged",
+  "faction": "northern_realms",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Destroy your enemy's strongest Siege unit(s) if the combined strength of his or her Siege units is 10 or more."
+ },
+ {
+  "id": "foltest_son_of_medell",
+  "name": "Foltest: Son of Medell",
+  "faction": "northern_realms",
+  "type": "leader",
+  "edition": "hos",
+  "copies": 1,
+  "effect": "Destroy your enemy's strongest Ranged unit(s) if the combined strength of his or her Ranged units is 10 or more."
+ },
+ {
+  "id": "ballista",
+  "name": "Ballista",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 2
+ },
+ {
+  "id": "blue_stripes_commando",
+  "name": "Blue Stripes Commando",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [
+   "bond"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "catapult",
+  "name": "Catapult",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 8,
+  "hero": false,
+  "abilities": [
+   "bond"
+  ],
+  "copies": 2
+ },
+ {
+  "id": "crinfrid_reavers_dragon_hunter",
+  "name": "Crinfrid Reavers Dragon Hunter",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 5,
+  "hero": false,
+  "abilities": [
+   "bond"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "dethmold",
+  "name": "Dethmold",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "dun_banner_medic",
+  "name": "Dun Banner Medic",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 5,
+  "hero": false,
+  "abilities": [
+   "medic"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "esterad_thyssen",
+  "name": "Esterad Thyssen",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "john_natalis",
+  "name": "John Natalis",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "kaedweni_siege_expert",
+  "name": "Kaedweni Siege Expert",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 1,
+  "hero": false,
+  "abilities": [
+   "morale"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "keira_metz",
+  "name": "Keira Metz",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "philippa_eilhart",
+  "name": "Philippa Eilhart",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "poor_fucking_infantry",
+  "name": "Poor Fucking Infantry",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 1,
+  "hero": false,
+  "abilities": [
+   "bond"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "prince_stennis",
+  "name": "Prince Stennis",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [
+   "spy"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "redanian_foot_soldier",
+  "name": "Redanian Foot Soldier",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 1,
+  "hero": false,
+  "abilities": [],
+  "copies": 2
+ },
+ {
+  "id": "sheldon_skaggs",
+  "name": "Sheldon Skaggs",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "siege_tower",
+  "name": "Siege Tower",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "siegfried_of_denesle",
+  "name": "Siegfried of Denesle",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "sigismund_dijkstra",
+  "name": "Sigismund Dijkstra",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [
+   "spy"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "sile_de_tansarville",
+  "name": "Síle de Tansarville",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "thaler",
+  "name": "Thaler",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 1,
+  "hero": false,
+  "abilities": [
+   "spy"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "sabrina_glevissig",
+  "name": "Sabrina Glevissig",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "vernon_roche",
+  "name": "Vernon Roche",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "ves",
+  "name": "Ves",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "yarpen_zigrin",
+  "name": "Yarpen Zigrin",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 2,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "trebuchet",
+  "name": "Trebuchet",
+  "faction": "northern_realms",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 2
+ },
+ {
+  "id": "emhyr_var_emreis_his_imperial_majesty",
+  "name": "Emhyr var Emreis: His Imperial Majesty",
+  "faction": "nilfgaard",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Pick a Torrential Rain card from your deck and play it instantly."
+ },
+ {
+  "id": "emhyr_var_emreis_emperor_of_nilfgaard",
+  "name": "Emhyr var Emreis: Emperor of Nilfgaard",
+  "faction": "nilfgaard",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Look at 3 random cards from your opponent's hand."
+ },
+ {
+  "id": "emhyr_var_emreis_the_white_flame",
+  "name": "Emhyr var Emreis: The White Flame",
+  "faction": "nilfgaard",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Cancel your opponent's Leader Ability."
+ },
+ {
+  "id": "emhyr_var_emreis_the_relentless",
+  "name": "Emhyr var Emreis: The Relentless",
+  "faction": "nilfgaard",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Draw a card from your opponent's discard pile."
+ },
+ {
+  "id": "emhyr_var_emreis_invader_of_the_north",
+  "name": "Emhyr var Emreis: Invader of the North",
+  "faction": "nilfgaard",
+  "type": "leader",
+  "edition": "hos",
+  "copies": 1,
+  "effect": "Abilities that restore a unit to the battlefield restore a randomly-chosen unit (both players)."
+ },
+ {
+  "id": "albrich",
+  "name": "Albrich",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 2,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "assire_var_anahid",
+  "name": "Assire var Anahid",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "black_infantry_archer",
+  "name": "Black Infantry Archer",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 10,
+  "hero": false,
+  "abilities": [],
+  "copies": 2
+ },
+ {
+  "id": "cahir_mawr_dyffryn_aep_ceallach",
+  "name": "Cahir Mawr Dyffryn aep Ceallach",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "cynthia",
+  "name": "Cynthia",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "etolian_auxiliary_archers",
+  "name": "Etolian Auxiliary Archers",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 1,
+  "hero": false,
+  "abilities": [
+   "medic"
+  ],
+  "copies": 2
+ },
+ {
+  "id": "fringilla_vigo",
+  "name": "Fringilla Vigo",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "heavy_zerrikanian_fire_scorpion",
+  "name": "Heavy Zerrikanian Fire Scorpion",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 10,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "impera_brigade_guard",
+  "name": "Impera Brigade Guard",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 3,
+  "hero": false,
+  "abilities": [
+   "bond"
+  ],
+  "copies": 4
+ },
+ {
+  "id": "letho_of_gulet",
+  "name": "Letho of Gulet",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "menno_coehoorn",
+  "name": "Menno Coehoorn",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 10,
+  "hero": true,
+  "abilities": [
+   "medic"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "morteisen",
+  "name": "Morteisen",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 3,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "morvran_voorhis",
+  "name": "Morvran Voorhis",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "nausicaa_cavalry_rider",
+  "name": "Nausicaa Cavalry Rider",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 2,
+  "hero": false,
+  "abilities": [
+   "bond"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "puttkammer",
+  "name": "Puttkammer",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 3,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "rainfarn",
+  "name": "Rainfarn",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "renuald_aep_matsen",
+  "name": "Renuald aep Matsen",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "rotten_mangonel",
+  "name": "Rotten Mangonel",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 3,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "shilard_fitz_oesterlen",
+  "name": "Shilard Fitz-Oesterlen",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 7,
+  "hero": false,
+  "abilities": [
+   "spy"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "siege_engineer",
+  "name": "Siege Engineer",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "siege_technician",
+  "name": "Siege Technician",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 0,
+  "hero": false,
+  "abilities": [
+   "medic"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "stefan_skellen",
+  "name": "Stefan Skellen",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 9,
+  "hero": false,
+  "abilities": [
+   "spy"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "sweers",
+  "name": "Sweers",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 2,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "tibor_eggebracht",
+  "name": "Tibor Eggebracht",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "vanhemar",
+  "name": "Vanhemar",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "vattier_de_rideaux",
+  "name": "Vattier de Rideaux",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [
+   "spy"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "vreemde",
+  "name": "Vreemde",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 2,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "young_emissary",
+  "name": "Young Emissary",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [
+   "bond"
+  ],
+  "copies": 2
+ },
+ {
+  "id": "zerrikanian_fire_scorpion",
+  "name": "Zerrikanian Fire Scorpion",
+  "faction": "nilfgaard",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "eredin_commander_of_the_red_riders",
+  "name": "Eredin: Commander of the Red Riders",
+  "faction": "monsters",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Double the strength of all your Close Combat units (unless a Commander's Horn is on that row)."
+ },
+ {
+  "id": "eredin_bringer_of_death",
+  "name": "Eredin: Bringer of Death",
+  "faction": "monsters",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Restore a card from your discard pile to your hand."
+ },
+ {
+  "id": "eredin_destroyer_of_worlds",
+  "name": "Eredin: Destroyer of Worlds",
+  "faction": "monsters",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Discard 2 cards and draw 1 card of your choice from your deck."
+ },
+ {
+  "id": "eredin_king_of_the_wild_hunt",
+  "name": "Eredin: King of the Wild Hunt",
+  "faction": "monsters",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Pick any weather card from your deck and play it instantly."
+ },
+ {
+  "id": "eredin_breacc_glas_the_treacherous",
+  "name": "Eredin Bréacc Glas - The Treacherous",
+  "faction": "monsters",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Doubles the strength of all spy cards (both players)."
+ },
+ {
+  "id": "arachas",
+  "name": "Arachas",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Arachas",
+  "copies": 3
+ },
+ {
+  "id": "arachas_behemoth",
+  "name": "Arachas Behemoth",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 6,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Arachas",
+  "copies": 1
+ },
+ {
+  "id": "botchling",
+  "name": "Botchling",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "celaeno_harpy",
+  "name": "Celaeno Harpy",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "agile",
+  "strength": 2,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "cockatrice",
+  "name": "Cockatrice",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 2,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "crone_brewess",
+  "name": "Crone Brewess",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 6,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Crone",
+  "copies": 1
+ },
+ {
+  "id": "crone_weavess",
+  "name": "Crone Weavess",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 6,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Crone",
+  "copies": 1
+ },
+ {
+  "id": "crone_whispess",
+  "name": "Crone Whispess",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 6,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Crone",
+  "copies": 1
+ },
+ {
+  "id": "draug",
+  "name": "Draug",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "earth_elemental",
+  "name": "Earth Elemental",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "endrega",
+  "name": "Endrega",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 2,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "fiend",
+  "name": "Fiend",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "fire_elemental",
+  "name": "Fire Elemental",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "foglet",
+  "name": "Foglet",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 2,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "forktail",
+  "name": "Forktail",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "frightener",
+  "name": "Frightener",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "gargoyle",
+  "name": "Gargoyle",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 2,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "ghoul",
+  "name": "Ghoul",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 1,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Ghoul",
+  "copies": 3
+ },
+ {
+  "id": "grave_hag",
+  "name": "Grave Hag",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "griffin",
+  "name": "Griffin",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "harpy",
+  "name": "Harpy",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "agile",
+  "strength": 2,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "ice_giant",
+  "name": "Ice Giant",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "siege",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "imlerith",
+  "name": "Imlerith",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "kayran",
+  "name": "Kayran",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "agile",
+  "strength": 8,
+  "hero": true,
+  "abilities": [
+   "morale"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "leshen",
+  "name": "Leshen",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "nekker",
+  "name": "Nekker",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 2,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Nekker",
+  "copies": 3
+ },
+ {
+  "id": "plague_maiden",
+  "name": "Plague Maiden",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "vampire_bruxa",
+  "name": "Vampire Bruxa",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Vampire",
+  "copies": 1
+ },
+ {
+  "id": "vampire_ekimmara",
+  "name": "Vampire Ekimmara",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Vampire",
+  "copies": 1
+ },
+ {
+  "id": "vampire_fleder",
+  "name": "Vampire Fleder",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Vampire",
+  "copies": 1
+ },
+ {
+  "id": "vampire_garkain",
+  "name": "Vampire Garkain",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Vampire",
+  "copies": 1
+ },
+ {
+  "id": "vampire_katakan",
+  "name": "Vampire Katakan",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Vampire",
+  "copies": 1
+ },
+ {
+  "id": "werewolf",
+  "name": "Werewolf",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "wyvern",
+  "name": "Wyvern",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 2,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "toad",
+  "name": "Toad",
+  "faction": "monsters",
+  "type": "unit",
+  "edition": "hos",
+  "row": "ranged",
+  "strength": 7,
+  "hero": false,
+  "abilities": [
+   "scorch_r"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "francesca_findabair_queen_of_dol_blathanna",
+  "name": "Francesca Findabair: Queen of Dol Blathanna",
+  "faction": "scoiatael",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Destroy your enemy's strongest Close Combat unit(s) if the combined strength of his or her Close Combat units is 10 or more."
+ },
+ {
+  "id": "francesca_findabair_the_beautiful",
+  "name": "Francesca Findabair: The Beautiful",
+  "faction": "scoiatael",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Doubles the strength of all your Ranged units (unless a Commander's Horn is on that row)."
+ },
+ {
+  "id": "francesca_findabair_daisy_of_the_valley",
+  "name": "Francesca Findabair: Daisy of the Valley",
+  "faction": "scoiatael",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Draw an extra card at the beginning of the battle."
+ },
+ {
+  "id": "francesca_findabair_pureblood_elf",
+  "name": "Francesca Findabair: Pureblood Elf",
+  "faction": "scoiatael",
+  "type": "leader",
+  "edition": "base",
+  "copies": 1,
+  "effect": "Pick a Biting Frost card from your deck and play it instantly."
+ },
+ {
+  "id": "francesca_findabair_hope_of_the_aen_seidhe",
+  "name": "Francesca Findabair: Hope of the Aen Seidhe",
+  "faction": "scoiatael",
+  "type": "leader",
+  "edition": "hos",
+  "copies": 1,
+  "effect": "Move agile units to whichever valid row maximizes their strength."
+ },
+ {
+  "id": "ciaran_aep_easnillien",
+  "name": "Ciaran aep Easnillien",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "agile",
+  "strength": 3,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "barclay_els",
+  "name": "Barclay Els",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "agile",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "dennis_cranmer",
+  "name": "Dennis Cranmer",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "dol_blathanna_archer",
+  "name": "Dol Blathanna Archer",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "dol_blathanna_scout",
+  "name": "Dol Blathanna Scout",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "agile",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 3
+ },
+ {
+  "id": "dwarven_skirmisher",
+  "name": "Dwarven Skirmisher",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 3,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Dwarven Skirmisher",
+  "copies": 3
+ },
+ {
+  "id": "eithne",
+  "name": "Eithné",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "elven_skirmisher",
+  "name": "Elven Skirmisher",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 2,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Elven Skirmisher",
+  "copies": 3
+ },
+ {
+  "id": "filavandrel_aen_fidhail",
+  "name": "Filavandrel aen Fidhail",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "agile",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "havekar_healer",
+  "name": "Havekar Healer",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 0,
+  "hero": false,
+  "abilities": [
+   "medic"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "havekar_smuggler",
+  "name": "Havekar Smuggler",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Havekar Smuggler",
+  "copies": 3
+ },
+ {
+  "id": "ida_emean_aep_sivney",
+  "name": "Ida Emean aep Sivney",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "iorveth",
+  "name": "Iorveth",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "isengrim_faoiltiarna",
+  "name": "Isengrim Faoiltiarna",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 10,
+  "hero": true,
+  "abilities": [
+   "morale"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "mahakaman_defender",
+  "name": "Mahakaman Defender",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "close",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 5
+ },
+ {
+  "id": "milva",
+  "name": "Milva",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 10,
+  "hero": false,
+  "abilities": [
+   "morale"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "riordain",
+  "name": "Riordain",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 1,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "saesenthessis",
+  "name": "Saesenthessis",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "toruviel",
+  "name": "Toruviel",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 2,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "vrihedd_brigade_recruit",
+  "name": "Vrihedd Brigade Recruit",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "ranged",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "vrihedd_brigade_veteran",
+  "name": "Vrihedd Brigade Veteran",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "agile",
+  "strength": 5,
+  "hero": false,
+  "abilities": [],
+  "copies": 2
+ },
+ {
+  "id": "yaevinn",
+  "name": "Yaevinn",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "base",
+  "row": "agile",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "berserker",
+  "name": "Berserker",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [
+   "berserker"
+  ],
+  "copies": 1,
+  "transformsInto": "transformed_vildkaarl"
+ },
+ {
+  "id": "birna_bran",
+  "name": "Birna Bran",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 2,
+  "hero": false,
+  "abilities": [
+   "medic"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "blueboy_lugos",
+  "name": "Blueboy Lugos",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "cerys",
+  "name": "Cerys",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 10,
+  "hero": true,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Cerys",
+  "copies": 1
+ },
+ {
+  "id": "clan_brokvar_archer",
+  "name": "Clan Brokvar Archer",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "ranged",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 2
+ },
+ {
+  "id": "clan_dimun_pirate",
+  "name": "Clan Dimun Pirate",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "ranged",
+  "strength": 6,
+  "hero": false,
+  "abilities": [
+   "scorch"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "clan_drummond_shield_maiden",
+  "name": "Clan Drummond Shield Maiden",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [
+   "bond"
+  ],
+  "musterGroup": "Cerys",
+  "copies": 3
+ },
+ {
+  "id": "clan_heymaey_skald",
+  "name": "Clan Heymaey Skald",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "clan_tordarroch_armorsmith",
+  "name": "Clan Tordarroch Armorsmith",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "clan_an_craite_warrior",
+  "name": "Clan an Craite Warrior",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 6,
+  "hero": false,
+  "abilities": [
+   "bond"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "donar_an_hindar",
+  "name": "Donar an Hindar",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "draig_bon_dhu",
+  "name": "Draig Bon-Dhu",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "siege",
+  "strength": 2,
+  "hero": false,
+  "abilities": [
+   "horn"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "ermion",
+  "name": "Ermion",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "ranged",
+  "strength": 8,
+  "hero": true,
+  "abilities": [
+   "mardroeme"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "hemdall",
+  "name": "Hemdall",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 11,
+  "hero": true,
+  "abilities": [],
+  "token": true,
+  "copies": 0
+ },
+ {
+  "id": "hjalmar",
+  "name": "Hjalmar",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "ranged",
+  "strength": 10,
+  "hero": true,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "holger_blackhand",
+  "name": "Holger Blackhand",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "siege",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "kambi",
+  "name": "Kambi",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 0,
+  "hero": false,
+  "abilities": [
+   "avenger"
+  ],
+  "copies": 1,
+  "summons": "hemdall"
+ },
+ {
+  "id": "light_longship",
+  "name": "Light Longship",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "ranged",
+  "strength": 4,
+  "hero": false,
+  "abilities": [
+   "muster"
+  ],
+  "musterGroup": "Light Longship",
+  "copies": 3
+ },
+ {
+  "id": "madman_lugos",
+  "name": "Madman Lugos",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 6,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "mardroeme",
+  "name": "Mardroeme",
+  "faction": "skellige",
+  "type": "special",
+  "edition": "bw",
+  "abilities": [
+   "mardroeme"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "olaf",
+  "name": "Olaf",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "agile",
+  "strength": 12,
+  "hero": false,
+  "abilities": [
+   "morale"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "skellige_storm",
+  "name": "Skellige Storm",
+  "faction": "neutral",
+  "type": "weather",
+  "edition": "bw",
+  "abilities": [
+   "storm"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "svanrige",
+  "name": "Svanrige",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "transformed_vildkaarl",
+  "name": "Transformed Vildkaarl",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 14,
+  "hero": false,
+  "abilities": [
+   "vildkarrl",
+   "morale"
+  ],
+  "token": true,
+  "copies": 0
+ },
+ {
+  "id": "transformed_young_vildkaarl",
+  "name": "Transformed Young Vildkaarl",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "ranged",
+  "strength": 8,
+  "hero": false,
+  "abilities": [
+   "vildkarrl",
+   "bond"
+  ],
+  "token": true,
+  "copies": 0
+ },
+ {
+  "id": "udalryk",
+  "name": "Udalryk",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "close",
+  "strength": 4,
+  "hero": false,
+  "abilities": [],
+  "copies": 1
+ },
+ {
+  "id": "war_longship",
+  "name": "War Longship",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "siege",
+  "strength": 6,
+  "hero": false,
+  "abilities": [
+   "bond"
+  ],
+  "copies": 3
+ },
+ {
+  "id": "young_berserker",
+  "name": "Young Berserker",
+  "faction": "skellige",
+  "type": "unit",
+  "edition": "bw",
+  "row": "ranged",
+  "strength": 2,
+  "hero": false,
+  "abilities": [
+   "berserker"
+  ],
+  "copies": 3,
+  "transformsInto": "transformed_young_vildkaarl"
+ },
+ {
+  "id": "crach_an_craite",
+  "name": "Crach an Craite",
+  "faction": "skellige",
+  "type": "leader",
+  "edition": "bw",
+  "copies": 1,
+  "effect": "Shuffle all cards from each player's graveyard back into their decks."
+ },
+ {
+  "id": "king_bran",
+  "name": "King Bran",
+  "faction": "skellige",
+  "type": "leader",
+  "edition": "bw",
+  "copies": 1,
+  "effect": "Units only lose half their strength in bad weather."
+ },
+ {
+  "id": "schirru",
+  "name": "Schirru",
+  "faction": "scoiatael",
+  "type": "unit",
+  "edition": "hos",
+  "row": "siege",
+  "strength": 8,
+  "hero": false,
+  "abilities": [
+   "scorch_s"
+  ],
+  "copies": 1
+ },
+ {
+  "id": "roach",
+  "name": "Roach",
+  "faction": "neutral",
+  "type": "unit",
+  "edition": "nextgen",
+  "row": "close",
+  "strength": 3,
+  "hero": false,
+  "abilities": [],
+  "copies": 1,
+  "musterGroup": "Roach"
+ }
+]

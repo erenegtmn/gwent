@@ -1,0 +1,216 @@
+neutral | Mysterious Elf | close | 0 | hero spy | 1 | 
+special | Decoy |  |  | decoy | 3 | 
+weather | Biting Frost |  |  | frost | 3 | 
+neutral | Cirilla Fiona Elen Riannon | close | 15 | hero muster | 1 | Roach
+weather | Clear Weather |  |  | clear | 3 | 
+special | Commander's Horn |  |  | horn | 3 | 
+neutral | Dandelion | close | 2 | horn | 1 | 
+neutral | Emiel Regis Rohellec Terzieff | close | 5 |  | 1 | 
+neutral | Geralt of Rivia | close | 15 | hero muster | 1 | Roach
+weather | Impenetrable Fog |  |  | fog | 3 | 
+special | Scorch |  |  | scorch | 3 | 
+weather | Torrential Rain |  |  | rain | 3 | 
+neutral | Triss Merigold | close | 7 | hero | 1 | 
+neutral | Vesemir | close | 6 |  | 1 | 
+neutral | Villentretenmerth | close | 7 | scorch_c | 1 | 
+neutral | Yennefer of Vengerberg | ranged | 7 | hero medic | 1 | 
+neutral | Zoltan Chivay | close | 5 |  | 1 | 
+neutral | Olgierd von Everec | agile | 6 | morale | 1 | 
+neutral | Gaunter O'Dimm | siege | 2 | muster | 1 | 
+neutral | Gaunter O'Dimm - Darkness | ranged | 4 | muster | 3 | 
+neutral | Cow | ranged | 0 | avenger | 1 | 
+neutral | Bovine Defense Force | close | 8 |  | 0 | 
+realms | Foltest - King of Temeria | leader |  | foltest_king | 1 | 
+realms | Foltest - Lord Commander of the North | leader |  | foltest_lord | 1 | 
+realms | Foltest - The Siegemaster | leader |  | foltest_siegemaster | 1 | 
+realms | Foltest - The Steel-Forged | leader |  | foltest_steelforged | 1 | 
+realms | Foltest - Son of Medell | leader |  | foltest_son | 1 | 
+realms | Ballista | siege | 6 |  | 1 | 
+realms | Blue Stripes Commando | close | 4 | bond | 3 | 
+realms | Catapult | siege | 8 | bond | 2 | 
+realms | Crinfrid Reavers Dragon Hunter | ranged | 5 | bond | 3 | 
+realms | Dethmold | ranged | 6 |  | 1 | 
+realms | Dun Banner Medic | siege | 5 | medic | 1 | 
+realms | Esterad Thyssen | close | 10 | hero | 1 | 
+realms | John Natalis | close | 10 | hero | 1 | 
+realms | Kaedweni Siege Expert | siege | 1 | morale | 1 | 
+realms | Kaedweni Siege Expert | siege | 1 | morale | 1 | 
+realms | Kaedweni Siege Expert | siege | 1 | morale | 1 | 
+realms | Keira Metz | ranged | 5 |  | 1 | 
+realms | Philippa Eilhart | ranged | 10 | hero | 1 | 
+realms | Poor Fucking Infantry | close | 1 | bond | 4 | 
+realms | Prince Stennis | close | 5 | spy | 1 | 
+realms | Redanian Foot Soldier | close | 1 |  | 1 | 
+realms | Redanian Foot Soldier | close | 1 |  | 1 | 
+realms | Sheldon Skaggs | ranged | 4 |  | 1 | 
+realms | Siege Tower | siege | 6 |  | 1 | 
+realms | Siegfried of Denesle | close | 5 |  | 1 | 
+realms | Sigismund Dijkstra | close | 4 | spy | 1 | 
+realms | Síle de Tansarville | ranged | 5 |  | 1 | 
+realms | Thaler | siege | 1 | spy | 1 | 
+realms | Sabrina Glevissig | ranged | 4 |  | 1 | 
+realms | Vernon Roche | close | 10 | hero | 1 | 
+realms | Ves | close | 5 |  | 1 | 
+realms | Yarpen Zigrin | close | 2 |  | 1 | 
+realms | Trebuchet | siege | 6 |  | 1 | 
+realms | Trebuchet | siege | 6 |  | 1 | 
+nilfgaard | Emhyr var Emreis - His Imperial Majesty | leader |  | emhyr_imperial | 1 | 
+nilfgaard | Emhyr var Emreis - Emperor of Nilfgaard | leader |  | emhyr_emperor | 1 | 
+nilfgaard | Emhyr var Emreis - the White Flame | leader |  | emhyr_whiteflame | 1 | 
+nilfgaard | Emhyr var Emreis - The Relentless | leader |  | emhyr_relentless | 1 | 
+nilfgaard | Emhyr var Emreis - Invader of the North | leader |  | emhyr_invader | 1 | 
+nilfgaard | Albrich | ranged | 2 |  | 1 | 
+nilfgaard | Assire var Anahid | ranged | 6 |  | 1 | 
+nilfgaard | Black Infantry Archer | ranged | 10 |  | 1 | 
+nilfgaard | Black Infantry Archer | ranged | 10 |  | 1 | 
+nilfgaard | Cahir Mawr Dyffryn aep Ceallach | close | 6 |  | 1 | 
+nilfgaard | Cynthia | ranged | 4 |  | 1 | 
+nilfgaard | Etolian Auxiliary Archers | ranged | 1 | medic | 1 | 
+nilfgaard | Etolian Auxiliary Archers | ranged | 1 | medic | 1 | 
+nilfgaard | Fringilla Vigo | ranged | 6 |  | 1 | 
+nilfgaard | Heavy Zerrikanian Fire Scorpion | siege | 10 |  | 1 | 
+nilfgaard | Impera Brigade Guard | close | 3 | bond | 4 | 
+nilfgaard | Letho of Gulet | close | 10 | hero | 1 | 
+nilfgaard | Menno Coehoorn | close | 10 | hero medic | 1 | 
+nilfgaard | Morteisen | close | 3 |  | 1 | 
+nilfgaard | Morvran Voorhis | siege | 10 | hero | 1 | 
+nilfgaard | Nausicaa Cavalry Rider | close | 2 | bond | 3 | 
+nilfgaard | Puttkammer | ranged | 3 |  | 1 | 
+nilfgaard | Rainfarn | close | 4 |  | 1 | 
+nilfgaard | Renuald aep Matsen | ranged | 5 |  | 1 | 
+nilfgaard | Rotten Mangonel | siege | 3 |  | 1 | 
+nilfgaard | Shilard Fitz-Oesterlen | close | 7 | spy | 1 | 
+nilfgaard | Siege Engineer | siege | 6 |  | 1 | 
+nilfgaard | Siege Technician | siege | 0 | medic | 1 | 
+nilfgaard | Stefan Skellen | close | 9 | spy | 1 | 
+nilfgaard | Sweers | ranged | 2 |  | 1 | 
+nilfgaard | Tibor Eggebracht | ranged | 10 | hero | 1 | 
+nilfgaard | Vanhemar | ranged | 4 |  | 1 | 
+nilfgaard | Vattier de Rideaux | close | 4 | spy | 1 | 
+nilfgaard | Vreemde | close | 2 |  | 1 | 
+nilfgaard | Young Emissary | close | 5 | bond | 1 | 
+nilfgaard | Young Emissary | close | 5 | bond | 1 | 
+nilfgaard | Zerrikanian Fire Scorpion | siege | 5 |  | 1 | 
+monsters | Eredin - Commander of the Red Riders | leader |  | eredin_commander | 1 | 
+monsters | Eredin - Bringer of Death | leader |  | eredin_bringer_of_death | 1 | 
+monsters | Eredin - Destroyer of Worlds | leader |  | eredin_destroyer | 1 | 
+monsters | Eredin - King of the Wild Hunt | leader |  | eredin_king | 1 | 
+monsters | Eredin Bréacc Glas - The Treacherous | leader |  | eredin_treacherous | 1 | 
+monsters | Arachas  | close | 4 | muster | 1 | 
+monsters | Arachas  | close | 4 | muster | 1 | 
+monsters | Arachas  | close | 4 | muster | 1 | 
+monsters | Arachas- Behemoth | siege | 6 | muster | 1 | 
+monsters | Botchling | close | 4 |  | 1 | 
+monsters | Celaeno Harpy | agile | 2 |  | 1 | 
+monsters | Cockatrice | ranged | 2 |  | 1 | 
+monsters | Crone - Brewess | close | 6 | muster | 1 | 
+monsters | Crone - Weavess | close | 6 | muster | 1 | 
+monsters | Crone - Whispess | close | 6 | muster | 1 | 
+monsters | Draug | close | 10 | hero | 1 | 
+monsters | Earth Elemental | siege | 6 |  | 1 | 
+monsters | Endrega | ranged | 2 |  | 1 | 
+monsters | Fiend | close | 6 |  | 1 | 
+monsters | Fire Elemental | siege | 6 |  | 1 | 
+monsters | Foglet | close | 2 |  | 1 | 
+monsters | Forktail | close | 5 |  | 1 | 
+monsters | Frightener | close | 5 |  | 1 | 
+monsters | Gargoyle | ranged | 2 |  | 1 | 
+monsters | Ghoul | close | 1 | muster | 1 | 
+monsters | Ghoul | close | 1 | muster | 1 | 
+monsters | Ghoul | close | 1 | muster | 1 | 
+monsters | Grave Hag | ranged | 5 |  | 1 | 
+monsters | Griffin | close | 5 |  | 1 | 
+monsters | Harpy | agile | 2 |  | 1 | 
+monsters | Ice Giant | siege | 5 |  | 1 | 
+monsters | Imlerith | close | 10 | hero | 1 | 
+monsters | Kayran | agile | 8 | hero morale | 1 | 
+monsters | Leshen | ranged | 10 | hero | 1 | 
+monsters | Nekker | close | 2 | muster | 1 | 
+monsters | Nekker | close | 2 | muster | 1 | 
+monsters | Nekker | close | 2 | muster | 1 | 
+monsters | Plague Maiden | close | 5 |  | 1 | 
+monsters | Vampire - Bruxa | close | 4 | muster | 1 | 
+monsters | Vampire - Ekimmara | close | 4 | muster | 1 | 
+monsters | Vampire - Fleder | close | 4 | muster | 1 | 
+monsters | Vampire - Garkain | close | 4 | muster | 1 | 
+monsters | Vampire - Katakan | close | 5 | muster | 1 | 
+monsters | Werewolf | close | 5 |  | 1 | 
+monsters | Wyvern | ranged | 2 |  | 1 | 
+monsters | Toad | ranged | 7 | scorch_r | 1 | 
+scoiatael | Francesca Findabair - Queen of Dol Blathanna | leader |  | francesca_queen | 1 | 
+scoiatael | Francesca Findabair - the Beautiful | leader |  | francesca_beautiful | 1 | 
+scoiatael | Francesca Findabair - Daisy of the Valley | leader |  | francesca_daisy | 1 | 
+scoiatael | Francesca Findabair - Pureblood Elf | leader |  | francesca_pureblood | 1 | 
+scoiatael | Francesca Findabair - Hope of the Aen Seidhe | leader |  | francesca_hope | 1 | 
+scoiatael | Ciaran aep Easnillien | agile | 3 |  | 1 | 
+scoiatael | Barclay Els | agile | 6 |  | 1 | 
+scoiatael | Dennis Cranmer | close | 6 |  | 1 | 
+scoiatael | Dol Blathanna Archer | ranged | 4 |  | 1 | 
+scoiatael | Dol Blathanna Scout | agile | 6 |  | 1 | 
+scoiatael | Dol Blathanna Scout | agile | 6 |  | 1 | 
+scoiatael | Dol Blathanna Scout | agile | 6 |  | 1 | 
+scoiatael | Dwarven Skirmisher | close | 3 | muster | 1 | 
+scoiatael | Dwarven Skirmisher | close | 3 | muster | 1 | 
+scoiatael | Dwarven Skirmisher | close | 3 | muster | 1 | 
+scoiatael | Eithné | ranged | 10 | hero | 1 | 
+scoiatael | Elven Skirmisher | ranged | 2 | muster | 1 | 
+scoiatael | Elven Skirmisher | ranged | 2 | muster | 1 | 
+scoiatael | Elven Skirmisher | ranged | 2 | muster | 1 | 
+scoiatael | Filavandrel aen Fidhail | agile | 6 |  | 1 | 
+scoiatael | Havekar Healer | ranged | 0 | medic | 1 | 
+scoiatael | Havekar Healer | ranged | 0 | medic | 1 | 
+scoiatael | Havekar Healer | ranged | 0 | medic | 1 | 
+scoiatael | Havekar Smuggler | close | 5 | muster | 1 | 
+scoiatael | Havekar Smuggler | close | 5 | muster | 1 | 
+scoiatael | Havekar Smuggler | close | 5 | muster | 1 | 
+scoiatael | Ida Emean aep Sivney | ranged | 6 |  | 1 | 
+scoiatael | Iorveth | ranged | 10 | hero | 1 | 
+scoiatael | Isengrim Faoiltiarna | close | 10 | hero morale | 1 | 
+scoiatael | Mahakaman Defender | close | 5 |  | 1 | 
+scoiatael | Mahakaman Defender | close | 5 |  | 1 | 
+scoiatael | Mahakaman Defender | close | 5 |  | 1 | 
+scoiatael | Mahakaman Defender | close | 5 |  | 1 | 
+scoiatael | Mahakaman Defender | close | 5 |  | 1 | 
+scoiatael | Milva | ranged | 10 | morale | 1 | 
+scoiatael | Riordain | ranged | 1 |  | 1 | 
+scoiatael | Saesenthessis | ranged | 10 | hero | 1 | 
+scoiatael | Toruviel | ranged | 2 |  | 1 | 
+scoiatael | Vrihedd Brigade Recruit | ranged | 4 |  | 1 | 
+scoiatael | Vrihedd Brigade Veteran | agile | 5 |  | 1 | 
+scoiatael | Vrihedd Brigade Veteran | agile | 5 |  | 1 | 
+scoiatael | Yaevinn | agile | 6 |  | 1 | 
+skellige | Berserker | close | 4 | berserker | 1 | 
+skellige | Birna Bran | close | 2 | medic | 1 | 
+skellige | Blueboy Lugos | close | 6 |  | 1 | 
+skellige | Cerys | close | 10 | hero muster | 1 | 
+skellige | Clan Brokva Archer | ranged | 6 |  | 2 | 
+skellige | Clan Dimun Pirate | ranged | 6 | scorch | 1 | 
+skellige | Cerys - Clan Drummond Shield Maiden | close | 4 | bond | 1 | 
+skellige | Cerys - Clan Drummond Shield Maiden | close | 4 | bond | 1 | 
+skellige | Cerys - Clan Drummond Shield Maiden | close | 4 | bond | 1 | 
+skellige | Clan Heymaey Skald | close | 4 |  | 1 | 
+skellige | Clan Tordarroch Armorsmith | close | 4 |  | 1 | 
+skellige | Clan an Craite Warrior | close | 6 | bond | 3 | 
+skellige | Donar an Hindar | close | 4 |  | 1 | 
+skellige | Draig Bon-Dhu | siege | 2 | horn | 1 | 
+skellige | Ermion | ranged | 8 | hero mardroeme | 1 | 
+skellige | Hemdall | close | 11 | hero | 0 | 
+skellige | Hjalmar | ranged | 10 | hero | 1 | 
+skellige | Holger Blackhand | siege | 4 |  | 1 | 
+skellige | Kambi | close | 0 | avenger_kambi | 1 | 
+skellige | Light Longship | ranged | 4 | muster | 3 | 
+skellige | Madman Lugos | close | 6 |  | 1 | 
+special | Mardroeme |  |  | mardroeme | 3 | 
+skellige | Olaf | agile | 12 | morale | 1 | 
+weather | Skellige Storm |  |  | storm rain fog | 3 | 
+skellige | Svanrige | close | 4 |  | 1 | 
+skellige | Transformed Vildkaarl | close | 14 | vildkarrl morale | 0 | 
+skellige | Transformed Young Vildkaarl | ranged | 8 | vildkarrl bond | 0 | 
+skellige | Udalryk | close | 4 |  | 1 | 
+skellige | War Longship | siege | 6 | bond | 3 | 
+skellige | Young Berserker | ranged | 2 | berserker | 3 | 
+skellige | Crach an Craite | leader |  | crach_an_craite | 0 | 
+skellige | King Bran | leader |  | king_bran | 0 | 
+scoiatael | Schirru | siege | 8 | scorch_s | 1 | 
+neutral | Roach | close | 3 |  | 1 | 
+realms | Ballista | siege | 6 |  | 1 | 
