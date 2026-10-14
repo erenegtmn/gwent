@@ -1,6 +1,6 @@
 namespace GwentNet;
 
-/// <summary>Turnuva ödül havuzu paylaşımı (taç). Saf hesap: sunucu bilmez, her oyuncu kendi sıralamasına göre kendi ödülünü hesaplar.</summary>
+/// <summary>Turnuva ödül havuzu paylaşımı (Crown). Saf hesap: sunucu bilmez, her oyuncu kendi sıralamasına göre kendi ödülünü hesaplar.</summary>
 public static class TournamentPrizes
 {
     /// <summary>

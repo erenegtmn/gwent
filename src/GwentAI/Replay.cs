@@ -37,7 +37,7 @@ public sealed class ReplayData
     /// <summary>Oyuncunun gördüğü Türkçe olay günlüğü (hata bildirirken neyin olduğunu gösterir).</summary>
     public List<string> Log { get; set; } = new();
 
-    /// <summary>Oyunu kurar. Rakip desteği her zaman "önerilen" destedir (yerel oyunla aynı kural).</summary>
+    /// <summary>Oyunu kurar. Rakip destesi verilmemişse yapay zekânın zorluğuna göre kurulur (<see cref="AiDecks"/>).</summary>
     public Game CreateGame()
     {
         var opts = new GameOptions { NextGen = NextGen };
@@ -46,7 +46,7 @@ public sealed class ReplayData
             : DeckValidator.DefaultDeck(MyFaction, opts) with { LeaderId = MyLeaderId };
         var theirs = OppDeckCards != null
             ? new Deck(OppFaction, OppLeaderId, OppDeckCards)
-            : DeckValidator.RecommendedDeck(OppFaction, opts, null, OppLeaderId);
+            : AiDecks.For(OppFaction, opts, OppLeaderId, (Difficulty)Difficulty);   // yerel oyun: yapay zekânın destesi zorluğa göre
         if (!OppDeckUnchecked) return new Game(mine, theirs, Seed, opts);
         var errs = DeckValidator.Validate(mine, opts);
         if (errs.Count > 0) throw new ArgumentException("Oyuncu 0 destesi geçersiz: " + string.Join(" ", errs));

@@ -107,7 +107,22 @@ public static partial class UiSelfTest
             var tv = new CareerView(all, new CareerNav(o => entered = o, () => { }, _ => { }, () => { }, () => { }), null, "passiflora");
             Layout(tv);
             Click(Tagged<Button>(tv, "career-play"));
+            Check(entered == null && all.Tournament == null, "turnuvaya uyarı onaylanmadan girildi");
+            Layout(tv);
+            Click(Tagged<Button>(tv, "career-play-confirm"));
             Check(entered?.Id == "passiflora" && all.Tournament != null && all.Crowns == 300 - CareerWorld.Opponent("passiflora").EntryFee, "turnuvaya giriş");
+
+            // 7) Turlar arası ekran: sonraki tur ve iki adımlı çekilme
+            var nexts = 0;
+            var withdrew = false;
+            var round = new CareerTournamentView(all, () => nexts++, () => withdrew = true, "1. turu kazandın!");
+            Layout(round);
+            Click(Tagged<Button>(round, "tour-next"));
+            Click(Tagged<Button>(round, "tour-quit"));
+            Layout(round);
+            Check(!withdrew, "çekilme onaysız gerçekleşti");
+            Click(Tagged<Button>(round, "tour-quit-confirm"));
+            Check(nexts == 1 && withdrew, "turlar arası ekran düğmeleri");
 
             Console.WriteLine($"Kariyer: {games} maç ({wins} galibiyet), koleksiyon {CareerLogic.Progress(s).Have} kart, {failures} hata.");
         }

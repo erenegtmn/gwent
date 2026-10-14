@@ -52,7 +52,7 @@ public sealed class CareerShopView : Grid
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         top.Children.Add(Ornate.Heading("TÜCCAR · " + _r.Name.ToUpperInvariant(), "Kahramanlar satılmaz: onları masada kazanırsın. Kartın üstüne tıkla, satın al.", 42));
         var right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        var crowns = Ui.Text($"◆ {_s.Crowns} taç", 30, Theme.B("#f0d890"), true);
+        var crowns = Ui.Text($"◆ {_s.Crowns} Crown", 30, Theme.B("#f0d890"), true);
         crowns.VerticalAlignment = VerticalAlignment.Center;
         crowns.Tag = "shop-crowns";
         right.Children.Add(crowns);
@@ -146,7 +146,7 @@ public sealed class CareerShopView : Grid
             t.Margin = new Thickness(4, 10, 4, 0);
             sp.Children.Add(t);
         }
-        var p = Ui.Text($"Fiyat: {price} taç", 20, Theme.B("#f0d890"), true, TextAlignment.Center);
+        var p = Ui.Text($"Fiyat: {price} Crown", 20, Theme.B("#f0d890"), true, TextAlignment.Center);
         p.Margin = new Thickness(0, 12, 0, 0);
         sp.Children.Add(p);
         _preview.Content = Ornate.Panel(sp, new Thickness(22, 22, 22, 22), 16, 40);

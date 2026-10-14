@@ -2,20 +2,20 @@ using GwentCore;
 
 namespace GwentAI.Career;
 
-/// <summary>Bir maçın kariyere etkisi: kazanılan taç ve kartlar, ekranda gösterilecek kısa özet.</summary>
+/// <summary>Bir maçın kariyere etkisi: kazanılan Crown ve kartlar, ekranda gösterilecek kısa özet.</summary>
 public sealed record CareerReward(int Crowns, IReadOnlyList<string> Cards, string Summary, bool TournamentOver = false, bool TournamentWon = false);
 
 /// <summary>
 /// Kariyer kuralları (arayüzden bağımsız, sınanabilir): başlangıç, bölge kilitleri, ödüller, tüccar, deste ve turnuva.
-/// Ödül: bir rakibi ilk yenişte oyunun ona bağladığı benzersiz kart (varsa) + destesinden rastgele bir kart + taçlar;
-/// sonraki galibiyetlerde daha az taç ve bazen bir kart. Koleksiyonda bir karttan en fazla kartın kopya sınırı kadar bulunur.
+/// Ödül: bir rakibi ilk yenişte oyunun ona bağladığı benzersiz kart (varsa) + destesinden rastgele bir kart + Crown;
+/// sonraki galibiyetlerde daha az Crown ve bazen bir kart. Koleksiyonda bir karttan en fazla kartın kopya sınırı kadar bulunur.
 /// </summary>
 public static class CareerLogic
 {
     public const int StartCrowns = 100;
     public const string StarterLeader = "foltest_king_of_temeria";
 
-    /// <summary>Yeni kariyer: Kuzey Krallıkları başlangıç destesi (oyunun kendi "North" destesi) ve 100 taç.</summary>
+    /// <summary>Yeni kariyer: Kuzey Krallıkları başlangıç destesi (oyunun kendi "North" destesi) ve 100 Crown.</summary>
     public static CareerSave NewSave()
     {
         var s = new CareerSave { Crowns = StartCrowns };
@@ -59,8 +59,12 @@ public static class CareerLogic
         var i = CareerWorld.Regions.ToList().IndexOf(r);
         if (i <= 0) return true;
         var prev = CareerWorld.Regions[i - 1];
-        return IsUnlocked(s, prev) && BeatenIn(s, prev.Id) >= r.NeedWins;
+        return IsUnlocked(s, prev) && BeatenIn(s, prev.Id) >= r.NeedWins && PendingTournament(s, prev) == null;
     }
+
+    /// <summary>Bölgenin henüz kazanılmamış turnuvası (varsa): kazanılmadan sonraki bölge açılmaz.</summary>
+    public static CareerOpponent? PendingTournament(CareerSave s, CareerRegion r) =>
+        CareerWorld.In(r.Id).FirstOrDefault(o => o.IsTournament && !s.Beaten(o.Id));
 
     // ---------- Koleksiyon ----------
 
@@ -133,7 +137,7 @@ public static class CareerLogic
         s.Crowns += crowns;
         foreach (var c in cards) s.Add(c);
         var names = cards.Select(c => CardCatalog.Default.Get(c).Name).ToList();
-        var summary = $"+{crowns} taç" + (names.Count > 0 ? "  ·  Yeni kart: " + string.Join(", ", names) : "");
+        var summary = $"+{crowns} Crown" + (names.Count > 0 ? "  ·  Yeni kart: " + string.Join(", ", names) : "");
         return new CareerReward(crowns, cards, summary);
     }
 
@@ -144,9 +148,16 @@ public static class CareerLogic
     {
         if (!o.IsTournament) throw new ArgumentException("Turnuva değil.");
         if (s.Tournament is { } t && t.Opponent == o.Id) return null;   // zaten sürüyor
-        if (s.Crowns < o.EntryFee) return $"Katılım ücreti {o.EntryFee} taç; kesende {s.Crowns} var.";
+        if (s.Tournament != null) return "Önce sürmekte olan turnuvayı bitir.";
+        if (DeckProblem(s) is { } problem) return "Desten oynamaya hazır değil: " + problem;
+        if (s.Crowns < o.EntryFee) return $"Katılım ücreti {o.EntryFee} Crown; kesende {s.Crowns} var.";
         s.Crowns -= o.EntryFee;
-        s.Tournament = new CareerTournamentRun { Opponent = o.Id, Round = 0, Decks = o.Decks.OrderBy(_ => rng.Next()).Take(o.Rounds).ToList() };
+        var deck = s.Decks[s.ActiveFaction];
+        s.Tournament = new CareerTournamentRun
+        {
+            Opponent = o.Id, Round = 0, Decks = o.Decks.OrderBy(_ => rng.Next()).Take(o.Rounds).ToList(),
+            Faction = s.ActiveFaction, Deck = new CareerDeck(deck.LeaderId, deck.Cards.ToList())   // turnuva boyunca bu desteyle
+        };
         return null;
     }
 
@@ -179,11 +190,20 @@ public static class CareerLogic
         s.Crowns += crowns;
         foreach (var c in cards) s.Add(c);
         var names = cards.Select(c => CardCatalog.Default.Get(c).Name).ToList();
-        return new CareerReward(crowns, cards, $"Şampiyon sensin! +{crowns} taç" + (names.Count > 0 ? "  ·  Yeni kart: " + string.Join(", ", names) : ""),
+        return new CareerReward(crowns, cards, $"Şampiyon sensin! +{crowns} Crown" + (names.Count > 0 ? "  ·  Yeni kart: " + string.Join(", ", names) : ""),
             TournamentOver: true, TournamentWon: true);
     }
 
     public static void AbandonTournament(CareerSave s) => s.Tournament = null;
+
+    /// <summary>Turnuvadan çekilme: elenmiş sayılır (yenilgi kaydı), katılım ücreti geri gelmez.</summary>
+    public static CareerReward WithdrawTournament(CareerSave s, CareerOpponent o)
+    {
+        var round = (s.Tournament?.Round ?? 0) + 1;
+        s.Record(o.Id).Losses++;
+        s.Tournament = null;
+        return new CareerReward(0, Array.Empty<string>(), $"{o.Name} turnuvasından {round}. turda çekildin.", TournamentOver: true);
+    }
 
     // ---------- Tüccar ----------
 
@@ -205,7 +225,7 @@ public static class CareerLogic
     {
         if (s.Owned(d.Id) >= d.Copies) return "Bu karttan yeterince var.";
         var price = NpcDecks.Price(d);
-        if (s.Crowns < price) return $"Yetersiz taç: {price} gerekiyor.";
+        if (s.Crowns < price) return $"Yetersiz Crown: {price} gerekiyor.";
         s.Crowns -= price;
         s.Add(d.Id);
         return null;

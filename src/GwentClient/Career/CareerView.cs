@@ -92,7 +92,7 @@ public sealed class CareerView : Grid
 
         var right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         var (have, total) = CareerLogic.Progress(_s);
-        right.Children.Add(Stat($"◆ {_s.Crowns}", "taç"));
+        right.Children.Add(Stat($"◆ {_s.Crowns}", "Crown"));
         right.Children.Add(Stat($"{have}/{total}", "koleksiyon"));
         var deck = _s.ActiveDeck();
         right.Children.Add(Stat(deck == null ? "—" : Texts.FactionShort(deck.Faction), deck == null ? "deste yok" : $"{deck.CardIds.Count} kartlık deste"));
@@ -133,7 +133,13 @@ public sealed class CareerView : Grid
             inner.Children.Add(name);
             string sub;
             if (open) sub = $"{beaten}/{duels.Count} rakip yenildi" + (CareerWorld.In(r.Id).Any(o => o.IsTournament && _s.Beaten(o.Id)) ? "  ·  turnuva şampiyonu" : "");
-            else sub = $"Kilitli · {CareerWorld.Regions[i - 1].Name}: {r.NeedWins} rakip yen";
+            else
+            {
+                var prev = CareerWorld.Regions[i - 1];
+                var need = Math.Max(0, r.NeedWins - CareerLogic.BeatenIn(_s, prev.Id));
+                var tour = CareerLogic.PendingTournament(_s, prev);
+                sub = $"Kilitli · {prev.Name}: " + (need > 0 ? $"{need} rakip daha yen" : "") + (need > 0 && tour != null ? ", " : "") + (tour != null ? tour.Name + " turnuvasını kazan" : "");
+            }
             inner.Children.Add(Ui.Text(sub, 14, open ? Theme.TextDim : Theme.B("#8a6a4a")));
 
             var frame = new ChamferFrame
@@ -172,7 +178,7 @@ public sealed class CareerView : Grid
         bar.Children.Add(Big("Ana menü", _nav.Back, "career-back"));
         var reset = Ui.Button("Baştan başla", () =>
         {
-            if (MessageBox.Show("Collect 'Em All baştan başlasın mı? Koleksiyon, taçlar ve yenilen rakipler silinir.", "Gwent", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            if (MessageBox.Show("Collect 'Em All baştan başlasın mı? Koleksiyon, Crown'lar ve yenilen rakipler silinir.", "Gwent", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
                 _nav.Reset();
         });
         reset.FontSize = 14;
@@ -325,8 +331,8 @@ public sealed class CareerView : Grid
         sp.Children.Add(Ornate.Caption(o.IsTournament ? "Turnuva" : "Ödül", 16));
         if (o.IsTournament)
         {
-            sp.Children.Add(Ui.Text($"Katılım {o.EntryFee} taç  ·  {o.Rounds} maç, kaybeden elenir.", 17, Theme.Text, false, TextAlignment.Left, true));
-            sp.Children.Add(Ui.Text($"Şampiyona {(rec?.Wins > 0 ? o.Prize / 2 : o.Prize)} taç ve rakiplerin benzersiz kartlarından biri.", 17, Theme.B("#f0d890"), true, TextAlignment.Left, true));
+            sp.Children.Add(Ui.Text($"Katılım {o.EntryFee} Crown  ·  {o.Rounds} maç, kaybeden elenir.", 17, Theme.Text, false, TextAlignment.Left, true));
+            sp.Children.Add(Ui.Text($"Şampiyona {(rec?.Wins > 0 ? o.Prize / 2 : o.Prize)} Crown ve rakiplerin benzersiz kartlarından biri.", 17, Theme.B("#f0d890"), true, TextAlignment.Left, true));
         }
         else
         {
@@ -341,14 +347,14 @@ public sealed class CareerView : Grid
             var rt = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = first && reward != null ? 250 : 360 };
             if (first)
             {
-                rt.Children.Add(Ui.Text($"+{o.Prize} taç", 22, Theme.B("#f0d890"), true));
+                rt.Children.Add(Ui.Text($"+{o.Prize} Crown", 22, Theme.B("#f0d890"), true));
                 if (reward != null && CardCatalog.Default.TryGet(reward, out var rd2))
                     rt.Children.Add(Ui.Text((_s.Owned(reward) > 0 ? "Benzersiz kart (zaten sende): " : "Benzersiz kart: ") + rd2.Name, 16, Theme.Text, false, TextAlignment.Left, true));
                 rt.Children.Add(Ui.Text("ve destesinden rastgele bir kart.", 15, Theme.TextDim, false, TextAlignment.Left, true));
             }
             else
             {
-                rt.Children.Add(Ui.Text($"Yeniden yenersen +{Math.Max(5, o.Prize / 3)} taç, bazen bir kart.", 17, Theme.Text, false, TextAlignment.Left, true));
+                rt.Children.Add(Ui.Text($"Yeniden yenersen +{Math.Max(5, o.Prize / 3)} Crown, bazen bir kart.", 17, Theme.Text, false, TextAlignment.Left, true));
             }
             rw.Children.Add(rt);
             sp.Children.Add(rw);
@@ -370,13 +376,28 @@ public sealed class CareerView : Grid
             p.Margin = new Thickness(0, 16, 0, 0);
             sp.Children.Add(p);
         }
-        var label = !o.IsTournament ? "Masaya otur" : running ? $"{_s.Tournament!.Round + 1}. turu oyna" : $"Turnuvaya katıl ({o.EntryFee} taç)";
+        var confirming = o.IsTournament && !running && _confirmEntry == o.Id;
+        if (o.IsTournament && !running)
+        {
+            // Girişten önce uyarı: deste turnuva boyunca kilitlenir, turnuva bitene dek başka maç yapılmaz
+            var myDeck = _s.ActiveDeck();
+            var warn = new Border
+            {
+                Margin = new Thickness(0, 16, 0, 0), Padding = new Thickness(14, 10, 12, 12), Background = Theme.B("#30b8604f"),
+                BorderBrush = Theme.B("#b8604f"), BorderThickness = new Thickness(3, 0, 0, 0),
+                Child = Ui.Text("Girdikten sonra desten kilitlenir: turnuva boyunca değiştirilemez" + (myDeck != null ? $" ({Texts.FactionShort(myDeck.Faction)}, {myDeck.CardIds.Count} kart)" : "")
+                    + ". Turnuva bitene dek haritaya dönülmez ve başka maç yapılmaz; maçtan çıkmak elenmek sayılır.", 15, Theme.B("#f0d0c0"), false, TextAlignment.Left, true)
+            };
+            sp.Children.Add(warn);
+        }
+        var label = !o.IsTournament ? "Masaya otur" : running ? $"{_s.Tournament!.Round + 1}. turu oyna"
+            : confirming ? $"Evet, katıl ({o.EntryFee} Crown)" : $"Turnuvaya katıl ({o.EntryFee} Crown)";
         var play = Ui.Button(label, () => Play(o), primary: true, enabled: problem == null && !otherRun);
         play.FontSize = 24;
         play.Padding = new Thickness(30, 12, 30, 12);
         play.Margin = new Thickness(0, 20, 0, 0);
         play.HorizontalAlignment = HorizontalAlignment.Stretch;
-        play.Tag = "career-play";
+        play.Tag = confirming ? "career-play-confirm" : "career-play";
         sp.Children.Add(play);
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
         if (problem != null)
@@ -397,7 +418,7 @@ public sealed class CareerView : Grid
             quit.Margin = new Thickness(0, 0, 8, 0);
             row.Children.Add(quit);
         }
-        var close = Ui.Button("Kapat", () => { _selected = null; Draw(); });
+        var close = Ui.Button(confirming ? "Vazgeç" : "Kapat", () => { _confirmEntry = null; _selected = null; Draw(); });
         close.Tag = "career-detail-close";
         row.Children.Add(close);
         sp.Children.Add(row);
@@ -416,9 +437,17 @@ public sealed class CareerView : Grid
     }
 
     private string? _error;
+    private string? _confirmEntry;
 
     private void Play(CareerOpponent o)
     {
+        if (o.IsTournament && _s.Tournament == null && _confirmEntry != o.Id)
+        {
+            _confirmEntry = o.Id;   // ilk tıklama: uyarıyı onaylat
+            Draw();
+            return;
+        }
+        _confirmEntry = null;
         if (o.IsTournament)
         {
             var err = CareerLogic.EnterTournament(_s, o, Random.Shared);

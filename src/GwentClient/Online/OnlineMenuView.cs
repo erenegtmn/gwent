@@ -116,7 +116,7 @@ public sealed class OnlineMenuView : Grid
 
         // ---- Orta kapı: turnuva kur ----
         var tour = new StackPanel { Width = 480 };
-        tour.Children.Add(Door("TURNUVA", "3–8 kişilik tek eleme; ödül havuzu taç ile."));
+        tour.Children.Add(Door("TURNUVA", "3–8 kişilik tek eleme; ödül havuzu Crown ile."));
         if (ResumeStore.LoadHostTournament() is { } tresume) tour.Children.Add(TournamentResumeStrip(tresume));
         tour.Children.Add(Ornate.Caption("Kişi sayısı", 6));
         var sizeRow = new StackPanel { Orientation = Orientation.Horizontal };
@@ -129,14 +129,14 @@ public sealed class OnlineMenuView : Grid
         foreach (var f in new[] { 0, 50, 100, 200 })
         {
             var fee = f;
-            var b = ChoiceButton(fee == 0 ? "Ücretsiz" : $"{fee} taç", fee == 0);
+            var b = ChoiceButton(fee == 0 ? "Ücretsiz" : $"{fee} Crown", fee == 0);
             b.Tag = fee;
             b.Click += (_, _) => { foreach (var o in _feeButtons) o.IsChecked = ReferenceEquals(o, b); };
             _feeButtons.Add(b);
             feeRow.Children.Add(b);
         }
         tour.Children.Add(feeRow);
-        tour.Children.Add(Ui.Text($"Bakiyen: {Settings.Crowns} taç. Ücretli turnuvada havuz = ücret × oyuncu; şampiyon %55–70, finalist %25–30 alır. Taç yetmese de katılabilirsin.", 14, Theme.TextDim, false, TextAlignment.Left, true));
+        tour.Children.Add(Ui.Text($"Bakiyen: {Settings.Crowns} Crown. Ücretli turnuvada havuz = ücret × oyuncu; şampiyon %55–70, finalist %25–30 alır. Crown yetmese de katılabilirsin.", 14, Theme.TextDim, false, TextAlignment.Left, true));
         ((TextBlock)tour.Children[^1]).Margin = new Thickness(0, 12, 0, 0);
         tour.Children.Add(Ui.Text("Bağlantı seçenekleri “Oda kur”dakilerle aynıdır.", 13, Theme.TextDim, false, TextAlignment.Left, true));
         ((TextBlock)tour.Children[^1]).Margin = new Thickness(0, 8, 0, 0);

@@ -440,7 +440,7 @@ public sealed class GwintView : Viewbox
         BuildOverlay();
 
         if (_effects && !_firstDraw) { SpawnGhosts(evs); HandleEvents(evs); }
-        if (_animate && _effects && evs.Count > 0) _animUntil = DateTime.UtcNow.AddMilliseconds(700);
+        if (_animate && _effects && evs.Count > 0) _animUntil = DateTime.UtcNow.AddMilliseconds(evs.Any(e => e.Kind == "kill") ? 1800 : 700);
         _prevBoard = G.Players.SelectMany(p => p.Rows.SelectMany(r => r.Cards)).Select(c => c.Uid).ToHashSet();
         _prevTotals = _curTotals;
         _prevHandPos = _curHandPos;
@@ -1076,6 +1076,10 @@ public sealed class GwintView : Viewbox
     private void StartCinema(int player, CardDef def, string caption, IReadOnlyList<GameEvent> evs)
     {
         _cinema = true;
+        // Sinematik süresince yeniden çizim yapılmaz: açık kalan panel (ör. lider "Kullan" ekranı) masayı ve sinematiği örtmesin
+        _zoom = null;
+        _graveView = null;
+        _overlay.Visibility = Visibility.Collapsed;
         _forcedEvs = evs;
         _pauseAfterMs = Math.Max(_pauseAfterMs, 400);
 
@@ -1146,6 +1150,9 @@ public sealed class GwintView : Viewbox
                 {
                     if (!mine) await Task.Delay(_s.IsRemote ? (G.Phase == Phase.Playing ? 450 : 150) : (G.Phase == Phase.Playing ? 850 : 350));
                     while (_cinema && IsLoaded) await Task.Delay(100);
+                    // Sinematik bitince çizilen efektler (yanma, hayaletler) bitmeden rakip yeni kart atmasın
+                    var left = (_animUntil - DateTime.UtcNow).TotalMilliseconds;
+                    if (!mine && left > 0) await Task.Delay((int)left + 150);
                     if (!IsLoaded) return;
                 }
                 if (_s.IsRemote) _s.ApplyNextRemote(); else _s.AiStep();
@@ -1239,12 +1246,17 @@ public sealed class GwintView : Viewbox
             if (killed.Contains(uid))
             {
                 Fx.PlayFrames(_fx, "fire", new Point(snap.Pos.X + CardW / 2, snap.Pos.Y + CardH / 2 - 8), 150, 190, 30);
-                Fx.FadeOut(ghost, 650, 250, remove);
+                var soot = new Rectangle { Width = CardW, Height = CardH, Fill = Theme.B("#000000"), Opacity = 0, IsHitTestVisible = false };
+                Put(_fx, soot, snap.Pos.X, snap.Pos.Y);
+                soot.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 0.55, TimeSpan.FromMilliseconds(700)) { BeginTime = TimeSpan.FromMilliseconds(250) });
+                Fx.FadeOut(soot, 700, 1000, () => _fx.Children.Remove(soot));
+                Fx.FadeOut(ghost, 700, 1000, remove);
             }
             else if (decoyed.Contains(uid))
             {
-                var target = _curHandPos.TryGetValue(uid, out var hp) ? hp : new Point(950, 842);
-                Fx.FlyAway(ghost, target, 520, 0, remove);
+                var target = snap.Side != Me ? new Point(CardsX + 200, -150)
+                    : _curHandPos.TryGetValue(uid, out var hp) ? hp : new Point(950, 842);
+                Fx.FlyAway(ghost, target, 560, 0, remove);
             }
             else if (roundEnd)
             {

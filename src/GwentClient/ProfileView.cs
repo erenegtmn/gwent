@@ -48,7 +48,7 @@ public sealed class ProfileView : Grid
         _portraitName.TextAlignment = TextAlignment.Left;
         _portraitName.Margin = new Thickness(2, 10, 0, 0);
         nameBox.Children.Add(_portraitName);
-        var crownsLine = Ui.Text($"◆ {Settings.Crowns} taç", 18, Theme.B("#f0d890"), true);
+        var crownsLine = Ui.Text($"◆ {Settings.Crowns} Crown", 18, Theme.B("#f0d890"), true);
         crownsLine.Margin = new Thickness(2, 6, 0, 0);
         nameBox.Children.Add(crownsLine);
         id.Children.Add(nameBox);

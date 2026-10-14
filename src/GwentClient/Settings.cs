@@ -16,7 +16,7 @@ public static class Settings
     public static string Portrait { get; set; } = Portraits.Default;
     public static string LastAddress { get; set; } = "";
 
-    /// <summary>Sanal taç bakiyesi: turnuva katılım ücreti ve ödülleri için. Yalnız bu bilgisayarda tutulur (güven esaslı; hesap yok).</summary>
+    /// <summary>Sanal Crown bakiyesi: turnuva katılım ücreti ve ödülleri için. Yalnız bu bilgisayarda tutulur (güven esaslı; hesap yok).</summary>
     public static int Crowns { get; set; } = 500;
 
     /// <summary>Ücreti ödenmiş turnuvalar (kod → ücret) ve ödülü işlenmiş olanlar; yeniden açılışta çifte işlem olmasın.</summary>

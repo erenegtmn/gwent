@@ -102,8 +102,32 @@ public class CareerTests
             CareerLogic.ApplyDuel(s, prev[0], true, rng);
             CareerLogic.ApplyDuel(s, prev[0], true, rng);   // aynı rakibi iki kez yenmek sayılmaz
             for (var k = 1; k < regions[i].NeedWins; k++) CareerLogic.ApplyDuel(s, prev[k], true, rng);
+            // Bölgenin turnuvası kazanılmadan sonraki bölge açılmaz
+            if (CareerLogic.PendingTournament(s, regions[i - 1]) is { } t)
+            {
+                Assert.False(CareerLogic.IsUnlocked(s, regions[i]), regions[i].Name + " turnuvasız açıldı");
+                s.Record(t.Id).Wins = 1;
+            }
             Assert.True(CareerLogic.IsUnlocked(s, regions[i]), regions[i].Name);
         }
+    }
+
+    [Fact]
+    public void Tournament_locks_the_deck_and_withdrawing_counts_as_elimination()
+    {
+        var s = CareerLogic.NewSave();
+        var t = CareerWorld.Opponent("passiflora");
+        s.Crowns = 500;
+        var before = s.ActiveDeck()!.CardIds.ToList();
+        Assert.Null(CareerLogic.EnterTournament(s, t, new Random(1)));
+        s.Decks["northern_realms"] = new CareerDeck(CareerLogic.StarterLeader, new List<string>());   // turnuva içinde deste değişse de
+        Assert.Equal(before, s.ActiveDeck()!.CardIds);                                                  // kilitli deste oynanır
+        Assert.NotNull(CareerLogic.EnterTournament(s, CareerWorld.Opponent("toussaint_tournament"), new Random(1)));   // ikinci turnuva yok
+        var r = CareerLogic.WithdrawTournament(s, t);
+        Assert.True(r.TournamentOver && !r.TournamentWon);
+        Assert.Null(s.Tournament);
+        Assert.Equal(1, s.Record(t.Id).Losses);
+        Assert.Equal(500 - t.EntryFee, s.Crowns);
     }
 
     [Fact]

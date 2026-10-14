@@ -155,7 +155,7 @@ public sealed class MenuView : Grid
         var nick = Ui.Text(string.IsNullOrWhiteSpace(Settings.Nick) ? "Oyuncu" : Settings.Nick, 24, Theme.B("#f0d890"), true);
         nick.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 2, Opacity = 0.95 };
         texts.Children.Add(nick);
-        texts.Children.Add(Ui.Text($"Profil · ◆ {Settings.Crowns} taç", 14, Theme.TextDim));
+        texts.Children.Add(Ui.Text($"Profil · ◆ {Settings.Crowns} Crown", 14, Theme.TextDim));
         row.Children.Add(texts);
         var host = new Border
         {

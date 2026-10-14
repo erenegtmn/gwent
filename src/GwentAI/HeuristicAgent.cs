@@ -24,6 +24,11 @@ public sealed record AiTuning
     public double LeaderCost { get; init; } = 4;
     /// <summary>Kart değiştirmede bu değerin altındaki kartlar atılmaya aday.</summary>
     public double MulliganBelow { get; init; } = 3.5;
+    /// <summary>
+    /// Kolay/Normal zaafı: öne geçmek için yeterli en ucuz kart yerine bu olasılıkla en güçlüsünü oynar (gereğinden fazla kart gücü harcar).
+    /// 0 = her zaman en ekonomik hamle (Zor).
+    /// </summary>
+    public double Overcommit { get; init; } = 0;
 }
 
 /// <summary>
@@ -34,7 +39,21 @@ public sealed record AiTuning
 public sealed class HeuristicAgent : IAgent
 {
     private readonly AiTuning _t;
-    public HeuristicAgent(AiTuning? tuning = null) => _t = tuning ?? new AiTuning();
+    private readonly Random _rng;
+    public HeuristicAgent(AiTuning? tuning = null, int seed = 1)
+    {
+        _t = tuning ?? new AiTuning();
+        _rng = new Random(seed);
+    }
+
+    /// <summary>Kazanç sağlayan adaylardan ekonomik olanı; <see cref="AiTuning.Overcommit"/> olasılığıyla en güçlüsü.</summary>
+    private Cand? Pick(IEnumerable<Cand> ok)
+    {
+        var list = ok.ToList();
+        if (list.Count == 0) return null;
+        if (_t.Overcommit > 0 && _rng.NextDouble() < _t.Overcommit) return list.OrderByDescending(c => c.Gain).First();
+        return list.OrderBy(c => c.Cost).ThenByDescending(c => c.Gain).First();
+    }
 
     public GameAction Decide(Game g, int me)
     {
@@ -70,8 +89,9 @@ public sealed class HeuristicAgent : IAgent
         var cands = Candidates(g, me, lead);
         var pass = new Pass(me);
 
-        // Kart avantajı sağlayan hamleler (casus gibi) öndeyken ve lideri bozmuyorsa her zaman iyidir.
-        if (g.Round < 3)
+        // Kart avantajı sağlayan hamleler (casus gibi) öndeyken ve lideri bozmuyorsa iyidir. Rakip pas geçmişse yapılmaz:
+        // öndeyken pas geçip raundu bitirmek beklenir (arka arkaya casus/Yem oynamak kart dökmek gibi görünür).
+        if (g.Round < 3 && !opp.Passed)
         {
             var free = cands.Where(c => c.Cost <= -2 && lead + c.Gain > 0).OrderBy(c => c.Cost).FirstOrDefault();
             if (free != null) return free.Action;
@@ -83,7 +103,7 @@ public sealed class HeuristicAgent : IAgent
             var oppPotential = opp.Hand.Count * _t.AvgCardPoints + (opp.LeaderUsed ? 0 : 3);
             if (lead >= _t.PassAheadFactor * oppPotential) return pass;
             // Kıl payı öndeyim: rakip yanıt verene dek en ucuz hamleyle önde kalırım.
-            var keep = cands.Where(c => c.Gain > 0).OrderBy(c => c.Cost).ThenByDescending(c => c.Gain).FirstOrDefault();
+            var keep = Pick(cands.Where(c => c.Gain > 0));
             return keep?.Action ?? pass;
         }
 
@@ -100,7 +120,7 @@ public sealed class HeuristicAgent : IAgent
             if (myTotalPot < oppTotalPot * _t.RelativeConcedeFactor) return pass;
         }
 
-        var enough = cands.Where(c => c.Gain >= need).OrderBy(c => c.Cost).ThenByDescending(c => c.Gain).FirstOrDefault();
+        var enough = Pick(cands.Where(c => c.Gain >= need));
         if (enough != null) return enough.Action;
 
         var best = cands.Where(c => c.Gain > 0 || c.Cost < -1).OrderByDescending(c => c.Gain - _t.Lambda * c.Cost).FirstOrDefault();

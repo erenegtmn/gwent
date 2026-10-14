@@ -138,7 +138,7 @@ public sealed class TournamentLobbyView : Grid
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var fee = st?.EntryFee ?? 0;
-        var sub = st == null ? "" : $"{st.MaxPlayers} kişilik tek eleme · " + (fee > 0 ? $"katılım {fee} taç · ödül havuzu {fee * st.Players.Count} taç" : "ücretsiz") + " · " + RuleTitle(st.Rules);
+        var sub = st == null ? "" : $"{st.MaxPlayers} kişilik tek eleme · " + (fee > 0 ? $"katılım {fee} Crown · ödül havuzu {fee * st.Players.Count} Crown" : "ücretsiz") + " · " + RuleTitle(st.Rules);
         head.Children.Add(Ornate.Heading("Turnuva", sub, 46));
         var code = LobbyParts.CodePanel(st?.Code, _c, "TURNUVA KODU");
         Grid.SetColumn(code, 1);

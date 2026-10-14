@@ -18,6 +18,9 @@ public sealed class CareerTournamentRun
     public string Opponent { get; set; } = "";
     public int Round { get; set; }
     public List<string> Decks { get; set; } = new();
+    /// <summary>Girişte kilitlenen oyuncu destesi: turnuva boyunca bununla oynanır.</summary>
+    public string Faction { get; set; } = "";
+    public CareerDeck? Deck { get; set; }
 }
 
 /// <summary>
@@ -44,6 +47,8 @@ public sealed class CareerSave
 
     public bool Beaten(string opp) => Records.TryGetValue(opp, out var r) && r.Wins > 0;
 
-    /// <summary>Etkin deste (oynamak için); yoksa null.</summary>
-    public Deck? ActiveDeck() => Decks.TryGetValue(ActiveFaction, out var d) ? new Deck(ActiveFaction, d.LeaderId, d.Cards) : null;
+    /// <summary>Oynanacak deste: süren turnuvada girişte kilitlenen deste, değilse etkin deste; yoksa null.</summary>
+    public Deck? ActiveDeck() =>
+        Tournament is { Deck: { } td } t ? new Deck(t.Faction, td.LeaderId, td.Cards)
+        : Decks.TryGetValue(ActiveFaction, out var d) ? new Deck(ActiveFaction, d.LeaderId, d.Cards) : null;
 }

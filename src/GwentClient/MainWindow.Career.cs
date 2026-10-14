@@ -2,7 +2,10 @@ using GwentAI.Career;
 
 namespace GwentClient;
 
-/// <summary>Kariyer akışı: harita → (deste / tüccar) → VS ekranı → maç → ödül → harita.</summary>
+/// <summary>
+/// Kariyer (Collect 'Em All) akışı: harita → (deste / tüccar) → VS ekranı → maç → ödül → harita.
+/// Turnuva sürerken haritaya dönülmez: turlar arası ekran (<see cref="CareerTournamentView"/>) → maç → turlar arası ekran ... → bitince harita.
+/// </summary>
 public partial class MainWindow
 {
     private CareerSave? _career;
@@ -24,12 +27,26 @@ public partial class MainWindow
         var s = _career;
         var reward = _careerReward;
         _careerReward = null;
+        if (s.Tournament != null) { ShowCareerTournament(reward?.Summary); return; }   // turnuva sürüyor: harita yok
         Host.Content = new CareerView(s, new CareerNav(
             StartCareerMatch,
             () => Host.Content = new DeckBuilderView(s.ActiveFaction, false, () => ShowCareer(select), s),
             r => Host.Content = new CareerShopView(s, r, () => ShowCareer(select)),
             () => { CareerStore.Save(s); ShowMenu(); },
             () => { CareerStore.Delete(); _career = null; ShowCareer(null); }), reward, select);
+    }
+
+    /// <summary>Turlar arası ekran: sıradaki tur ya da turnuvadan çekilme.</summary>
+    private void ShowCareerTournament(string? lastResult)
+    {
+        var s = _career!;
+        var o = CareerWorld.Opponent(s.Tournament!.Opponent);
+        Host.Content = new CareerTournamentView(s, () => StartCareerMatch(o), () =>
+        {
+            _careerReward = CareerLogic.WithdrawTournament(s, o);
+            CareerStore.Save(s);
+            ShowCareer(o.Id);
+        }, lastResult);
     }
 
     private void StartCareerMatch(CareerOpponent o)
@@ -39,9 +56,16 @@ public partial class MainWindow
         var m = CareerMatch.Create(s, o, r => _careerReward = r);
         CareerStore.Save(s);
 
+        // Maç bitince (ya da yarıda bırakılınca): bırakmak yenilgi sayılır; turnuva sürüyorsa turlar arası ekrana, değilse haritaya
+        void Leave()
+        {
+            if (!m.Session.IsOver) m.Abandon();
+            ShowCareer(o.Id);
+        }
+
         void Begin()
         {
-            var view = new GwintView(m.Session, () => ShowCareer(o.Id), _ => StartCareerMatch(o));
+            var view = new GwintView(m.Session, Leave, _ => StartCareerMatch(o));
             Music.Start();
             Host.Content = view;
             view.Focus();
@@ -67,7 +91,7 @@ public sealed record CareerMatch(GameSession Session)
         {
             OppNameOverride = o.IsTournament ? $"{o.Name} · {round + 1}. tur" : o.Name,
             OppAvatarOverride = o.IsTournament ? npc.LeaderId : o.Face ?? npc.LeaderId,
-            ExitLabel = "Haritaya dön",
+            ExitLabel = o.IsTournament ? "Devam" : "Haritaya dön",
             TournamentMode = o.IsTournament,
             Settle = won =>
             {
@@ -77,6 +101,9 @@ public sealed record CareerMatch(GameSession Session)
                 return r.Summary;
             }
         };
-        return new CareerMatch(session);
+        return new CareerMatch(session) { Abandon = () => session.Settle!(false) };
     }
+
+    /// <summary>Maç bitmeden çıkıldı: yenilgi olarak işlenir (turnuvada elenme).</summary>
+    public Action Abandon { get; init; } = () => { };
 }

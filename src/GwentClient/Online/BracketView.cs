@@ -9,7 +9,7 @@ namespace GwentClient;
 
 /// <summary>
 /// Turnuva bracket ekranı: tek eleme ağacı (portreler, adlar, galipler), benim sıradaki maçım ve "Maça hazırım" düğmesi.
-/// Maç bitince oyun ekranından buraya dönülür; turnuva bitince şampiyon, sıralamam ve ödülüm (taç) gösterilir.
+/// Maç bitince oyun ekranından buraya dönülür; turnuva bitince şampiyon, sıralamam ve ödülüm (Crown) gösterilir.
 /// </summary>
 public sealed class BracketView : Grid
 {
@@ -86,8 +86,8 @@ public sealed class BracketView : Grid
         var head = new Grid();
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        head.Children.Add(Ornate.Heading("Turnuva", $"Kod {st.Code} · {st.Players.Count} oyuncu" + (st.EntryFee > 0 ? $" · ödül havuzu {st.EntryFee * st.Players.Count} taç" : ""), 44));
-        var crowns = Ui.Text($"◆ {Settings.Crowns} taç", 22, Theme.B("#f0d890"), true);
+        head.Children.Add(Ornate.Heading("Turnuva", $"Kod {st.Code} · {st.Players.Count} oyuncu" + (st.EntryFee > 0 ? $" · ödül havuzu {st.EntryFee * st.Players.Count} Crown" : ""), 44));
+        var crowns = Ui.Text($"◆ {Settings.Crowns} Crown", 22, Theme.B("#f0d890"), true);
         crowns.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(crowns, 1);
         head.Children.Add(crowns);
@@ -238,7 +238,7 @@ public sealed class BracketView : Grid
             var place = me?.Placement ?? 0;
             text = place == 1 ? "Şampiyon sensin!" : champ != null ? $"Şampiyon: {champ.Nick}" : "Turnuva bitti.";
             if (place > 0 && place != 1) text += $"   ·   Sıralaman: {place}.";
-            if (_prize > 0) text += $"   ·   Ödül: +{_prize} taç";
+            if (_prize > 0) text += $"   ·   Ödül: +{_prize} Crown";
             color = place == 1 ? Theme.B("#f4dc98") : Theme.B("#e8dcc4");
             var back = Ui.Button("Menüye dön", () => LeaveClicked(), primary: true);
             back.FontSize = 22;

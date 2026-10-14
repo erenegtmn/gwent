@@ -21,9 +21,12 @@ public class DifficultyTests
         {
             var f0 = Factions[i % 5];
             var f1 = Factions[(i / 5 + 2) % 5];
-            var d0 = DeckValidator.RecommendedDeck(f0);
-            var d1 = DeckValidator.RecommendedDeck(f1);
             var seat = i % 2; // koltuk adaleti: a bazen 0, bazen 1
+            // Zorluk = ajan + deste (hızlı maçta yapay zekâ zorluğuna göre deste alır)
+            var da = AiDecks.For(seat == 0 ? f0 : f1, null, CardCatalog.Default.Leaders(seat == 0 ? f0 : f1).First().Id, a);
+            var db = AiDecks.For(seat == 0 ? f1 : f0, null, CardCatalog.Default.Leaders(seat == 0 ? f1 : f0).First().Id, b);
+            var d0 = seat == 0 ? da : db;
+            var d1 = seat == 0 ? db : da;
             var seed = 9000 + i;
             var ag = AgentFactory.Create(a, seed);
             var bg = AgentFactory.Create(b, seed + 1);
@@ -35,6 +38,29 @@ public class DifficultyTests
             if (r.Winner == seat) wins++;
         }
         return decided == 0 ? 0 : wins / decided;
+    }
+
+    [Fact]
+    public void No_difficulty_dumps_cards_when_ahead_after_the_opponent_passed()
+    {
+        // Kolaylık saçma hamleyle verilmez: rakip pas geçmişken öndeyse her zorlukta pas geçer
+        foreach (var d in new[] { Difficulty.Easy, Difficulty.Normal, Difficulty.Hard })
+            for (var i = 0; i < 25; i++)
+            {
+                var f0 = Factions[i % 5];
+                var f1 = Factions[(i + 2) % 5];
+                var g = new Game(AiDecks.For(f0, null, CardCatalog.Default.Leaders(f0).First().Id, d),
+                    AiDecks.For(f1, null, CardCatalog.Default.Leaders(f1).First().Id, Difficulty.Hard), 500 + i);
+                var agents = new[] { AgentFactory.Create(d, 500 + i), AgentFactory.Create(Difficulty.Hard, 900 + i) };
+                for (var step = 0; g.Phase != Phase.GameOver && step < 3000; step++)
+                {
+                    var p = g.PlayersToAct()[0];
+                    var a = agents[p].Decide(g, p);
+                    if (p == 0 && g.Phase == Phase.Playing && g.Pending == null && g.Players[1].Passed && g.PlayerTotal(0) > g.PlayerTotal(1))
+                        Assert.IsType<Pass>(a);
+                    Assert.True(g.Apply(a).Ok);
+                }
+            }
     }
 
     [Fact]

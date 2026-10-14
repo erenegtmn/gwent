@@ -166,6 +166,18 @@ public static class Screenshots
             Save(new CareerView(adv, nav, null, "Baron"), "career_velen.png");
             adv.LastRegion = "novigrad";
             Save(new CareerView(adv, nav, null, "passiflora"), "career_novigrad.png");
+            {
+                // Turnuva: giriş uyarısı (onay adımı) ve turlar arası ekran
+                var tv = new CareerView(adv, nav, null, "passiflora");
+                typeof(CareerView).GetField("_confirmEntry", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(tv, "passiflora");
+                typeof(CareerView).GetMethod("Draw", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(tv, null);
+                Save(tv, "career_tournament_confirm.png");
+                var run = GwentAI.Career.CareerLogic.NewSave();
+                run.Crowns = 300;
+                GwentAI.Career.CareerLogic.EnterTournament(run, GwentAI.Career.CareerWorld.Opponent("passiflora"), new Random(2));
+                run.Tournament!.Round = 1;
+                Save(new CareerTournamentView(run, () => { }, () => { }, "1. turu kazandın! Sıradaki: 2. tur."), "career_tournament_round.png");
+            }
             var rew = GwentAI.Career.CareerLogic.ApplyDuel(adv, GwentAI.Career.CareerWorld.Opponent("Thaler"), true, rng);
             Save(new CareerView(adv, nav, rew), "career_reward.png");
             Save(new CareerShopView(adv, GwentAI.Career.CareerWorld.Region("velen"), () => { }), "career_shop.png");

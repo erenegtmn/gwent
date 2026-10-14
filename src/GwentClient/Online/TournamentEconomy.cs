@@ -10,7 +10,7 @@ public static class TournamentEconomy
 {
     public static int Prize(int entryFee, int players, int placement) => TournamentPrizes.Prize(entryFee, players, placement);
 
-    /// <summary>Bakiye bu değerin altına düşmez: açılışta daha azı varsa buna tamamlanır. Taç eğlence içindir, kimse turnuvadan taçsızlık yüzünden kalmasın.</summary>
+    /// <summary>Bakiye bu değerin altına düşmez: açılışta daha azı varsa buna tamamlanır. Crown eğlence içindir, kimse turnuvadan parasızlık yüzünden kalmasın.</summary>
     public const int Floor = 100;
 
     /// <summary>
@@ -43,7 +43,7 @@ public static class TournamentEconomy
         Settings.Save();
     }
 
-    /// <summary>Turnuva bitince ödülü bir kez işler; kazanılan taç miktarını döner (0 = ödül yok ya da zaten işlenmiş).</summary>
+    /// <summary>Turnuva bitince ödülü bir kez işler; kazanılan Crown miktarını döner (0 = ödül yok ya da zaten işlenmiş).</summary>
     public static int Settle(TournamentState st)
     {
         if (st.Phase != TournamentPhase.Finished || st.YourIndex < 0) return 0;

@@ -83,7 +83,7 @@ public sealed partial class RoomService
             if (version != ProtocolInfo.Version) return Reply.Fail($"Sürüm uyuşmuyor (sende {version}, sunucuda {ProtocolInfo.Version}). Oyunu güncelle.");
             if (CheckNick(nick) is { } err) return Reply.Fail(err);
             if (maxPlayers is not (4 or 8)) return Reply.Fail("Turnuva 4 ya da 8 kişilik olur.");
-            if (entryFee is < 0 or > 10000) return Reply.Fail("Katılım ücreti 0-10000 taç arası olmalı.");
+            if (entryFee is < 0 or > 10000) return Reply.Fail("Katılım ücreti 0-10000 Crown arası olmalı.");
             var t = new Tournament(NewCode(), nextGen, maxPlayers, entryFee, _clock.UtcNow);
             _tournaments[t.Code] = t;
             AddPlayer(t, s, nick.Trim());
