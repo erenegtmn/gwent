@@ -14,6 +14,7 @@ namespace GwentClient;
 public static class Portraits
 {
     public const string Default = "avatar_geralt";
+    public const string FacePrefix = "face:";
     private static readonly string[] Factions = { "northern_realms", "nilfgaard", "scoiatael", "monsters", "skellige" };
 
     /// <summary>Seçilebilir tüm portre kimlikleri (Geralt + standart liderler).</summary>
@@ -45,12 +46,28 @@ public static class Portraits
     /// </summary>
     public static FrameworkElement Medallion(string? id, double size, bool glow = false)
     {
-        if (id == null || (id != Default && !CardCatalog.Default.TryGet(id, out _))) id = Default;   // yalnız görüntü: herhangi bir kart yüzü olur
+        // "face:<ad>": oyunun günlüğündeki karakter portresi (kariyer rakipleri); "face:none" ya da bulunamazsa siluet
+        string? face = id != null && id.StartsWith(FacePrefix) ? id[FacePrefix.Length..] : null;
+        if (face == null && (id == null || (id != Default && !CardCatalog.Default.TryGet(id, out _)))) id = Default;   // yalnız görüntü: herhangi bir kart yüzü olur
         var k = size / RingW;
         var g = new Grid { Width = size, Height = RingH * k, IsHitTestVisible = false };
         var r = (HoleR + 3) * k;   // deliğin kenarının altına 3 px girer: aradan arka plan/parıltı sızmaz
         Brush? fill = null;
-        if (id == Default)
+        if (face != null)
+        {
+            if ((face != "none" ? Assets.Ui("faces/" + face) : null) is { } src)
+                fill = new ImageBrush(src) { Stretch = Stretch.UniformToFill };
+            else if (Assets.Ui("avatar_silhouette") is { } sil)   // adı bilinmeyen karakter: oyunun silueti, kısık tonda
+            {
+                var dg = new DrawingGroup();
+                dg.Children.Add(new GeometryDrawing(Theme.B("#1c140c"), null, new RectangleGeometry(new Rect(0, 0, 1, 1))));
+                dg.Children.Add(new ImageDrawing(sil, new Rect(0, 0, 1, 1)) { });
+                dg.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromArgb(0x90, 0x14, 0x0e, 0x08)), null, new RectangleGeometry(new Rect(0, 0, 1, 1))));
+                fill = new DrawingBrush(dg) { Stretch = Stretch.UniformToFill };
+            }
+            else fill = Theme.B("#3a2e20");
+        }
+        else if (id == Default)
         {
             if (Assets.Ui("avatar_geralt") is { } src) fill = new ImageBrush(src) { Stretch = Stretch.UniformToFill };
         }
@@ -59,7 +76,7 @@ public static class Portraits
         g.Children.Add(new Ellipse
         {
             Width = r * 2, Height = r * 2, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(HoleCx * k - r, HoleCy * k - r, 0, 0), Fill = fill ?? Theme.FactionColor(FactionOf(id))
+            Margin = new Thickness(HoleCx * k - r, HoleCy * k - r, 0, 0), Fill = fill ?? Theme.FactionColor(FactionOf(id!))
         });
         if (Assets.Ui("ring") is { } ring)
             g.Children.Add(new Image { Source = ring, Width = size, Height = RingH * k, Stretch = Stretch.Fill, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top });

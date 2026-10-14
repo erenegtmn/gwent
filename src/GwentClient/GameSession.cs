@@ -5,7 +5,7 @@ using GwentNet;
 namespace GwentClient;
 
 /// <summary>MyDeck boşsa fraksiyonun tüm kartları kullanılır. Rakip her zaman "önerilen" deste ile oynar (dengeli olsun).</summary>
-public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal);
+public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal, Deck? OppDeck = null);
 
 /// <summary>Online maçta sunucuyla konuşan taraf: eylemi gönderir. Sunucudan gelenler <see cref="GameSession.EnqueueRemote"/> ile oturuma verilir.</summary>
 public interface IMatchLink
@@ -43,9 +43,19 @@ public sealed class GameSession
 
     /// <summary>Ekranda gösterilen ad ve portreler: online'da kurulumdan, yerelde profilden (rakip yapay zekâ lider yüzüyle).</summary>
     public string MyName => OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Nick0 : OnlineSetup.Nick1) : (string.IsNullOrWhiteSpace(Settings.Nick) ? "Sen" : Settings.Nick);
-    public string OppName => OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Nick1 : OnlineSetup.Nick0) : "Rakip";
+    public string OppName => OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Nick1 : OnlineSetup.Nick0) : OppNameOverride ?? "Rakip";
     public string MyAvatar => OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Seat0 : OnlineSetup.Seat1).Avatar ?? Portraits.Default : Settings.Portrait;
-    public string OppAvatar => (OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Seat1 : OnlineSetup.Seat0).Avatar : null) ?? Config.OppLeaderId;
+    public string OppAvatar => (OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Seat1 : OnlineSetup.Seat0).Avatar : null) ?? OppAvatarOverride ?? Config.OppLeaderId;
+
+    /// <summary>Kariyer maçı: rakibin adı ve portresi (ör. "Kanlı Baron", "face:baron").</summary>
+    public string? OppNameOverride { get; init; }
+    public string? OppAvatarOverride { get; init; }
+
+    /// <summary>Kariyer maçı bitince bir kez çağrılır (true kazandın, false kaybettin, null berabere); oyun sonu ekranında gösterilecek özeti döner.</summary>
+    public Func<bool?, string>? Settle { get; init; }
+
+    /// <summary>Oyun sonu ekranındaki çıkış düğmesinin yazısı (ör. "Haritaya dön").</summary>
+    public string? ExitLabel { get; init; }
     public bool IsRemote => _link != null;
 
     /// <summary>Turnuva maçı: oyun sonunda "Bracket'e dön" gösterilir (rövanş yalnız berabere kalınca).</summary>
@@ -99,7 +109,8 @@ public sealed class GameSession
         Replay = new ReplayData
         {
             MyFaction = cfg.MyFaction, MyLeaderId = cfg.MyDeck?.LeaderId ?? cfg.MyLeaderId, OppFaction = cfg.OppFaction, OppLeaderId = cfg.OppLeaderId,
-            NextGen = cfg.NextGen, Seed = cfg.Seed, MyDeckCards = cfg.MyDeck?.CardIds.ToList(), Difficulty = (int)cfg.Difficulty
+            NextGen = cfg.NextGen, Seed = cfg.Seed, MyDeckCards = cfg.MyDeck?.CardIds.ToList(), Difficulty = (int)cfg.Difficulty,
+            OppDeckCards = cfg.OppDeck?.CardIds.ToList(), OppDeckUnchecked = cfg.OppDeck != null
         };
         Game = Replay.CreateGame();
     }

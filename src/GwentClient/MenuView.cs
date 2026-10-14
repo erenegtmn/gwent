@@ -47,6 +47,8 @@ public sealed class MenuView : Grid
     private readonly bool _animate;
     private readonly Action? _openSettings;
     private readonly Action? _openStats;
+    private readonly Action? _openGuide;
+    private readonly Action? _openCareer;
     private readonly Action? _openOnline;
     private readonly Grid _panoLayer = new();
     private bool _starting;
@@ -55,8 +57,10 @@ public sealed class MenuView : Grid
     private Border _setup = null!;
     private bool _setupOpen;
 
-    public MenuView(Action<MatchConfig> start, Action<string, bool> openBuilder, string? initialFaction = null, bool nextGen = false, bool animate = true, Action? openSettings = null, Action? openOnline = null, Action? openStats = null)
+    public MenuView(Action<MatchConfig> start, Action<string, bool> openBuilder, string? initialFaction = null, bool nextGen = false, bool animate = true, Action? openSettings = null, Action? openOnline = null, Action? openStats = null, Action? openGuide = null, Action? openCareer = null)
     {
+        _openGuide = openGuide;
+        _openCareer = openCareer;
         _openSettings = openSettings;
         _openStats = openStats;
         _openOnline = openOnline;
@@ -195,20 +199,42 @@ public sealed class MenuView : Grid
         });
 
         var list = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Width = 360 };
+        // Ana öğeler: oyun kipleri ve sık kullanılanlar. Profil (sol üstteki portre de açar) ve kılavuz altta küçük bağlantılardır.
         list.Children.Add(MenuItem("Oyna", ToggleSetup));
+        if (_openCareer != null) list.Children.Add(MenuItem("Collect 'Em All", () => _openCareer()));
         if (_openOnline != null) list.Children.Add(MenuItem("Online", () => _openOnline()));
         list.Children.Add(MenuItem("Deste Kurucu", () => _openBuilder(_myFaction, NextGen)));
-        if (_openStats != null) list.Children.Add(MenuItem("Profil", () => _openStats()));
         list.Children.Add(MenuItem("Ayarlar", () => _openSettings?.Invoke()));
         list.Children.Add(MenuItem("Çıkış", () => Application.Current.Shutdown()));
         left.Children.Add(list);
+
+        var links = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0) };
+        void Link(string text, Action click)
+        {
+            if (links.Children.Count > 0) links.Children.Add(new TextBlock { Text = "◆", FontSize = 9, Foreground = Theme.GoldDim, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 14, 0) });
+            links.Children.Add(SmallLink(text, click));
+        }
+        if (_openGuide != null) Link("Nasıl Oynanır", () => _openGuide());
+        if (_openStats != null) Link("Profil", () => _openStats());
+        if (links.Children.Count > 0) left.Children.Add(links);
         return left;
+    }
+
+    /// <summary>Menünün altındaki küçük yazı bağlantısı (ikincil öğeler).</summary>
+    private static UIElement SmallLink(string text, Action click)
+    {
+        var tb = new TextBlock { Text = text, FontFamily = Theme.Serif, FontSize = 19, Foreground = Theme.B("#9a9078"), IsHitTestVisible = false };
+        var host = new Border { Background = Brushes.Transparent, Padding = new Thickness(2, 3, 2, 3), Cursor = Cursors.Hand, Child = tb, Tag = "menu-item" };
+        host.MouseEnter += (_, _) => { tb.Foreground = Theme.B("#fff2c8"); tb.Effect = new DropShadowEffect { Color = Color.FromRgb(255, 200, 90), BlurRadius = 12, ShadowDepth = 0, Opacity = 0.8 }; };
+        host.MouseLeave += (_, _) => { tb.Foreground = Theme.B("#9a9078"); tb.Effect = null; };
+        host.MouseLeftButtonUp += (_, e) => { e.Handled = true; Sfx.Play("lock_in"); click(); };
+        return host;
     }
 
     /// <summary>Orijinal Witcher menüsü gibi sade yazı öğesi: üzerine gelince parlar, ◆ imleci ve altın çizgi belirir.</summary>
     private static UIElement MenuItem(string text, Action? click, Func<string, string>? toggle = null)
     {
-        var tb = new TextBlock { Text = text, FontFamily = Theme.Serif, FontSize = 32, Foreground = Theme.B("#bdb39a"), VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
+        var tb = new TextBlock { Text = text, FontFamily = Theme.Serif, FontSize = 28, Foreground = Theme.B("#bdb39a"), VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
         var chev = new TextBlock { Text = "◆", FontSize = 13, Foreground = Theme.Gold, Opacity = 0, VerticalAlignment = VerticalAlignment.Center, Width = 28, IsHitTestVisible = false };
         var shift = new TranslateTransform();
         var row = new StackPanel { Orientation = Orientation.Horizontal, RenderTransform = shift, IsHitTestVisible = false };
@@ -223,7 +249,7 @@ public sealed class MenuView : Grid
         var stack = new StackPanel { IsHitTestVisible = false };
         stack.Children.Add(row);
         stack.Children.Add(line);
-        var host = new Border { Background = Brushes.Transparent, Padding = new Thickness(6, 5, 20, 5), Cursor = Cursors.Hand, Child = stack, Tag = "menu-item" };
+        var host = new Border { Background = Brushes.Transparent, Padding = new Thickness(6, 4, 20, 4), Cursor = Cursors.Hand, Child = stack, Tag = "menu-item" };
 
         var ms = TimeSpan.FromMilliseconds(220);
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };

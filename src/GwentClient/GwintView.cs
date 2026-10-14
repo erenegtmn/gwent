@@ -1678,9 +1678,14 @@ public sealed class GwintView : Viewbox
         _statsRecorded = true;
         var win = _s.WinnerSeat;
         var online = _s.OnlineSetup;
-        var opp = online != null ? (_s.MySeat == 0 ? online.Nick1 : online.Nick0) : "Yapay zekâ (" + _s.Config.Difficulty switch { GwentAI.Difficulty.Easy => "Kolay", GwentAI.Difficulty.Hard => "Zor", _ => "Normal" } + ")";
+        var opp = online != null ? (_s.MySeat == 0 ? online.Nick1 : online.Nick0)
+            : _s.OppNameOverride != null ? "Collect 'Em All: " + _s.OppNameOverride
+            : "Yapay zekâ (" + _s.Config.Difficulty switch { GwentAI.Difficulty.Easy => "Kolay", GwentAI.Difficulty.Hard => "Zor", _ => "Normal" } + ")";
         Stats.Record(new MatchRecord(DateTime.Now, online != null, opp, _s.Config.MyFaction, _s.Config.OppFaction, win == null ? 0 : win == Me ? 1 : -1));
+        if (_s.Settle != null && !_s.IsSpectator) _careerText = _s.Settle(win == null ? null : win == _s.MySeat);
     }
+
+    private string? _careerText;
 
     /// <summary>İzleyici için maç sonu: kazanan, raund skorları ve bracket'e dönüş.</summary>
     private UIElement SpectatorOverPanel()
@@ -1767,6 +1772,13 @@ public sealed class GwintView : Viewbox
             rowIx++;
         }
         sp.Children.Add(table);
+        if (_careerText != null)
+        {
+            var reward = Txt(_careerText, 26, Theme.B("#f0d890"), true, TextAlignment.Center, 1100);
+            reward.Margin = new Thickness(0, 14, 0, 0);
+            reward.Tag = "career-reward";
+            sp.Children.Add(reward);
+        }
 
         var b = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 34, 0, 0) };
         var again = Ui.Button(_s.IsRemote ? "Rövanş iste" : "Yeniden oyna", () =>
@@ -1774,7 +1786,7 @@ public sealed class GwintView : Viewbox
             if (_s.IsRemote) { _s.Link!.RequestRematch(); _hint = "Rövanş isteği gönderildi; rakibin kabul etmesi bekleniyor."; Refresh(); }
             else _rematch(_s.Config with { Seed = Random.Shared.Next(1, int.MaxValue) });
         }, primary: true);
-        var menu = Ui.Button(_s.TournamentMode ? "Bracket'e dön" : "Menü", _toMenu);
+        var menu = Ui.Button(_s.ExitLabel ?? (_s.TournamentMode ? "Bracket'e dön" : "Menü"), _toMenu);
         again.FontSize = 26; menu.FontSize = 26;
         again.Padding = new Thickness(50, 14, 50, 14); menu.Padding = new Thickness(50, 14, 50, 14);
         menu.Margin = new Thickness(18, 0, 0, 0);

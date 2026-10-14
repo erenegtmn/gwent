@@ -19,7 +19,8 @@ public static class Screenshots
         var rec = DeckValidator.RecommendedDeck("northern_realms");
         DeckStore.Save(new SavedDeck("Hızlı Saldırı", rec.Faction, rec.LeaderId, rec.CardIds.ToList()));
         DeckStore.Save(new SavedDeck("Yarım deste", "northern_realms", rec.LeaderId, rec.CardIds.Take(8).ToList()));
-        Save(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }), "menu.png");
+        Save(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }, openGuide: () => { }, openCareer: () => { }), "menu.png");
+        Ui.RenderToPng(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }, openGuide: () => { }, openCareer: () => { }), 1440, 860, System.IO.Path.Combine(dir, "menu_small.png"));
         var setupMenu = new MenuView(_ => { }, (_, _) => { }, animate: false);
         typeof(MenuView).GetMethod("ToggleSetup", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(setupMenu, null);
         Save(setupMenu, "menu_setup.png");
@@ -149,6 +150,33 @@ public static class Screenshots
             };
             Save(new ProfileView(() => { }, statRecs, persist: false), "stats.png");
             Save(new ProfileView(() => { }, new List<MatchRecord>(), persist: false), "stats_empty.png");
+        }
+        for (var gi = 0; gi < 7; gi++) Save(new GuideView(() => { }, gi), $"guide_{gi + 1}.png");
+        {
+            // Kariyer: başlangıç, rakip kartı, ilerlemiş kayıt (Velen, Novigrad turnuvası), ödül, tüccar, kariyer destesi, tüm bölgeler
+            var nav = new CareerNav(_ => { }, () => { }, _ => { }, () => { }, () => { });
+            var cs = GwentAI.Career.CareerLogic.NewSave();
+            Save(new CareerView(cs, nav), "career_start.png");
+            Save(new CareerView(cs, nav, null, "tutorialDeck"), "career_detail.png");
+            var adv = GwentAI.Career.CareerLogic.NewSave();
+            var rng = new Random(3);
+            foreach (var o in GwentAI.Career.CareerWorld.In("white_orchard")) GwentAI.Career.CareerLogic.ApplyDuel(adv, o, true, rng);
+            foreach (var o in GwentAI.Career.CareerWorld.In("velen").Take(4)) GwentAI.Career.CareerLogic.ApplyDuel(adv, o, true, rng);
+            adv.LastRegion = "velen";
+            Save(new CareerView(adv, nav, null, "Baron"), "career_velen.png");
+            adv.LastRegion = "novigrad";
+            Save(new CareerView(adv, nav, null, "passiflora"), "career_novigrad.png");
+            var rew = GwentAI.Career.CareerLogic.ApplyDuel(adv, GwentAI.Career.CareerWorld.Opponent("Thaler"), true, rng);
+            Save(new CareerView(adv, nav, rew), "career_reward.png");
+            Save(new CareerShopView(adv, GwentAI.Career.CareerWorld.Region("velen"), () => { }), "career_shop.png");
+            Save(new DeckBuilderView("northern_realms", false, () => { }, adv), "career_deck.png");
+            var all = GwentAI.Career.CareerLogic.NewSave();
+            foreach (var o in GwentAI.Career.CareerWorld.Opponents.Where(o => !o.IsTournament)) GwentAI.Career.CareerLogic.ApplyDuel(all, o, true, rng);
+            foreach (var r in new[] { "skellige", "hearts_of_stone", "toussaint" })
+            {
+                all.LastRegion = r;
+                Save(new CareerView(all, nav), $"career_{r}.png");
+            }
         }
         // Online: giriş ekranı, bekleme odası (iki oyuncu), oyun içi onay ve rakip koptu çubuğu
         Save(new OnlineMenuView(() => { }, _ => { }), "online_menu.png");

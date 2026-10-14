@@ -18,7 +18,7 @@ public static partial class UiSelfTest
 
     public static int Run(int games)
     {
-        var failures = RunDeckBuilder();
+        var failures = RunDeckBuilder() + RunGuide();
         var sfxProblems = Sfx.Diagnose();
         foreach (var p in sfxProblems) Console.WriteLine("[HATA] ses: " + p);
         Console.WriteLine($"Ses: {Sfx.AllNames.Length} yer tutucu denetlendi, {sfxProblems.Count} sorun.");
@@ -858,6 +858,38 @@ public static partial class UiSelfTest
             try { System.IO.File.Delete(tmp); } catch { }
         }
         Console.WriteLine($"Deste kurucu: {saved} kayıt denendi, {failures} hata.");
+        return failures;
+    }
+
+    /// <summary>"Nasıl oynanır" dergisi: tüm sayfalar ileri/geri düğmeleriyle gezilir, her sayfa çizilir, "Menüye dön" çağrılır.</summary>
+    public static int RunGuide()
+    {
+        var failures = 0;
+        var backed = false;
+        try
+        {
+            var view = new GuideView(() => backed = true);
+            Layout(view);
+            Button Tagged(string tag) => FindAll<Button>(view, b => (b.Tag as string) == tag).First();
+            for (var i = 1; i < view.PageCount; i++)
+            {
+                Click(Tagged("guide-next"));
+                Layout(view);
+            }
+            if (Tagged("guide-next").IsEnabled) throw new InvalidOperationException("Son sayfada 'Sonraki' kapanmadı.");
+            for (var i = 1; i < view.PageCount; i++) Click(Tagged("guide-prev"));
+            if (Tagged("guide-prev").IsEnabled) throw new InvalidOperationException("İlk sayfada 'Önceki' kapanmadı.");
+            var dots = FindAll<TextBlock>(view, t => (t.Tag as string) == "guide-dot").Count();
+            if (dots != view.PageCount) throw new InvalidOperationException($"Sayfa noktası {dots}, sayfa {view.PageCount}.");
+            Click(Tagged("guide-back"));
+            if (!backed) throw new InvalidOperationException("'Menüye dön' çalışmadı.");
+        }
+        catch (Exception ex)
+        {
+            failures++;
+            Console.WriteLine("[HATA] kılavuz: " + ex.Message);
+        }
+        Console.WriteLine($"Kılavuz: {failures} hata.");
         return failures;
     }
 

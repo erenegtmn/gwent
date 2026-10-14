@@ -1,6 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <!-- Kariyer: oyunun NPC desteleri ve tüccar fiyatları (tools/build_career.py) -->
+    <EmbeddedResource Include="..\..\data\career_decks.json" LogicalName="career_decks.json" />
     <ProjectReference Include="..\GwentCore\GwentCore.csproj" />
   </ItemGroup>
 

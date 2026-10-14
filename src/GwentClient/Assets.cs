@@ -67,7 +67,8 @@ public static class Assets
         }
     }
 
-    public static ImageSource? Ui(string name) => Load(Path.Combine("ui", name + ".png"));
+    /// <summary>Arayüz görseli (ui/&lt;ad&gt;.png; yoksa .jpg — büyük haritalar jpg'dir).</summary>
+    public static ImageSource? Ui(string name) => Load(Path.Combine("ui", name + ".png")) ?? Load(Path.Combine("ui", name + ".jpg"));
     public static ImageSource? Card(string cardId) => Load(Path.Combine("cards", cardId + ".png"));
 
     /// <summary>Müzik dosyaları (assets/music/*.mp3).</summary>

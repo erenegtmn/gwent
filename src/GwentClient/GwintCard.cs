@@ -185,7 +185,7 @@ public sealed class GwintCard : Border
         VerticalAlignment = VerticalAlignment.Center
     };
 
-    private static Grid Glyph(string glyph, double size, string badgeName)
+    internal static Grid Glyph(string glyph, double size, string badgeName)
     {
         var g = Badge(badgeName, size);
         g.Margin = new Thickness(0, 0, size * 0.04, 0);

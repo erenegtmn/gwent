@@ -38,8 +38,19 @@ public sealed class DeckBuilderView : Grid
     private ScrollViewer? _poolScroll, _listScroll;
     private double _poolOffset, _listOffset;
 
-    public DeckBuilderView(string faction, bool nextGen, Action close)
+    /// <summary>Kariyer kipi: yalnız koleksiyondaki kartlar ve liderler; bir karttan en fazla sahip olunan kadar. Kaydedilen deste kariyerin destesi olur.</summary>
+    private readonly GwentAI.Career.CareerSave? _career;
+
+    /// <summary>Kartın bu destede kullanılabilecek en fazla adedi: kopya sınırı; kariyerde ayrıca koleksiyondaki adet.</summary>
+    private int Limit(CardDef d) => _career == null ? d.Copies : Math.Min(d.Copies, _career.Owned(d.Id));
+
+    private IEnumerable<CardDef> LeaderChoices() =>
+        CardCatalog.Default.Leaders(_faction).Where(l => (l.Edition != "nextgen" || _options.NextGen) && (_career == null || _career.Owned(l.Id) > 0));
+
+    public DeckBuilderView(string faction, bool nextGen, Action close, GwentAI.Career.CareerSave? career = null)
     {
+        _career = career;
+        if (career != null && !OwnsLeader(career, faction)) faction = career.ActiveFaction;
         _faction = faction;
         _options = new GameOptions { NextGen = nextGen };
         _close = close;
@@ -99,14 +110,21 @@ public sealed class DeckBuilderView : Grid
         return new Deck(_faction, _leaderId, ids);
     }
 
+    private static bool OwnsLeader(GwentAI.Career.CareerSave c, string faction) => CardCatalog.Default.Leaders(faction).Any(l => c.Owned(l.Id) > 0);
+
     private void NewDeck()
     {
         _cards.Clear();
         _loadedName = null;
         _name = "";
         _nameBox.Text = "";
-        _leaderId = CardCatalog.Default.Leaders(_faction).First(l => l.Edition != "nextgen" || _options.NextGen).Id;
+        _leaderId = LeaderChoices().FirstOrDefault()?.Id ?? CardCatalog.Default.Leaders(_faction).First().Id;
         _message = "";
+        if (_career != null && _career.Decks.TryGetValue(_faction, out var saved))
+        {
+            foreach (var id in saved.Cards) _cards[id] = _cards.GetValueOrDefault(id) + 1;
+            if (_career.Owned(saved.LeaderId) > 0) _leaderId = saved.LeaderId;
+        }
         Rebuild();
     }
 
@@ -134,7 +152,7 @@ public sealed class DeckBuilderView : Grid
 
     private void Add(CardDef d)
     {
-        if (Count(d.Id) >= d.Copies) return;
+        if (Count(d.Id) >= Limit(d)) return;
         _cards[d.Id] = Count(d.Id) + 1;
         _message = "";
         RebuildLight();
@@ -204,8 +222,8 @@ public sealed class DeckBuilderView : Grid
         var top = new Grid();
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        top.Children.Add(NavLink("‹ Menü", _close));
-        var title = Ornate.Heading("Deste kurucu", null, 38);
+        top.Children.Add(NavLink(_career != null ? "‹ Harita" : "‹ Menü", _close));
+        var title = Ornate.Heading(_career != null ? "Collect 'Em All · Deste" : "Deste kurucu", null, 38);
         ((FrameworkElement)title).Margin = new Thickness(26, 0, 0, 0);
         ((FrameworkElement)title).VerticalAlignment = VerticalAlignment.Center;
         SetColumn(title, 1);
@@ -221,6 +239,7 @@ public sealed class DeckBuilderView : Grid
         var fr = new StackPanel { Orientation = Orientation.Horizontal };
         foreach (var f in Factions)
         {
+            if (_career != null && !OwnsLeader(_career, f)) continue;   // kariyerde liderin yoksa o fraksiyonla deste kurulamaz
             var key = f;
             var sel = f == _faction;
             var inner = new StackPanel { Orientation = Orientation.Horizontal, IsHitTestVisible = false };
@@ -246,6 +265,17 @@ public sealed class DeckBuilderView : Grid
         }
         row.Children.Add(fr);
 
+        if (_career != null)
+        {
+            var (have, total) = GwentAI.Career.CareerLogic.Progress(_career);
+            var info = Ui.Text($"Koleksiyon {have}/{total} kart  ·  Yeni kartları rakipleri yenerek ya da tüccardan alırsın.", 15, Theme.TextDim, false, TextAlignment.Right);
+            info.HorizontalAlignment = HorizontalAlignment.Right;
+            info.VerticalAlignment = VerticalAlignment.Center;
+            SetColumn(info, 1);
+            row.Children.Add(info);
+            _header.Children.Add(row);
+            return;
+        }
         var saved = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         var lbl = Ui.Text("Desteler", 15, Theme.TextDim, true);
         lbl.VerticalAlignment = VerticalAlignment.Center;
@@ -279,7 +309,7 @@ public sealed class DeckBuilderView : Grid
     private IEnumerable<CardDef> FilteredPool()
     {
         var pool = DeckValidator.Pool(_faction, _options);
-        IEnumerable<CardDef> q = pool;
+        IEnumerable<CardDef> q = _career == null ? pool : pool.Where(d => Limit(d) > 0);
         q = _typeFilter switch
         {
             "unit" => q.Where(d => d.IsUnit && !d.Hero),
@@ -334,7 +364,8 @@ public sealed class DeckBuilderView : Grid
         {
             var def = d;
             var n = Count(def.Id);
-            var maxed = n >= def.Copies;
+            var limit = Limit(def);
+            var maxed = n >= limit;
             var cc = new GwintCard(def, cw, def.IsUnit ? def.Strength : null, null, selected: n > 0, height: ch);
             cc.Opacity = maxed ? 0.5 : 1;
             cc.Tag = "pool";
@@ -345,7 +376,7 @@ public sealed class DeckBuilderView : Grid
             sh.Margin = new Thickness(3, 6, -3, -6);
             tile.Children.Add(sh);
             tile.Children.Add(cc);
-            if (def.Copies > 1 || n > 0)
+            if (limit > 1 || n > 0)
             {
                 var badge = new Border
                 {
@@ -358,7 +389,7 @@ public sealed class DeckBuilderView : Grid
                     VerticalAlignment = VerticalAlignment.Bottom,
                     Margin = new Thickness(0, 0, 0, -9),
                     IsHitTestVisible = false,
-                    Child = Ui.Text($"{n}/{def.Copies}", 13, n > 0 ? Theme.Gold : Theme.TextDim, true)
+                    Child = Ui.Text($"{n}/{limit}", 13, n > 0 ? Theme.Gold : Theme.TextDim, true)
                 };
                 tile.Children.Add(badge);
             }
@@ -416,6 +447,7 @@ public sealed class DeckBuilderView : Grid
     {
         var deck = CurrentDeck();
         var errors = DeckValidator.Validate(deck, _options);
+        if (_career != null && _career.Owned(_leaderId) == 0) errors.Insert(0, "Bu fraksiyonun hiçbir liderine sahip değilsin.");
         var defs = _cards.Select(kv => (Def: CardCatalog.Default.Get(kv.Key), N: kv.Value)).ToList();
         var units = defs.Where(x => x.Def.IsUnit).Sum(x => x.N);
         var specials = defs.Where(x => !x.Def.IsUnit).Sum(x => x.N);
@@ -431,9 +463,12 @@ public sealed class DeckBuilderView : Grid
         var top = new StackPanel();
         _nameBox.Margin = new Thickness(0, 0, 0, 12);
         if (_nameBox.Parent is Panel op) op.Children.Remove(_nameBox);
-        top.Children.Add(Ui.Text("Deste adı", 14, Theme.TextDim, true));
-        ((TextBlock)top.Children[0]).Margin = new Thickness(0, 0, 0, 3);
-        top.Children.Add(_nameBox);
+        if (_career == null)
+        {
+            top.Children.Add(Ui.Text("Deste adı", 14, Theme.TextDim, true));
+            ((TextBlock)top.Children[0]).Margin = new Thickness(0, 0, 0, 3);
+            top.Children.Add(_nameBox);
+        }
 
         var current = CardCatalog.Default.Get(_leaderId);
         var lrow = new Grid();
@@ -453,7 +488,7 @@ public sealed class DeckBuilderView : Grid
         top.Children.Add(Ui.Text("Lider seç", 14, Theme.TextDim, true));
         ((TextBlock)top.Children[^1]).Margin = new Thickness(0, 10, 0, 4);
         var leaders = new StackPanel { Orientation = Orientation.Horizontal };
-        foreach (var l in CardCatalog.Default.Leaders(_faction).Where(l => l.Edition != "nextgen" || _options.NextGen))
+        foreach (var l in LeaderChoices())
         {
             var leader = l;
             var cc = new GwintCard(leader, 62, null, null, selected: leader.Id == _leaderId, height: 62 * GwintCard.Aspect);
@@ -503,6 +538,32 @@ public sealed class DeckBuilderView : Grid
         if (!string.IsNullOrEmpty(_message)) bottom.Children.Add(Ui.Text(_message, 14, Theme.Gold, true, TextAlignment.Left, true));
 
         var btns = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
+        if (_career != null)
+        {
+            var use = Ui.Button("Kaydet ve kullan", SaveCareer, primary: true);
+            use.Margin = new Thickness(0, 0, 6, 0);
+            use.Tag = "career-deck-save";
+            btns.Children.Add(use);
+            var auto = Ui.Button("Otomatik doldur", () =>
+            {
+                var d = GwentAI.Career.CareerLogic.AutoDeck(_career, _faction, _leaderId);
+                _cards.Clear();
+                foreach (var id in d.Cards) _cards[id] = _cards.GetValueOrDefault(id) + 1;
+                _message = "Koleksiyonundaki en güçlü kartlarla dolduruldu.";
+                RebuildLight();
+            });
+            auto.Margin = new Thickness(0, 0, 6, 0);
+            btns.Children.Add(auto);
+            var empty = Ui.Button("Temizle", () => { _cards.Clear(); _message = ""; RebuildLight(); });
+            btns.Children.Add(empty);
+            bottom.Children.Add(btns);
+            SetRow(bottom, 2);
+            root.Children.Add(bottom);
+            var cbox = PanelBox(root, new Thickness(28, 26, 26, 24));
+            cbox.Margin = new Thickness(0, 4, 34, 26);
+            _deckHost.Child = cbox;
+            return;
+        }
         var save = Ui.Button("Kaydet", Save, primary: true, enabled: !string.IsNullOrWhiteSpace(_name));
         save.Margin = new Thickness(0, 0, 6, 0);
         _saveButton = save;
@@ -581,7 +642,7 @@ public sealed class DeckBuilderView : Grid
         var minus = Ui.Button("−", () => Remove(d));
         minus.Padding = new Thickness(9, 1, 9, 1);
         minus.Tag = "dec-minus";
-        var plus = Ui.Button("+", () => Add(d), enabled: n < d.Copies);
+        var plus = Ui.Button("+", () => Add(d), enabled: n < Limit(d));
         plus.Padding = new Thickness(8, 1, 8, 1);
         plus.Margin = new Thickness(3, 0, 0, 0);
         btns.Children.Add(minus);
@@ -599,6 +660,18 @@ public sealed class DeckBuilderView : Grid
         _cards.Clear();
         foreach (var id in rec.CardIds) _cards[id] = _cards.GetValueOrDefault(id) + 1;
         _message = "Önerilen deste dolduruldu. İstediğin gibi değiştir.";
+        RebuildLight();
+    }
+
+    /// <summary>Kariyer: desteyi bu fraksiyonun destesi yapar ve etkin deste olarak seçer (geçersizse de kaydedilir; oynamadan önce uyarılır).</summary>
+    private void SaveCareer()
+    {
+        var deck = CurrentDeck();
+        _career!.Decks[_faction] = new GwentAI.Career.CareerDeck(deck.LeaderId, deck.CardIds.ToList());
+        _career.ActiveFaction = _faction;
+        CareerStore.Save(_career);
+        var errors = DeckValidator.Validate(deck, _options);
+        _message = errors.Count == 0 ? $"Kaydedildi. Masada bu desteyle ({Texts.Faction(_faction)}) oynayacaksın." : "Kaydedildi ama geçersiz: oynamak için eksikleri tamamla.";
         RebuildLight();
     }
 

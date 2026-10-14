@@ -41,6 +41,14 @@ public partial class App : Application
             Shutdown(UiSelfTest.RunOnlineLobby(rounds) == 0 ? 0 : 1);
             return;
         }
+        if (e.Args.Contains("--selftest-career"))
+        {
+            Sfx.Enabled = false;
+            var ci = Array.IndexOf(e.Args, "--selftest-career");
+            var cg = ci + 1 < e.Args.Length && int.TryParse(e.Args[ci + 1], out var cn) ? cn : 4;
+            Shutdown(UiSelfTest.RunCareerCheck(cg));
+            return;
+        }
         if (e.Args.Contains("--selftest-music"))
         {
             Shutdown(UiSelfTest.RunMusicCheck());

@@ -30,6 +30,8 @@ public sealed class ReplayData
     public List<string>? MyDeckCards { get; set; }
     /// <summary>Doluysa rakibin destesi de açıktır (online maç); boşsa rakip "önerilen" desteyle oynar (yerel oyun).</summary>
     public List<string>? OppDeckCards { get; set; }
+    /// <summary>Rakip destesi oyuncu kurallarına bakılmadan kullanılır (kariyerde orijinal oyunun NPC desteleri). Oyuncunun destesi yine doğrulanır.</summary>
+    public bool OppDeckUnchecked { get; set; }
     public int Difficulty { get; set; }
     public List<ReplayAction> Actions { get; set; } = new();
     /// <summary>Oyuncunun gördüğü Türkçe olay günlüğü (hata bildirirken neyin olduğunu gösterir).</summary>
@@ -45,7 +47,10 @@ public sealed class ReplayData
         var theirs = OppDeckCards != null
             ? new Deck(OppFaction, OppLeaderId, OppDeckCards)
             : DeckValidator.RecommendedDeck(OppFaction, opts, null, OppLeaderId);
-        return new Game(mine, theirs, Seed, opts);
+        if (!OppDeckUnchecked) return new Game(mine, theirs, Seed, opts);
+        var errs = DeckValidator.Validate(mine, opts);
+        if (errs.Count > 0) throw new ArgumentException("Oyuncu 0 destesi geçersiz: " + string.Join(" ", errs));
+        return new Game(mine, theirs, Seed, opts, validate: false);
     }
 
     /// <summary>Kayıtlı eylemlerin hepsini oyuna uygular; her eylemden sonra <paramref name="each"/> çağrılır.</summary>
