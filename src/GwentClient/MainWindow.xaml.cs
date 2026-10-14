@@ -19,6 +19,23 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) => { var c = _online; _online = null; if (c != null) _ = Task.Run(() => c.DisposeAsync(leave: false).AsTask()); };   // kapanış "teslim" sayılmaz: yarım kalan maç sürdürülebilir
         ShowMenu();
+        Music.TrackChanged += ShowTrackToast;
+        Closed += (_, _) => Music.TrackChanged -= ShowTrackToast;
+    }
+
+    /// <summary>Parça değişince köşede kısa süre "Şimdi çalıyor" bilgisi (yavaşça belirir ve söner).</summary>
+    private void ShowTrackToast()
+    {
+        var title = Music.CurrentTitle;
+        if (title == null || !Music.Enabled) return;
+        ToastText.FontFamily = Theme.Serif;
+        ToastText.Text = "♪  Şimdi çalıyor: " + title;
+        var anim = new System.Windows.Media.Animation.DoubleAnimationUsingKeyFrames();
+        anim.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(0, TimeSpan.Zero));
+        anim.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(0.95, TimeSpan.FromMilliseconds(500)));
+        anim.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(0.95, TimeSpan.FromMilliseconds(4200)));
+        anim.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(0, TimeSpan.FromMilliseconds(5200)));
+        Toast.BeginAnimation(OpacityProperty, anim);
     }
 
     private string? _lastFaction;

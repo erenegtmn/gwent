@@ -71,6 +71,7 @@ public sealed class SettingsView : Grid
             v => Settings.SfxVolume = v, () => Sfx.Play("lock_in")));
         root.Children.Add(VolumeRow("Müzik", () => Music.Enabled, v => { if (v != Music.Enabled) Music.Toggle(); }, () => Settings.MusicVolume,
             v => { Settings.MusicVolume = v; Music.ApplyVolume(); }, null));
+        root.Children.Add(MusicPanel());
         root.Children.Add(ToggleRow("Tam ekran", "F11 ile de değiştirebilirsin", () => Settings.Fullscreen, v =>
         {
             Settings.Fullscreen = v;
@@ -93,6 +94,83 @@ public sealed class SettingsView : Grid
         KeyDown += (_, e) => { if (e.Key == Key.Escape) { Settings.Save(); _back(); } };
         Focusable = true;
         Loaded += (_, _) => Focus();
+    }
+
+    /// <summary>Müzik: şimdi çalan parça, önceki/sonraki, karışık çalma ve (açılır) parça listesi. Çalan parça değişince kendiliğinden güncellenir.</summary>
+    private UIElement MusicPanel()
+    {
+        var box = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
+        if (Music.Tracks.Count == 0)
+        {
+            box.Children.Add(Ui.Text("Müzik dosyası bulunamadı (assets/music).", 15, Theme.TextDim));
+            return box;
+        }
+        var now = Ui.Text("", 18, Theme.B("#f0d890"), true);
+        now.TextTrimming = TextTrimming.CharacterEllipsis;
+        now.Tag = "music-now";
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        left.Children.Add(Ui.Text(Ornate.Spaced("ŞİMDİ ÇALIYOR"), 12, Theme.B("#a8905a"), true));
+        left.Children.Add(now);
+        row.Children.Add(left);
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var prev = Ui.Button("◀", () => Music.Previous());
+        var next = Ui.Button("▶", () => Music.Next());
+        prev.Tag = "music-prev"; next.Tag = "music-next";
+        foreach (var b in new[] { prev, next }) { b.FontSize = 18; b.MinWidth = 54; b.Margin = new Thickness(8, 0, 0, 0); buttons.Children.Add(b); }
+        var shuffle = Ui.Button(Music.Shuffle ? "Karışık" : "Sıralı", () => { });
+        shuffle.FontSize = 15;
+        shuffle.Margin = new Thickness(16, 0, 0, 0);
+        shuffle.Tag = "music-shuffle";
+        shuffle.Click += (_, _) => { Music.SetShuffle(!Music.Shuffle); shuffle.Content = Music.Shuffle ? "Karışık" : "Sıralı"; Settings.Save(); };
+        buttons.Children.Add(shuffle);
+        Grid.SetColumn(buttons, 1);
+        row.Children.Add(buttons);
+        box.Children.Add(row);
+
+        // Açılır parça listesi
+        var list = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 4) };
+        var rows = new List<(TextBlock Text, int Index)>();
+        for (var i = 0; i < Music.Tracks.Count; i++)
+        {
+            var idx = i;
+            var t = Ui.Text("", 16, Theme.Text);
+            var item = new Border { Child = t, Padding = new Thickness(12, 4, 12, 4), Cursor = System.Windows.Input.Cursors.Hand, Background = Brushes.Transparent, Tag = "music-track:" + i };
+            item.MouseLeftButtonUp += (_, _) => Music.PlayTrack(idx);
+            item.MouseEnter += (_, _) => item.Background = Theme.B("#33c9a24a");
+            item.MouseLeave += (_, _) => item.Background = Brushes.Transparent;
+            rows.Add((t, i));
+            list.Children.Add(item);
+        }
+        var toggle = Ui.Text($"Parçalar ({Music.Tracks.Count}) ▾", 15, Theme.B("#a8905a"), true);
+        toggle.Cursor = System.Windows.Input.Cursors.Hand;
+        toggle.Margin = new Thickness(0, 2, 0, 2);
+        toggle.MouseLeftButtonUp += (_, _) =>
+        {
+            list.Visibility = list.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+            toggle.Text = $"Parçalar ({Music.Tracks.Count}) " + (list.Visibility == Visibility.Visible ? "▴" : "▾");
+        };
+        box.Children.Add(toggle);
+        box.Children.Add(list);
+
+        void Sync()
+        {
+            now.Text = Music.CurrentTitle ?? (Music.Enabled ? "—" : "Müzik kapalı");
+            foreach (var (text, i) in rows)
+            {
+                var cur = i == Music.Current;
+                text.Text = (cur ? "♪  " : "    ") + Music.TitleOf(i);
+                text.Foreground = cur ? Theme.B("#f0d890") : Theme.Text;
+                text.FontWeight = cur ? FontWeights.Bold : FontWeights.Normal;
+            }
+        }
+        Sync();
+        Action sync = Sync;
+        Music.TrackChanged += sync;
+        Unloaded += (_, _) => Music.TrackChanged -= sync;
+        return box;
     }
 
     private static Grid Row(string label, string? sub)

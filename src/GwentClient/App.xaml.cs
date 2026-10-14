@@ -41,6 +41,11 @@ public partial class App : Application
             Shutdown(UiSelfTest.RunOnlineLobby(rounds) == 0 ? 0 : 1);
             return;
         }
+        if (e.Args.Contains("--selftest-music"))
+        {
+            Shutdown(UiSelfTest.RunMusicCheck());
+            return;
+        }
         if (e.Args.Contains("--selftest-tournament-resume"))
         {
             Sfx.Enabled = false;

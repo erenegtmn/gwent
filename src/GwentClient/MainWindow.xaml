@@ -3,5 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Gwent" Icon="app.ico" Width="1440" Height="900" MinWidth="1100" MinHeight="720"
         WindowStartupLocation="CenterScreen" Background="#14100c" TextOptions.TextFormattingMode="Display">
-    <ContentControl x:Name="Host" />
+    <Grid>
+        <ContentControl x:Name="Host" />
+        <Border x:Name="Toast" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="28,0,0,26" Padding="18,10" Opacity="0" IsHitTestVisible="False"
+                Background="#e0140e08" BorderBrush="#8a6e2c" BorderThickness="1.2" CornerRadius="3">
+            <TextBlock x:Name="ToastText" Foreground="#f0d890" FontSize="17" />
+        </Border>
+    </Grid>
 </Window>

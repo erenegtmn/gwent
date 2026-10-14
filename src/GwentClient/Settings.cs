@@ -33,6 +33,7 @@ public static class Settings
             var r = JsonDocument.Parse(File.ReadAllText(Path_)).RootElement;
             if (r.TryGetProperty("sound", out var s)) Sfx.Enabled = s.GetBoolean();
             if (r.TryGetProperty("music", out var m)) Music.Enabled = m.GetBoolean();
+            if (r.TryGetProperty("musicShuffle", out var ms)) Music.Shuffle = ms.GetBoolean();
             if (r.TryGetProperty("sfxVolume", out var sv)) SfxVolume = Math.Clamp(sv.GetInt32(), 0, 100);
             if (r.TryGetProperty("musicVolume", out var mv)) MusicVolume = Math.Clamp(mv.GetInt32(), 0, 100);
             // Sürüm alanı olmayan eski ayar dosyaları bir kez tam ekrana geçer; sonrasında seçim kullanıcıya aittir
@@ -61,7 +62,7 @@ public static class Settings
             Directory.CreateDirectory(Path.GetDirectoryName(Path_)!);
             File.WriteAllText(Path_, JsonSerializer.Serialize(new
             {
-                sound = Sfx.Enabled, music = Music.Enabled, sfxVolume = SfxVolume, musicVolume = MusicVolume,
+                sound = Sfx.Enabled, music = Music.Enabled, musicShuffle = Music.Shuffle, sfxVolume = SfxVolume, musicVolume = MusicVolume,
                 fullscreen = Fullscreen, settingsVersion = 2, difficulty = (int)Difficulty, nick = Nick, portrait = Portrait, lastAddress = LastAddress, crowns = Crowns,
                 paidTournaments = PaidTournaments, settledTournaments = SettledTournaments.TakeLast(30).ToList()
             }));
