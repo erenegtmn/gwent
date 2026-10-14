@@ -56,6 +56,12 @@ public sealed record MatchSetup(int Seed, bool NextGen, LoadoutDto Seat0, Loadou
 /// <summary>Sunucunun doğruladığı ve sıraladığı eylem. Seq 0'dan başlar, boşluk olamaz.</summary>
 public sealed record ActionBroadcast(int Seq, int Player, ReplayAction Action);
 
+/// <summary>
+/// Devam eden bir maçın diske yazılabilen özeti (host tarafında): kurulum + o ana dek doğrulanmış eylemler + koltuk anahtarları.
+/// Uygulama kapanıp açılınca oda bundan yeniden kurulur; iki oyuncu da aynı anahtarlarla geri döner.
+/// </summary>
+public sealed record RoomSnapshot(string Code, bool NextGen, MatchSetup Setup, List<ReplayAction> Actions, string Token0, string Token1, DateTime SavedAtUtc);
+
 public sealed record MatchResult(int? WinnerSeat, string Reason); // Reason: normal | resigned | abandoned
 
 /// <summary>Sunucudan istemciye giden olaylar. SignalR'da istemci yöntemlerine karşılık gelir.</summary>

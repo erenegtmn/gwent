@@ -88,6 +88,7 @@ public sealed class NetClient : IAsyncDisposable
 
     public Task<Reply> CreateAsync(bool nextGen = false) => Conn.InvokeAsync<Reply>("CreateRoom", Nick, ProtocolInfo.Version, nextGen);
     public Task<Reply> JoinAsync(string code) => Conn.InvokeAsync<Reply>("JoinRoom", code, Nick, ProtocolInfo.Version);
+    public Task<Reply> RejoinAsync(string code, string token) => Conn.InvokeAsync<Reply>("Rejoin", code, token, -1);
     public Task<Reply> ReadyAsync(bool ready = true) => Conn.InvokeAsync<Reply>("SetReady", ready);
 
     public Task<Reply> ChooseAsync(string faction)

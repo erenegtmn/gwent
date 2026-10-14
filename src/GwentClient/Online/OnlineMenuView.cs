@@ -50,6 +50,7 @@ public sealed class OnlineMenuView : Grid
         // ---- Sol kapı: oda kur ----
         var host = new StackPanel { Width = 600 };
         host.Children.Add(Door("ODA KUR", "Oyun senin bilgisayarında sunucu olur; arkadaşın sana bağlanır."));
+        if (ResumeStore.LoadHost() is { } resume) host.Children.Add(ResumeStrip(resume));
         host.Children.Add(_tunnel);
         host.Children.Add(_lan);
         host.Children.Add(_upnp);
@@ -64,6 +65,15 @@ public sealed class OnlineMenuView : Grid
         // ---- Sağ kapı: odaya katıl ----
         var join = new StackPanel { Width = 600 };
         join.Children.Add(Door("ODAYA KATIL", "Host'un sana verdiği davet kodunu yapıştır."));
+        if (ResumeStore.LoadGuest() is { } guestSave)
+        {
+            var note = Ui.Text($"Yarım kalan maçın var ({guestSave.HostNick} ile, oda {guestSave.RoomCode}). Host maçı yeniden açınca yeni davet kodunu yapıştır: kaldığın yerden dönersin.", 15, Theme.B("#e8c970"), false, TextAlignment.Left, true);
+            note.Margin = new Thickness(0, 4, 0, 4);
+            var drop = new TextBlock { Text = "Bu kaydı sil", FontFamily = Theme.Serif, FontSize = 14 * Theme.FontScale, Foreground = Theme.B("#a8905a"), Cursor = System.Windows.Input.Cursors.Hand, Margin = new Thickness(0, 0, 0, 6) };
+            drop.MouseLeftButtonUp += (_, _) => { ResumeStore.ClearGuest(); note.Visibility = Visibility.Collapsed; drop.Visibility = Visibility.Collapsed; };
+            join.Children.Add(note);
+            join.Children.Add(drop);
+        }
         join.Children.Add(Label("DAVET KODU"));
         join.Children.Add(_invite);
 
@@ -186,35 +196,32 @@ public sealed class OnlineMenuView : Grid
         return true;
     }
 
+    /// <summary>Tünel istenmişse cloudflared yolunu bulur; yoksa yalnız kullanıcı izin verirse indirir. (yol, hata): hata doluysa işlem durur.</summary>
+    private async Task<(string? Path, string? Error)> PrepareTunnelAsync()
+    {
+        if (_tunnel.IsChecked != true) return (null, null);
+        var found = GwentHost.Cloudflared.FindInstalled();
+        if (found != null) return (found, null);
+        var size = await GwentHost.Cloudflared.GetDownloadSizeAsync();
+        var sizeText = size is { } bytes ? $"yaklaşık {Math.Max(1, bytes / 1048576)} MB" : "boyutu bilinmiyor";
+        var answer = MessageBox.Show(Window.GetWindow(this),
+            $"İnternetten bağlanabilmek için Cloudflare'in ücretsiz tünel programı (cloudflared, {sizeText}) indirilecek.\n\n" +
+            $"Kaynak: {GwentHost.Cloudflared.Source}\nKonum: {System.IO.Path.GetDirectoryName(GwentHost.Cloudflared.InstallPath)}\n" +
+            "İndirilen dosyanın Cloudflare imzası doğrulanır.\n\nİndirmeye izin veriyor musun?\n(Hayır dersen yalnız yerel ağdan bağlanılabilir.)",
+            "Gwent — tünel programı", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (answer != MessageBoxResult.Yes) return (null, null);
+        SetBusy(true, "cloudflared indiriliyor… %0");
+        var progress = new Progress<double>(p => _status.Text = $"cloudflared indiriliyor… %{(int)(p * 100)}");
+        var (path, derr) = await GwentHost.Cloudflared.DownloadAsync(progress);
+        return path == null ? (null, "Tünel programı indirilemedi: " + derr) : (path, null);
+    }
+
     private async void CreateClicked()
     {
         if (_busy || !NickOk(out var nick)) return;
         SetBusy(true, "Sunucu başlatılıyor…");
-
-        // Tünel: cloudflared yoksa yalnız kullanıcı izin verirse indirilir
-        string? cloudflared = null;
-        if (_tunnel.IsChecked == true)
-        {
-            cloudflared = GwentHost.Cloudflared.FindInstalled();
-            if (cloudflared == null)
-            {
-                var size = await GwentHost.Cloudflared.GetDownloadSizeAsync();
-                var sizeText = size is { } bytes ? $"yaklaşık {Math.Max(1, bytes / 1048576)} MB" : "boyutu bilinmiyor";
-                var answer = MessageBox.Show(Window.GetWindow(this),
-                    $"İnternetten bağlanabilmek için Cloudflare'in ücretsiz tünel programı (cloudflared, {sizeText}) indirilecek.\n\n" +
-                    $"Kaynak: {GwentHost.Cloudflared.Source}\nKonum: {System.IO.Path.GetDirectoryName(GwentHost.Cloudflared.InstallPath)}\n" +
-                    "İndirilen dosyanın Cloudflare imzası doğrulanır.\n\nİndirmeye izin veriyor musun?\n(Hayır dersen yalnız yerel ağdan bağlanılabilir.)",
-                    "Gwent — tünel programı", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (answer == MessageBoxResult.Yes)
-                {
-                    SetBusy(true, "cloudflared indiriliyor… %0");
-                    var progress = new Progress<double>(p => _status.Text = $"cloudflared indiriliyor… %{(int)(p * 100)}");
-                    var (path, derr) = await GwentHost.Cloudflared.DownloadAsync(progress);
-                    if (path == null) { Error("Tünel programı indirilemedi: " + derr); return; }
-                    cloudflared = path;
-                }
-            }
-        }
+        var (cloudflared, terr) = await PrepareTunnelAsync();
+        if (terr != null) { Error(terr); return; }
 
         var opts = new HostOptions(_nextGen.IsChecked == true, _lan.IsChecked == true, _upnp.IsChecked == true, cloudflared);
         var statusProgress = new Progress<string>(m => _status.Text = m);
@@ -223,6 +230,37 @@ public sealed class OnlineMenuView : Grid
         Settings.Nick = nick;
         Settings.Save();
         _connected(c);
+    }
+
+    /// <summary>Yarım kalan maçı sürdürür: aynı oda ve koltuklar yeniden kurulur, yeni davet kodu çıkar.</summary>
+    private async void ResumeClicked(GwentNet.RoomSnapshot snap)
+    {
+        if (_busy) return;
+        SetBusy(true, "Yarım kalan maç yeniden kuruluyor…");
+        var (cloudflared, terr) = await PrepareTunnelAsync();
+        if (terr != null) { Error(terr); return; }
+        var opts = new HostOptions(snap.NextGen, _lan.IsChecked == true, _upnp.IsChecked == true, cloudflared);
+        var (c, err) = await OnlineController.ResumeHostAsync(snap, opts, new Progress<string>(m => _status.Text = m));
+        if (c == null) { Error((err ?? "Maç sürdürülemedi.") + " Kaydı silip yeni oda kurabilirsin."); return; }
+        _connected(c);
+    }
+
+    /// <summary>Yarım kalan maç şeridi: rakipler, hamle sayısı, "Devam et" ve "Sil".</summary>
+    private UIElement ResumeStrip(GwentNet.RoomSnapshot snap)
+    {
+        var box = new StackPanel { Margin = new Thickness(0, 4, 0, 10) };
+        box.Children.Add(Ui.Text($"Yarım kalan maç: {snap.Setup.Nick0} – {snap.Setup.Nick1} ({snap.Actions.Count} hamle)", 17, Theme.B("#e8c970"), true, TextAlignment.Left, true));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        var go = Ui.Button("Maça devam et", () => ResumeClicked(snap), primary: true);
+        go.Tag = "online-resume";
+        go.FontSize = 16;
+        var del = Ui.Button("Kaydı sil", () => { ResumeStore.ClearHost(); box.Visibility = Visibility.Collapsed; });
+        del.FontSize = 14;
+        del.Margin = new Thickness(12, 0, 0, 0);
+        row.Children.Add(go);
+        row.Children.Add(del);
+        box.Children.Add(row);
+        return box;
     }
 
     private async void JoinClicked()

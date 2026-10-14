@@ -151,4 +151,41 @@ public class SignalRTests : IAsyncLifetime
         Assert.Equal(0, host.Result!.WinnerSeat);
         Assert.Equal("resigned", host.Result.Reason);
     }
+
+    [Fact]
+    public async Task A_match_survives_the_host_application_restarting()
+    {
+        var (host, guest, code) = await StartedMatchAsync(seed: 91);
+        RoomSnapshot? saved = null;
+        _server.Rooms.RoomPersisted += (_, snap) => { if (snap != null) saved = snap; };
+        for (var i = 0; i < 9; i++)
+        {
+            host.Pump(); guest.Pump();
+            await host.TryPlayAsync(); await guest.TryPlayAsync();
+            await Task.Delay(3);
+        }
+        host.Pump(); guest.Pump();
+        Assert.NotNull(saved);
+        var snap0 = saved!;
+
+        // Host uygulaması kapanır: sunucu ve iki bağlantı gider; bellekte hiçbir şey kalmaz
+        await host.DisposeAsync();
+        await guest.DisposeAsync();
+        await _server.DisposeAsync();
+
+        // Uygulama yeniden açılır: yeni sunucu (yeni port), kayıttan oda, iki taraf eski anahtarlarla döner
+        _server = await LocalServer.StartAsync();
+        Assert.True(_server.Rooms.RestoreRoom(snap0).Ok);
+        await using var host2 = await NetClient.ConnectAsync(_server.LocalUrl, "Geralt", Difficulty.Hard, 91);
+        await using var guest2 = await NetClient.ConnectAsync(_server.LocalUrl, "Yennefer", Difficulty.Hard, 92);
+        Assert.True((await host2.RejoinAsync(code, snap0.Token0)).Ok);
+        Assert.True((await guest2.RejoinAsync(code, snap0.Token1)).Ok);
+        await host2.WaitAsync(() => host2.Local != null && host2.NextSeq == snap0.Actions.Count, "geçmiş yeniden geldi");
+        await guest2.WaitAsync(() => guest2.Local != null && guest2.NextSeq == snap0.Actions.Count, "geçmiş yeniden geldi");
+
+        await NetClient.RunToEndAsync(30000, host2, guest2);
+        Assert.Equal(host2.Result!.WinnerSeat, guest2.Result!.WinnerSeat);
+        var room = _server.Rooms.Find(code)!;
+        Assert.Equal(room.Game!.Events.Count, host2.Local!.Events.Count);
+    }
 }

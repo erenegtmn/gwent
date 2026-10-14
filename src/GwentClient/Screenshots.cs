@@ -153,6 +153,22 @@ public static class Screenshots
         // Online: giriş ekranı, bekleme odası (iki oyuncu), oyun içi onay ve rakip koptu çubuğu
         Save(new OnlineMenuView(() => { }, _ => { }), "online_menu.png");
         {
+            // Yarım kalan maç şeridi: geçici bir kayıtla çizilir
+            var rdir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gwent-shot-resume-" + Guid.NewGuid().ToString("N"));
+            ResumeStore.DirOverride = rdir;
+            ResumeStore.Enabled = true;
+            var setup = new GwentNet.MatchSetup(5, false, new GwentNet.LoadoutDto("northern_realms", "foltest_the_siegemaster"), new GwentNet.LoadoutDto("monsters", "eredin_commander_of_the_red_riders"), "Geralt", "Yennefer", 0);
+            ResumeStore.OnHostRoomChanged("ABCDE", new GwentNet.RoomSnapshot("ABCDE", false, setup, Enumerable.Range(0, 23).Select(_ => new GwentAI.ReplayAction()).ToList(), "t0", "t1", DateTime.UtcNow));
+            ResumeStore.SaveGuest(new GuestResume("ABCDE", "t1", "Yennefer", "Geralt", DateTime.UtcNow));
+            for (var i = 0; i < 50 && ResumeStore.LoadHost() == null; i++) System.Threading.Thread.Sleep(20);
+            Save(new OnlineMenuView(() => { }, _ => { }), "online_resume.png");
+            ResumeStore.ClearHost();
+            ResumeStore.ClearGuest();
+            ResumeStore.Enabled = false;
+            ResumeStore.DirOverride = null;
+            try { System.IO.Directory.Delete(rdir, true); } catch { }
+        }
+        {
             var (hc, _) = UiSelfTest.Await(() => OnlineController.HostAsync("Geralt", false, lan: false));
             var lh = hc!.Link;
             UiSelfTest.PumpUntil(() => lh.State?.Code is { Length: 5 }, "oda", lh);

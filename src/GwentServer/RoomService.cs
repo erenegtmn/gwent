@@ -26,6 +26,30 @@ public sealed class RoomService
         _seed = seed ?? (() => RandomNumberGenerator.GetInt32(1, int.MaxValue));
     }
 
+    /// <summary>
+    /// Bir odanın maçı değişince (eylem, bitiş) tetiklenir: <c>snapshot</c> devam eden maçın özeti, maç bittiyse/yoksa null.
+    /// Sunucu kilidi altında çağrılır; işleyici hızlı olmalı (yalnız seri hâle getirip dosyaya yazmayı kuyruğa atmalı).
+    /// </summary>
+    public event Action<string, RoomSnapshot?>? RoomPersisted;
+
+    private void Hook(Room room) => room.Changed = r => RoomPersisted?.Invoke(r.Code, r.ExportSnapshot());
+
+    /// <summary>Kayıttan bir odayı geri kurar (uygulama yeniden açıldığında host için). Kod doluysa ya da kayıt bozuksa hata.</summary>
+    public Reply RestoreRoom(RoomSnapshot snap)
+    {
+        lock (_gate)
+        {
+            if (_rooms.ContainsKey(snap.Code)) return Reply.Fail("Bu oda zaten açık.");
+            if (snap.Setup.Seat0 == null || snap.Setup.Seat1 == null) return Reply.Fail("Kayıt eksik.");
+            var room = Room.Restore(snap, _clock, _seed);
+            if (room == null) return Reply.Fail("Kayıtlı maç yeniden oynatılamadı (bozuk ya da bitmiş).");
+            Hook(room);
+            _rooms[room.Code] = room;
+            room.Touch();
+            return Reply.Success(room.Code);
+        }
+    }
+
     public int RoomCount { get { lock (_gate) return _rooms.Count; } }
 
     /// <summary>Testler ve yönetim için odayı döndürür (yoksa null).</summary>
@@ -68,6 +92,7 @@ public sealed class RoomService
             if (version != ProtocolInfo.Version) return Reply.Fail($"Sürüm uyuşmuyor (sende {version}, sunucuda {ProtocolInfo.Version}). Oyunu güncelle.");
             if (CheckNick(nick) is { } err) return Reply.Fail(err);
             var room = new Room(NewCode(), nextGen, _clock, _seed);
+            Hook(room);
             _rooms[room.Code] = room;
             Attach(room, s, 0, nick.Trim());
             room.BroadcastState();

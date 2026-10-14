@@ -67,6 +67,41 @@ public sealed class Room
     public IReadOnlyList<ActionBroadcast> ActionLog => _log;
     private readonly List<ActionBroadcast> _log = new();
 
+    /// <summary>Maç durumu değişince (kurulum, doğrulanan eylem, bitiş) çağrılır; host kalıcı kayıt için kullanır.</summary>
+    internal Action<Room>? Changed { get; set; }
+
+    internal RoomSnapshot? ExportSnapshot() =>
+        Phase == RoomPhase.Playing && Setup != null && Seats[0] != null && Seats[1] != null
+            ? new RoomSnapshot(Code, NextGen, Setup with { YourSeat = 0 }, _log.Select(m => m.Action).ToList(), Seats[0]!.Token, Seats[1]!.Token, _clock.UtcNow)
+            : null;
+
+    /// <summary>
+    /// Kayıttan odayı yeniden kurar: eylemleri taze bir oyunda yeniden oynatır (biri geçersizse null). Her iki koltuk bağlantısız beklemeye alınır;
+    /// oyuncular eski anahtarlarıyla <c>Rejoin</c> eder. Biten oyun geri yüklenmez.
+    /// </summary>
+    internal static Room? Restore(RoomSnapshot snap, IClock clock, Func<int> seed)
+    {
+        try
+        {
+            var room = new Room(snap.Code, snap.NextGen, clock, seed);
+            room.Setup = snap.Setup with { YourSeat = 0 };
+            room.Game = room.Setup.ToReplay().CreateGame();
+            foreach (var action in snap.Actions)
+            {
+                var a = ReplayData.Decode(action);
+                if (!room.Game.PlayersToAct().Contains(a.Player) || !room.Game.Apply(a).Ok) return null;
+                room._log.Add(new ActionBroadcast(room._log.Count, a.Player, action));
+            }
+            if (room.Game.Phase == GwentCore.Phase.GameOver) return null;
+            room.Phase = RoomPhase.Playing;
+            var now = clock.UtcNow;
+            room.Seats[0] = new Seat { Nick = room.Setup.Nick0, Token = snap.Token0, Loadout = room.Setup.Seat0, Ready = true, Connected = false, DisconnectedAt = now };
+            room.Seats[1] = new Seat { Nick = room.Setup.Nick1, Token = snap.Token1, Loadout = room.Setup.Seat1, Ready = true, Connected = false, DisconnectedAt = now };
+            return room;
+        }
+        catch (Exception ex) when (ex is ArgumentException or FormatException or OverflowException or InvalidOperationException) { return null; }
+    }
+
     internal int SeatCount => Seats.Count(s => s != null);
     internal Seat? Other(int seat) => Seats[1 - seat];
 
@@ -145,6 +180,7 @@ public sealed class Room
             Send(seat, c => c.OnMatchStarted(Setup! with { YourSeat = seat }));
         }
         BroadcastState();
+        Changed?.Invoke(this);
     }
 
     /// <summary>Eylemi doğrular ve uygular; geçerliyse iki tarafa yayar. Hata varsa yalnız göndericiye bildirir.</summary>
@@ -165,6 +201,7 @@ public sealed class Room
         Touch();
         for (var i = 0; i < 2; i++) Send(i, c => c.OnActionApplied(msg));
         if (Game.Phase == GwentCore.Phase.GameOver) Finish(Game.Outcome?.Winner, "normal");
+        else Changed?.Invoke(this);
         return Reply.Success();
     }
 
@@ -182,6 +219,7 @@ public sealed class Room
         Touch();
         for (var i = 0; i < 2; i++) Send(i, c => c.OnMatchEnded(Result));
         BroadcastState();
+        Changed?.Invoke(this);
     }
 
     /// <summary>Yeniden bağlanan oyuncuya durumu ve kaçırdığı eylemleri gönderir (lastSeq = elindeki son sıra numarası, yoksa -1).</summary>

@@ -304,6 +304,9 @@ public sealed class GwintView : Viewbox
         }
     }
 
+    /// <summary>Host: yarım kalan maçta konuğa verilecek davet kodu (rakip dönmeyince çubukta "Davet kodunu kopyala" çıkar).</summary>
+    public string? InviteText { get; set; }
+
     private void ShowBar(string text, bool claim, bool menu = false)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal };
@@ -326,6 +329,14 @@ public sealed class GwintView : Viewbox
             b.Margin = new Thickness(18, 0, 0, 0);
             b.FontSize = 16;
             row.Children.Add(b);
+        }
+        if (claim && InviteText != null)
+        {
+            var copy = Ui.Button("Davet kodunu kopyala", () => { try { Clipboard.SetText(InviteText); } catch { /* pano kilitli olabilir */ } });
+            copy.Margin = new Thickness(12, 0, 0, 0);
+            copy.FontSize = 16;
+            copy.Tag = "copy-invite";
+            row.Children.Add(copy);
         }
         _onlineBar.Child = row;
         _onlineBar.Visibility = Visibility.Visible;

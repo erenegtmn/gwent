@@ -40,6 +40,12 @@ public partial class App : Application
             Shutdown(UiSelfTest.RunOnlineLobby(rounds) == 0 ? 0 : 1);
             return;
         }
+        if (e.Args.Contains("--selftest-resume"))
+        {
+            Sfx.Enabled = false;
+            Shutdown(UiSelfTest.RunResumeCheck());
+            return;
+        }
         if (e.Args.Contains("--selftest-tunnel-probe"))
         {
             Shutdown(UiSelfTest.RunTunnelProbe());
@@ -84,6 +90,7 @@ public partial class App : Application
         // Her maç %AppData%\Gwent\last_match.json içine kaydedilir (hata bildirirken bu dosyayı göster)
         GameSession.ReplayPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Gwent", "last_match.json");
         Stats.Enabled = true;
+        ResumeStore.Enabled = true;
         new MainWindow().Show();
         Music.Start();   // müzik gerçek uygulama açılır açılmaz başlar (ekran görüntüsü/sınama süreçleri müzik çalmaz)
     }

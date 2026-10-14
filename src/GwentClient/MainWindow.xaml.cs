@@ -17,7 +17,7 @@ public partial class MainWindow : Window
             Settings.ApplyWindow(this);
             e.Handled = true;
         };
-        Closed += (_, _) => { var c = _online; _online = null; if (c != null) _ = c.DisposeAsync(); };
+        Closed += (_, _) => { var c = _online; _online = null; if (c != null) _ = Task.Run(() => c.DisposeAsync(leave: false).AsTask()); };   // kapanış "teslim" sayılmaz: yarım kalan maç sürdürülebilir
         ShowMenu();
     }
 
@@ -62,17 +62,21 @@ public partial class MainWindow : Window
         c.Link.Post = a => Dispatcher.BeginInvoke(a);   // ağ iş parçacığından gelenler arayüz iş parçacığında işlenir
         c.Link.MatchStarted += OnOnlineMatchStarted;
         c.Link.Notice += OnOnlineNotice;
-        Host.Content = new LobbyView(c, LeaveOnlineAsync);
+        c.Link.MatchEnded += OnOnlineMatchEnded;
+        c.Link.Pump();   // bağlanırken kuyrukta kalan iletiler (ör. yarım kalan maçın kurulumu) hemen işlensin
+        if (c.Link.Match == null) Host.Content = new LobbyView(c, LeaveOnlineAsync);
     }
 
     private async Task LeaveOnlineAsync(string? message = null)
     {
         var c = _online;
         _online = null;
+        ResumeStore.ClearGuest();   // bilerek ayrılma: dönülecek maç kalmaz
         if (c != null)
         {
             c.Link.MatchStarted -= OnOnlineMatchStarted;
             c.Link.Notice -= OnOnlineNotice;
+            c.Link.MatchEnded -= OnOnlineMatchEnded;
             await c.DisposeAsync();
         }
         ShowMenu();
@@ -90,6 +94,8 @@ public partial class MainWindow : Window
         var mine = me == 0 ? setup.Seat0 : setup.Seat1;
         var theirs = me == 0 ? setup.Seat1 : setup.Seat0;
         _pendingNotices.Clear();
+        if (_online is { IsHost: false } && _online.Link is { State: { } st })
+            ResumeStore.SaveGuest(new GuestResume(st.Code, st.YourToken, _online.Nick, Nick(1 - me), DateTime.UtcNow));
         Music.Start();
         Host.Content = new VsScreen(
             new VsSideInfo(Nick(me), mine.Faction, mine.LeaderId, true, mine.Avatar),
@@ -97,13 +103,20 @@ public partial class MainWindow : Window
             () => ShowOnlineGame(session), animate: true);
     }
 
+    private void OnOnlineMatchEnded(GwentNet.MatchResult r) => ResumeStore.ClearGuest();
+
     private void ShowOnlineGame(GameSession session)
     {
         // VS sırasında yeni bir maç başladıysa (rövanş) eski oturumu gösterme
         if (_online?.Link.Match != session) return;
+        session.FastForward();   // yarım kalan maçta geçmiş animasyonsuz uygulanır
         var view = new GwintView(session, () => _ = LeaveOnlineAsync(), _ => { });
+        if (_online is { IsHost: true, Invites.Count: > 0 } host) view.InviteText = host.Invites[0].Invite;
         Host.Content = view;
         view.Focus();
+        // Host yarım kalan maça döndüyse rakip henüz gelmemiş olabilir: bekleme çubuğu ve davet kodu
+        if (_online?.Link.State?.Players.FirstOrDefault(p => p.Seat != session.MySeat) is { Connected: false } gone)
+            view.OnlineNotice("opponent_disconnected", $"{gone.Nick} henüz dönmedi.");
         foreach (var (code, text) in _pendingNotices) view.OnlineNotice(code, text);
         _pendingNotices.Clear();
     }

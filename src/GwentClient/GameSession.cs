@@ -170,6 +170,15 @@ public sealed class GameSession
         return (a, b.Player);
     }
 
+    /// <summary>
+    /// Kuyruktaki tüm sunucu eylemlerini animasyonsuz, hemen uygular (yarım kalan maç yeniden açılırken geçmişi göstermeden durumu kurar).
+    /// </summary>
+    public void FastForward()
+    {
+        while (RemoteQueued > 0) ApplyNextRemote();
+        _taken = Game.Events.Count;
+    }
+
     /// <summary>Sunucu eylemi reddetti: tekrar denemeye izin ver.</summary>
     public void NotifyRejected(string reason)
     {

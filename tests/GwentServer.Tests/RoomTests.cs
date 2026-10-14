@@ -360,4 +360,59 @@ public class RoomTests
         Assert.False(host.SetLoadout(new LoadoutDto("northern_realms", "foltest_the_siegemaster", null, new string('a', 65))).Ok);
         Assert.True(host.SetLoadout(new LoadoutDto("northern_realms", "foltest_the_siegemaster")).Ok); // portresiz de olur
     }
+
+    // ---------- Kayıttan devam (uygulama yeniden açılınca) ----------
+
+    [Fact]
+    public void A_saved_match_resumes_in_a_fresh_service_and_plays_to_the_end()
+    {
+        var (svc, host, guest, code) = Rooms.StartedMatch(seed: 77);
+        RoomSnapshot? saved = null;
+        svc.RoomPersisted += (_, snap) => saved = snap;
+        for (var i = 0; i < 14; i++) { FakeClient.Pump(host, guest); host.TryPlay(); guest.TryPlay(); }
+        FakeClient.Pump(host, guest);
+        Assert.NotNull(saved);                                  // her eylemden sonra özet yazılır
+        var actionsAtSave = saved!.Actions.Count;
+        Assert.True(actionsAtSave > 0);
+
+        // "Uygulama kapandı": yeni sunucu, yeni istemciler, yalnız kayıt elde
+        var svc2 = new RoomService(null, () => 1);
+        Assert.True(svc2.RestoreRoom(saved).Ok);
+        var host2 = new FakeClient(svc2, "Geralt");
+        var guest2 = new FakeClient(svc2, "Yennefer");
+        Assert.True(svc2.Rejoin(host2.Session, code, saved.Token0, -1).Ok);
+        Assert.True(svc2.Rejoin(guest2.Session, code, saved.Token1, -1).Ok);
+        FakeClient.Pump(host2, guest2);
+
+        var room = svc2.Find(code)!;
+        Assert.Equal(RoomPhase.Playing, room.Phase);
+        Assert.Equal(actionsAtSave, room.ActionLog.Count);
+        Assert.Equal(room.Game!.Events.Count, host2.Local!.Events.Count);   // tam eylem geçmişi yeniden gönderildi
+        Assert.Equal(room.Game.Events.Count, guest2.Local!.Events.Count);
+
+        FakeClient.RunToEnd(600, host2, guest2);                // kaldığı yerden bitirilir
+        Assert.NotNull(host2.Result);
+        Assert.Equal(host2.Result!.WinnerSeat, guest2.Result!.WinnerSeat);
+    }
+
+    [Fact]
+    public void Restore_refuses_a_duplicate_code_and_tampered_or_finished_matches()
+    {
+        var (svc, host, guest, code) = Rooms.StartedMatch(seed: 78);
+        RoomSnapshot? saved = null;
+        svc.RoomPersisted += (_, snap) => saved = snap;
+        for (var i = 0; i < 10; i++) { FakeClient.Pump(host, guest); host.TryPlay(); guest.TryPlay(); }
+        Assert.NotNull(saved);
+
+        Assert.False(svc.RestoreRoom(saved!).Ok);               // oda zaten açık
+
+        var svc2 = new RoomService();
+        var bad = saved! with { Actions = saved.Actions.Select(a => a with { }).Concat(new[] { saved.Actions[0] }).ToList() };   // oyunda geçersiz fazladan eylem
+        Assert.False(svc2.RestoreRoom(bad).Ok);
+        Assert.Equal(0, svc2.RoomCount);
+
+        FakeClient.RunToEnd(600, host, guest);
+        RoomSnapshot? last = saved;
+        Assert.Null(last);                                      // maç bitince özet null gelir (kaydı sil)
+    }
 }

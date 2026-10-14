@@ -296,6 +296,127 @@ public static class UiSelfTest
         }
     }
 
+    /// <summary>
+    /// Yarım kalan maç (uygulama kapanıp açılması): host ve konuk gerçek arayüzle birkaç hamle oynar, ikisi de bağlantıyı "kapatır" (teslim değil),
+    /// host kayıttan odayı yeniden kurar, konuk yeni adresle aynı koltuğa döner, geçmiş animasyonsuz uygulanır ve maç sonuna dek oynanır. <c>--selftest-resume</c>
+    /// </summary>
+    public static int RunResumeCheck()
+    {
+        var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gwent-selftest-resume-" + Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(dir);
+        ResumeStore.DirOverride = dir;
+        ResumeStore.Enabled = true;
+        OnlineController? hc = null, gc = null;
+        try
+        {
+            var opts = new HostOptions(false, false, false, null);
+            (hc, var err) = Await(() => OnlineController.HostAsync("Geralt", opts, null));
+            if (hc == null) { Console.WriteLine("[HATA] oda kurulamadı: " + err); return 1; }
+            var host = hc.Link;
+            PumpUntil(() => host.State?.Code is { Length: 5 }, "oda", host);
+            var code = host.State!.Code;
+            var port1 = hc.Server!.Port;
+            (gc, var gerr) = Await(() => OnlineController.JoinAsync($"127.0.0.1:{port1}", code, "Yennefer"));
+            if (gc == null) { Console.WriteLine("[HATA] katılınamadı: " + gerr); return 1; }
+            var guest = gc.Link;
+            host.SetLoadout(new GwentNet.LoadoutDto("northern_realms", "foltest_the_siegemaster"));
+            guest.SetLoadout(new GwentNet.LoadoutDto("monsters", "eredin_commander_of_the_red_riders"));
+            host.SetReady(true);
+            guest.SetReady(true);
+            PumpUntil(() => host.Match != null && guest.Match != null, "maç başlangıcı", host, guest);
+
+            // 1) Birkaç hamle oyna
+            var hs = host.Match!;
+            var gs = guest.Match!;
+            var hv = new GwintView(hs, () => { }, _ => { }, animate: false);
+            var gv = new GwintView(gs, () => { }, _ => { }, animate: false);
+            var room = hc.Server!.Rooms.Find(code)!;
+            var rng = new Random(7);
+            var until = DateTime.UtcNow.AddSeconds(30);
+            while (room.ActionLog.Count < 16 && !(hs.IsOver || gs.IsOver))
+            {
+                host.Pump(); guest.Pump();
+                Layout(hv); Layout(gv);
+                UiStep(hv, hs, rng, _ => { });
+                host.Pump();
+                UiStep(gv, gs, rng, _ => { });
+                Thread.Sleep(5);
+                if (DateTime.UtcNow > until) { Console.WriteLine("[HATA] ilk hamleler oynanamadı."); return 1; }
+            }
+            host.Pump(); guest.Pump();
+            if (hs.IsOver || gs.IsOver) { Console.WriteLine("[HATA] maç yarıda kalmadan bitti (deneme geçersiz)."); return 1; }
+
+            // 2) Kayıt diske yazıldı mı?
+            GwentNet.RoomSnapshot? snap = null;
+            for (var i = 0; i < 100 && (snap = ResumeStore.LoadHost()) == null; i++) Thread.Sleep(20);
+            if (snap == null || snap.Actions.Count < 10) { Console.WriteLine("[HATA] host kaydı yazılmadı."); return 1; }
+            var saved = snap.Actions.Count;
+            ResumeStore.SaveGuest(new GuestResume(code, guest.State!.YourToken, "Yennefer", "Geralt", DateTime.UtcNow));
+
+            // 3) "Uygulama kapanır": teslim bildirilmez, yalnız bağlantılar ve sunucu gider
+            var g0 = gc; var h0 = hc;
+            Await(async () => { await g0.DisposeAsync(false); await h0.DisposeAsync(false); return 0; });
+            hc = null; gc = null;
+            if (ResumeStore.LoadHost() == null) { Console.WriteLine("[HATA] kapanış kaydı sildi (teslim sayıldı)."); return 1; }
+
+            // 4) Yeniden açılış: host kayıttan döner, konuk yeni adresle aynı koltuğa döner
+            var snapCopy = snap;
+            (hc, err) = Await(() => OnlineController.ResumeHostAsync(snapCopy, opts, null));
+            if (hc == null) { Console.WriteLine("[HATA] host maçı sürdüremedi: " + err); return 1; }
+            host = hc.Link;
+            PumpUntil(() => host.Match != null, "host maç kurulumu", host);
+            var port2 = hc.Server!.Port;
+            (gc, gerr) = Await(() => OnlineController.JoinAsync($"127.0.0.1:{port2}", code, "Yennefer"));
+            if (gc == null) { Console.WriteLine("[HATA] konuk dönemedi: " + gerr); return 1; }
+            guest = gc.Link;
+            PumpUntil(() => guest.Match != null && guest.Match.RemoteQueued == saved && host.Match.RemoteQueued == saved, "geçmişin yeniden gelmesi", host, guest);
+            hs = host.Match!; gs = guest.Match!;
+            hs.FastForward(); gs.FastForward();
+            room = hc.Server!.Rooms.Find(code)!;
+            foreach (var m in new[] { hs, gs })
+                if (m.Game.Events.Count != room.Game!.Events.Count) { Console.WriteLine("[HATA] geçmiş uygulanınca olay sayısı farklı."); return 1; }
+
+            // 5) Kaldığı yerden bitir
+            hv = new GwintView(hs, () => { }, _ => { }, animate: false);
+            gv = new GwintView(gs, () => { }, _ => { }, animate: false);
+            var lastLog = -1;
+            var lastProgress = DateTime.UtcNow;
+            while (!(hs.IsOver && gs.IsOver))
+            {
+                host.Pump(); guest.Pump();
+                Layout(hv); Layout(gv);
+                if (!hs.IsOver) UiStep(hv, hs, rng, _ => { });
+                host.Pump();
+                if (!gs.IsOver) UiStep(gv, gs, rng, _ => { });
+                Thread.Sleep(5);
+                var log = room.ActionLog.Count;
+                if (log != lastLog) { lastLog = log; lastProgress = DateTime.UtcNow; }
+                else if (DateTime.UtcNow - lastProgress > TimeSpan.FromSeconds(30)) { Console.WriteLine($"[HATA] maç takıldı (eylem {log})."); return 1; }
+            }
+            PumpUntil(() => hs.IsOver && gs.IsOver, "oyun sonu", host, guest);
+            var srv = room.Game!;
+            foreach (var m in new[] { hs, gs })
+            {
+                if (m.Game.Events.Count != srv.Events.Count) { Console.WriteLine("[HATA] olay sayısı ayrıştı."); return 1; }
+                for (var k = 0; k < srv.Events.Count; k++)
+                    if (!Equals(m.Game.Events[k], srv.Events[k])) { Console.WriteLine($"[HATA] olay {k} ayrıştı."); return 1; }
+            }
+            for (var i = 0; i < 100 && ResumeStore.LoadHost() != null; i++) Thread.Sleep(20);
+            if (ResumeStore.LoadHost() != null) { Console.WriteLine("[HATA] maç bitince host kaydı silinmedi."); return 1; }
+            Console.WriteLine($"Yarım kalan maç sürdürüldü: kapanıştan sonra {saved} hamle geçmişi yeniden kuruldu, toplam {room.ActionLog.Count} eylemle bitti; sunucu ve iki kopya aynı.");
+            return 0;
+        }
+        catch (Exception ex) { Console.WriteLine("[HATA] " + ex); return 1; }
+        finally
+        {
+            var gf = gc; var hf = hc;
+            Await(async () => { if (gf != null) await gf.DisposeAsync(); if (hf != null) await hf.DisposeAsync(); return 0; });
+            ResumeStore.Enabled = false;
+            ResumeStore.DirOverride = null;
+            try { System.IO.Directory.Delete(dir, true); } catch { }
+        }
+    }
+
     /// <summary>Teşhis: tünel açar ve adresine her 5 sn'de GET atıp durum kodunu / gövdeyi yazar (--selftest-tunnel-probe).</summary>
     public static int RunTunnelProbe()
     {

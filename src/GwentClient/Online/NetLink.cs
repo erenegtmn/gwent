@@ -92,6 +92,9 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
 
     public override Task<Reply> CreateRoomAsync(string nick, bool nextGen = false) => InvokeAsync("CreateRoom", nick, ProtocolInfo.Version, nextGen);
     public override Task<Reply> JoinRoomAsync(string code, string nick) => InvokeAsync("JoinRoom", code, nick, ProtocolInfo.Version);
+    /// <summary>Koltuk anahtarıyla odaya geri dön (yarım kalan maç): sunucu kurulumu ve tüm eylem geçmişini yeniden gönderir.</summary>
+    public Task<Reply> RejoinAsync(string code, string token) => InvokeAsync("Rejoin", code, token, -1);
+
     public override Task<Reply> SetLoadoutAsync(LoadoutDto loadout) => InvokeAsync("SetLoadout", loadout);
     public override Task<Reply> SetReadyAsync(bool ready) => InvokeAsync("SetReady", ready);
 
