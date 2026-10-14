@@ -290,7 +290,7 @@ public sealed class LobbyView : Grid
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var medal = Portraits.Medallion(avatar, 86, glow: true);
+        var medal = Portraits.Medallion(avatar, 80, glow: true);
         medal.Margin = new Thickness(0, 0, 14, 0);
         g.Children.Add(medal);
         var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };

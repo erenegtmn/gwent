@@ -36,12 +36,19 @@ public static class Portraits
         return "northern_realms";
     }
 
-    /// <summary>Yuvarlak, halkalı portre. Görsel yoksa fraksiyon renginde bir daire çizilir.</summary>
+    // ring.png ölçüleri: 115x126 px; içindeki delik 100 px çapında ve (57,56.5) merkezli (alttaki sivri uç yüzünden görsel yüksek).
+    private const double RingW = 115, RingH = 126, HoleCx = 57.5, HoleCy = 57, HoleR = 50;
+
+    /// <summary>
+    /// Yuvarlak, halkalı portre. <paramref name="size"/> halka görselinin genişliğidir; yükseklik alttaki sivri uç yüzünden ~%10 fazladır.
+    /// Portre, halkanın deliğine tam oturacak biçimde (hafif taşarak) ölçeklenir ve ortalanır; görsel yoksa fraksiyon renginde daire çizilir.
+    /// </summary>
     public static FrameworkElement Medallion(string? id, double size, bool glow = false)
     {
         if (id == null || (id != Default && !CardCatalog.Default.TryGet(id, out _))) id = Default;   // yalnız görüntü: herhangi bir kart yüzü olur
-        var g = new Grid { Width = size, Height = size, IsHitTestVisible = false };
-        var inner = size * 0.73;
+        var k = size / RingW;
+        var g = new Grid { Width = size, Height = RingH * k, IsHitTestVisible = false };
+        var r = (HoleR + 3) * k;   // deliğin kenarının altına 3 px girer: aradan arka plan/parıltı sızmaz
         Brush? fill = null;
         if (id == Default)
         {
@@ -49,12 +56,20 @@ public static class Portraits
         }
         else if (Assets.Card(id) is { } art)
             fill = new ImageBrush(art) { Stretch = Stretch.UniformToFill, Viewbox = new Rect(0.1, 0.03, 0.8, 0.56), ViewboxUnits = BrushMappingMode.RelativeToBoundingBox };
-        g.Children.Add(new Ellipse { Width = inner, Height = inner, Fill = fill ?? Theme.FactionColor(FactionOf(id)) });
+        g.Children.Add(new Ellipse
+        {
+            Width = r * 2, Height = r * 2, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(HoleCx * k - r, HoleCy * k - r, 0, 0), Fill = fill ?? Theme.FactionColor(FactionOf(id))
+        });
         if (Assets.Ui("ring") is { } ring)
-            g.Children.Add(new Image { Source = ring, Width = size, Height = size * 1.09, VerticalAlignment = VerticalAlignment.Center });
+            g.Children.Add(new Image { Source = ring, Width = size, Height = RingH * k, Stretch = Stretch.Fill, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top });
         else
-            g.Children.Add(new Ellipse { Width = size * 0.9, Height = size * 0.9, Stroke = Theme.GoldDim, StrokeThickness = Math.Max(2, size * 0.04) });
-        if (glow) g.Effect = new DropShadowEffect { Color = Color.FromRgb(255, 215, 110), BlurRadius = size * 0.22, ShadowDepth = 0, Opacity = 0.9 };
+            g.Children.Add(new Ellipse
+            {
+                Width = (HoleR + 4) * 2 * k, Height = (HoleR + 4) * 2 * k, Stroke = Theme.GoldDim, StrokeThickness = Math.Max(2, size * 0.04),
+                HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(HoleCx * k - (HoleR + 4) * k, HoleCy * k - (HoleR + 4) * k, 0, 0)
+            });
+        if (glow) g.Effect = new DropShadowEffect { Color = Color.FromRgb(255, 215, 110), BlurRadius = size * 0.18, ShadowDepth = 0, Opacity = 0.75 };
         return g;
     }
 }

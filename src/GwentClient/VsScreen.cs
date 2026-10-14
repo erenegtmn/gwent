@@ -177,17 +177,18 @@ public sealed class VsScreen : Grid
         var tone = FactionTone(info.Faction);
         var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Width = 560 };
 
-        var portrait = Portraits.Medallion(info.Avatar ?? (info.Mine ? Settings.Portrait : info.LeaderId), 124, glow: true);
+        var portrait = Portraits.Medallion(info.Avatar ?? (info.Mine ? Settings.Portrait : info.LeaderId), 112, glow: true);
         portrait.HorizontalAlignment = HorizontalAlignment.Center;
         portrait.Margin = new Thickness(0, 0, 0, 6);
         sp.Children.Add(portrait);
 
         // Oyuncu adı: büyük, aralıklı harfler; altında fraksiyon kalkanı
-        var name = Ui.Text(Ornate.Spaced(info.Name.ToUpper(new System.Globalization.CultureInfo("tr-TR"))), 50, Theme.B("#f4e2a8"), true, TextAlignment.Center);
+        var name = Ui.Text(Ornate.Spaced(info.Name.ToUpper(new System.Globalization.CultureInfo("tr-TR"))), info.Name.Length <= 7 ? 50 : info.Name.Length <= 10 ? 40 : info.Name.Length <= 13 ? 32 : 26, Theme.B("#f4e2a8"), true, TextAlignment.Center);
         name.FontFamily = Theme.Serif;
         name.HorizontalAlignment = HorizontalAlignment.Center;
         name.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 10, ShadowDepth = 3, Opacity = 1 };
-        sp.Children.Add(name);
+        name.VerticalAlignment = VerticalAlignment.Center;
+        sp.Children.Add(new Border { Height = 64, Child = name });   // farklı uzunluktaki adlar iki yanı hizasız bırakmasın
 
         var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 18) };
         var shield = Assets.Ui("shield_" + info.Faction);

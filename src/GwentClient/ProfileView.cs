@@ -34,7 +34,7 @@ public sealed class ProfileView : Grid
         left.Children.Add(rule);
 
         var id = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-        _big.Child = Portraits.Medallion(Settings.Portrait, 170, glow: true);
+        _big.Child = Portraits.Medallion(Settings.Portrait, 150, glow: true);
         id.Children.Add(_big);
         var nameBox = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(26, 0, 0, 0) };
         nameBox.Children.Add(Ornate.Caption("Takma adın", 0));
@@ -58,7 +58,7 @@ public sealed class ProfileView : Grid
             var key = pid;
             var cell = new Border
             {
-                Child = Portraits.Medallion(pid, 82), Margin = new Thickness(2), Padding = new Thickness(2), Cursor = Cursors.Hand,
+                Child = Portraits.Medallion(pid, 76), Margin = new Thickness(2), Padding = new Thickness(2), Cursor = Cursors.Hand,
                 Background = Brushes.Transparent, Tag = "profile-portrait:" + pid, ToolTip = Portraits.Title(pid)
             };
             cell.MouseLeftButtonUp += (_, e) => { e.Handled = true; Choose(key); Sfx.Play("cursor_movement"); };
@@ -123,7 +123,7 @@ public sealed class ProfileView : Grid
 
     private void SyncSelection()
     {
-        _big.Child = Portraits.Medallion(Settings.Portrait, 170, glow: true);
+        _big.Child = Portraits.Medallion(Settings.Portrait, 150, glow: true);
         _portraitName.Text = Portraits.Title(Settings.Portrait);
         foreach (var (id, cell) in _cells)
         {

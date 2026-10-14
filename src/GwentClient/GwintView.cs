@@ -585,10 +585,11 @@ public sealed class GwintView : Viewbox
 
         // Avatar (profil portresi; rakip yapay zekâysa lider yüzü)
         var turn = G.Phase == Phase.Playing && G.Pending == null && G.Current == p && !ps.Passed;
-        var avatar = Portraits.Medallion(p == Me ? _s.MyAvatar : _s.OppAvatar, 116, glow: turn);
-        Put(_board, avatar, 120, baseY + 10);
+        var avatar = Portraits.Medallion(p == Me ? _s.MyAvatar : _s.OppAvatar, 106, glow: turn);
+        Put(_board, avatar, 125, baseY + 10);
 
-        Put(_board, Txt(p == Me ? _s.MyName : _s.OppName, 26, Theme.B("#e8c970"), true, TextAlignment.Left, 190), 252, baseY + 6);
+        var shown = p == Me ? _s.MyName : _s.OppName;   // uzun adlar puan defnesine taşmasın: küçültülür
+        Put(_board, Txt(shown, shown.Length > 11 ? 19 : shown.Length > 8 ? 23 : 26, Theme.B("#e8c970"), true, TextAlignment.Left, 145), 252, baseY + (shown.Length > 11 ? 10 : 6));
         Put(_board, Txt(Texts.FactionShort(ps.Faction), 18, Theme.B("#c9c0aa")), 252, baseY + 40);
 
         // El sayısı + mücevherler
