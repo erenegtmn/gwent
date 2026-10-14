@@ -51,6 +51,15 @@ public static class Screenshots
 
         // Kart değiştirme penceresi
         Save(new GwintView(new GameSession(cfg), () => { }, _ => { }, animate: false), "mulligan.png");
+        {
+            // Kart değiştirme: iki kart seçili (belirgin işaret)
+            var ms = new GameSession(cfg);
+            var mv = new GwintView(ms, () => { }, _ => { }, animate: false);
+            var msel = (HashSet<int>)typeof(GwintView).GetField("_mulliganSel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(mv)!;
+            foreach (var c in ms.Game.Players[0].Hand.Skip(2).Take(2)) msel.Add(c.Uid);
+            mv.Refresh();
+            Save(mv, "mulligan_selected.png");
+        }
 
         // Oyun ortası: iki taraf da sezgisel ajanla bir süre oynar, sıra bana geçince dururuz.
         var s = new GameSession(cfg);
@@ -185,6 +194,15 @@ public static class Screenshots
             Save(new CareerView(adv, nav, rew), "career_reward.png");
             Save(new CareerShopView(adv, GwentAI.Career.CareerWorld.Region("velen"), () => { }), "career_shop.png");
             Save(new DeckBuilderView("northern_realms", false, () => { }, adv), "career_deck.png");
+            {
+                // Kaydedilmemiş değişiklikle geri: onay penceresi
+                var dv = new DeckBuilderView("northern_realms", false, () => { }, adv);
+                UiSelfTest.Layout(dv);
+                UiSelfTest.Raise(UiSelfTest.FindAll<System.Windows.Controls.Button>(dv, x => (string?)x.Tag == "dec-minus").First(), System.Windows.Controls.Primitives.ButtonBase.ClickEvent);
+                UiSelfTest.Layout(dv);
+                UiSelfTest.Raise(UiSelfTest.FindAll<System.Windows.FrameworkElement>(dv, x => (string?)x.Tag == "deck-back").First(), System.Windows.UIElement.MouseLeftButtonUpEvent);
+                Save(dv, "career_deck_unsaved.png");
+            }
             var all = GwentAI.Career.CareerLogic.NewSave();
             foreach (var o in GwentAI.Career.CareerWorld.Opponents.Where(o => !o.IsTournament)) GwentAI.Career.CareerLogic.ApplyDuel(all, o, true, rng);
             foreach (var r in new[] { "skellige", "hearts_of_stone", "toussaint" })

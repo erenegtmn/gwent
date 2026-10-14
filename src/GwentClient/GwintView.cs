@@ -1554,12 +1554,17 @@ public sealed class GwintView : Viewbox
         sub.Margin = new Thickness(0, 6, 0, 22);
         sp.Children.Add(sub);
 
+        var full = _mulliganSel.Count >= Game.MaxMulligans;
+        var count = Txt($"Seçilen: {_mulliganSel.Count} / {Game.MaxMulligans}" + (full ? "   ·   değiştirmek istemediğin karta yeniden tıkla" : ""), 20,
+            _mulliganSel.Count > 0 ? Theme.B("#f0b070") : Theme.TextDim, true, TextAlignment.Center);
+        count.Margin = new Thickness(0, 0, 0, 10);
+        sp.Children.Add(count);
+
         var wrap = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 1350 };
         foreach (var c in G.Players[Me].Hand)
         {
             var selected = _mulliganSel.Contains(c.Uid);
             var gc = MakeCard(c, 130, false, selected: selected, height: 174);
-            gc.Margin = new Thickness(6);
             gc.Tag = "mulligan";
             var uid = c.Uid;
             gc.MouseLeftButtonUp += (_, _) =>
@@ -1567,7 +1572,32 @@ public sealed class GwintView : Viewbox
                 if (!_mulliganSel.Remove(uid) && _mulliganSel.Count < Game.MaxMulligans) _mulliganSel.Add(uid);
                 Refresh();
             };
-            wrap.Children.Add(gc);
+            // Seçilen kart belirgin: yukarı kalkar, kızıl bir örtü ve "DEĞİŞECEK" etiketi; sınır dolunca seçilmeyenler hafifçe söner
+            var tile = new Grid { Margin = new Thickness(6, 22, 6, 6) };
+            tile.Children.Add(gc);
+            if (selected)
+            {
+                tile.RenderTransform = new TranslateTransform(0, -18);
+                tile.Children.Add(new Border
+                {
+                    IsHitTestVisible = false, CornerRadius = new CornerRadius(5), BorderBrush = Theme.B("#ff7a50"), BorderThickness = new Thickness(3),
+                    Background = new LinearGradientBrush(Color.FromArgb(0x30, 0xb0, 0x30, 0x20), Color.FromArgb(0x90, 0x70, 0x10, 0x08), 90)
+                });
+                var mark = Txt("↻", 54, Theme.B("#ffe0c8"), true, TextAlignment.Center);
+                mark.HorizontalAlignment = HorizontalAlignment.Center;
+                mark.VerticalAlignment = VerticalAlignment.Center;
+                mark.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 0, Opacity = 1 };
+                tile.Children.Add(mark);
+                tile.Children.Add(new Border
+                {
+                    IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, -14),
+                    Background = Theme.B("#e0a03a20"), BorderBrush = Theme.B("#ffb080"), BorderThickness = new Thickness(1.2), CornerRadius = new CornerRadius(3), Padding = new Thickness(10, 2, 10, 3),
+                    Child = Txt("DEĞİŞECEK", 15, Brushes.White, true, TextAlignment.Center)
+                });
+                tile.Effect = new DropShadowEffect { Color = Color.FromRgb(255, 120, 60), BlurRadius = 26, ShadowDepth = 0, Opacity = 0.85 };
+            }
+            else if (full) tile.Opacity = 0.55;
+            wrap.Children.Add(tile);
         }
         sp.Children.Add(wrap);
 

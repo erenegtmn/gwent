@@ -809,7 +809,7 @@ public static partial class UiSelfTest
                         var box = FindAll<TextBox>(b, _ => true).First();
                         box.Text = $"Sınama-{f}-{nextGen}";
                         Layout(b);
-                        Click(FindButton(b, "Kaydet")!);
+                        Click(FindAll<Button>(b, x => (string?)x.Tag == "deck-save").First());
                         Layout(b);
                         saved++;
 
@@ -827,7 +827,29 @@ public static partial class UiSelfTest
                         Layout(view2);
                         Click(FindAll<Button>(view2, x => (string?)x.Tag == "dec-minus").First());
                         Layout(view2);
-                        Click(FindButton(view2, "Kaydet")!);
+
+                        // Kaydedilmemiş değişiklikle geri: önce sorulur; İptal kalır, kaydet ve çık kaydeder
+                        var closed = 0;
+                        var view3 = new DeckBuilderView(f, nextGen, () => closed++);
+                        Layout(view3);
+                        Raise(FindAll<ToggleButton>(view3, t => (string?)t.Tag == "saved-deck").First(), ButtonBase.ClickEvent);
+                        Layout(view3);
+                        if (view3.Dirty) throw new InvalidOperationException("Yüklenen deste değişmiş sayıldı.");
+                        Click(FindAll<Button>(view3, x => (string?)x.Tag == "dec-minus").First());
+                        Layout(view3);
+                        if (!view3.Dirty || !FindAll<TextBlock>(view3, t => (string?)t.Tag == "unsaved-mark").Any()) throw new InvalidOperationException("Değişiklik işareti yok.");
+                        Raise(FindAll<FrameworkElement>(view3, x => (string?)x.Tag == "deck-back").First(), UIElement.MouseLeftButtonUpEvent);
+                        Layout(view3);
+                        if (closed != 0 || !FindAll<FrameworkElement>(view3, x => (string?)x.Tag == "unsaved-dialog").Any()) throw new InvalidOperationException("Kaydedilmemiş değişiklikte geri dönüş sorulmadı.");
+                        Click(FindAll<Button>(view3, x => (string?)x.Tag == "unsaved-cancel").First());
+                        Layout(view3);
+                        if (closed != 0 || FindAll<FrameworkElement>(view3, x => (string?)x.Tag == "unsaved-dialog").Any()) throw new InvalidOperationException("İptal pencereyi kapatmadı.");
+                        Raise(FindAll<FrameworkElement>(view3, x => (string?)x.Tag == "deck-back").First(), UIElement.MouseLeftButtonUpEvent);
+                        Layout(view3);
+                        Click(FindAll<Button>(view3, x => (string?)x.Tag == "unsaved-save").First());
+                        if (closed != 1 || view3.Dirty) throw new InvalidOperationException("Kaydet ve çık çalışmadı.");
+
+                        Click(FindAll<Button>(view2, x => (string?)x.Tag == "deck-save").First());
 
                         // 5) Kaydedilen desteyle gerçek bir oyun
                         var deck = DeckStore.For(f).First().ToDeck();

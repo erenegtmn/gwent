@@ -88,6 +88,18 @@ public sealed class DeckBuilderView : Grid
         Children.Add(_deckHost);
         SetRow(_preview, 1);
         Children.Add(_preview);
+        SetRowSpan(_modal, 2);
+        SetColumnSpan(_modal, 2);
+        Panel.SetZIndex(_modal, 50);
+        Children.Add(_modal);
+        Focusable = true;
+        Loaded += (_, _) => Focus();
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Escape || _nameBox.IsKeyboardFocusWithin) return;
+            e.Handled = true;
+            if (_modal.Visibility == Visibility.Visible) CloseModal(); else Back();
+        };
 
         _nameBox.Style = (Style)Application.Current.FindResource("GText");
         _nameBox.FontFamily = Theme.Serif;
@@ -110,6 +122,69 @@ public sealed class DeckBuilderView : Grid
         return new Deck(_faction, _leaderId, ids);
     }
 
+    // ---------- Kaydedilmemiş değişiklik ----------
+
+    private readonly Grid _modal = new() { Visibility = Visibility.Collapsed, Background = new SolidColorBrush(Color.FromArgb(0xc0, 0, 0, 0)) };
+    private string _clean = "";
+
+    /// <summary>Destenin karşılaştırılabilir özeti: fraksiyon, lider, (normal kipte) ad ve kartlar.</summary>
+    private string Snapshot() =>
+        _faction + "|" + _leaderId + "|" + (_career == null ? _name.Trim() : "") + "|" + string.Join(",", _cards.OrderBy(kv => kv.Key).Select(kv => kv.Key + "x" + kv.Value));
+
+    private void MarkClean() => _clean = Snapshot();
+
+    /// <summary>Son kayıttan (ya da açılıştan) beri değişiklik var mı?</summary>
+    public bool Dirty => Snapshot() != _clean;
+
+    private void Back() => Guard(_close, "Kaydetmeden çık", "Kaydet ve çık");
+
+    /// <summary>Değişiklik varsa önce sorar: kaydet ve devam / kaydetmeden devam / iptal. Yoksa hemen devam eder.</summary>
+    private void Guard(Action proceed, string discardLabel = "Kaydetmeden devam et", string saveLabel = "Kaydet ve devam et")
+    {
+        if (!Dirty) { proceed(); return; }
+        var sp = new StackPanel { Width = 640 };
+        sp.Children.Add(Ornate.Heading("Kaydedilmedi", null, 34, HorizontalAlignment.Center));
+        sp.Children.Add(Ornate.Rule(420, 10));
+        var unnamed = _career == null && string.IsNullOrWhiteSpace(_name);
+        var text = _career != null
+            ? "Destede kaydetmediğin değişiklikler var. Kaydetmezsen masada eski desten kullanılır."
+            : unnamed ? "Destede kaydetmediğin değişiklikler var. Kaydetmek için önce desteye bir ad ver." : $"“{_name.Trim()}” destesinde kaydetmediğin değişiklikler var.";
+        sp.Children.Add(Ui.Text(text, 19, Theme.Text, false, TextAlignment.Center, true));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 26, 0, 0) };
+        var save = Ui.Button(saveLabel, () =>
+        {
+            CloseModal();
+            if (_career != null) SaveCareer(); else Save();
+            if (!Dirty) proceed();
+        }, primary: true, enabled: !unnamed);
+        save.Tag = "unsaved-save";
+        var discard = Ui.Button(discardLabel, () => { CloseModal(); proceed(); });
+        discard.Tag = "unsaved-discard";
+        discard.Margin = new Thickness(12, 0, 0, 0);
+        var cancel = Ui.Button("İptal", CloseModal);
+        cancel.Tag = "unsaved-cancel";
+        cancel.Margin = new Thickness(12, 0, 0, 0);
+        foreach (var b in new[] { save, discard, cancel }) { b.FontSize = 19; b.Padding = new Thickness(22, 9, 22, 9); }
+        row.Children.Add(save);
+        row.Children.Add(discard);
+        row.Children.Add(cancel);
+        sp.Children.Add(row);
+        var panel = Ornate.Panel(sp, new Thickness(44, 34, 44, 36));
+        panel.HorizontalAlignment = HorizontalAlignment.Center;
+        panel.VerticalAlignment = VerticalAlignment.Center;
+        panel.Tag = "unsaved-dialog";
+        _modal.Children.Clear();
+        _modal.Children.Add(panel);
+        _modal.Visibility = Visibility.Visible;
+        Sfx.Play("cursor_movement");
+    }
+
+    private void CloseModal()
+    {
+        _modal.Visibility = Visibility.Collapsed;
+        _modal.Children.Clear();
+    }
+
     private static bool OwnsLeader(GwentAI.Career.CareerSave c, string faction) => CardCatalog.Default.Leaders(faction).Any(l => c.Owned(l.Id) > 0);
 
     private void NewDeck()
@@ -125,6 +200,7 @@ public sealed class DeckBuilderView : Grid
             foreach (var id in saved.Cards) _cards[id] = _cards.GetValueOrDefault(id) + 1;
             if (_career.Owned(saved.LeaderId) > 0) _leaderId = saved.LeaderId;
         }
+        MarkClean();
         Rebuild();
     }
 
@@ -137,6 +213,7 @@ public sealed class DeckBuilderView : Grid
         _name = d.Name;
         _nameBox.Text = d.Name;
         _message = "";
+        MarkClean();
         Rebuild();
     }
 
@@ -222,7 +299,9 @@ public sealed class DeckBuilderView : Grid
         var top = new Grid();
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        top.Children.Add(NavLink(_career != null ? "‹ Harita" : "‹ Menü", _close));
+        var back = NavLink(_career != null ? "‹ Harita" : "‹ Menü", Back);
+        ((FrameworkElement)back).Tag = "deck-back";
+        top.Children.Add(back);
         var title = Ornate.Heading(_career != null ? "Collect 'Em All · Deste" : "Deste kurucu", null, 38);
         ((FrameworkElement)title).Margin = new Thickness(26, 0, 0, 0);
         ((FrameworkElement)title).VerticalAlignment = VerticalAlignment.Center;
@@ -260,7 +339,7 @@ public sealed class DeckBuilderView : Grid
             if (sel) b.Effect = new DropShadowEffect { Color = Color.FromRgb(255, 200, 90), BlurRadius = 16, ShadowDepth = 0, Opacity = 0.5 };
             b.MouseEnter += (_, _) => { if (key != _faction) frame.Edge = Theme.B("#a88a40"); };
             b.MouseLeave += (_, _) => { if (key != _faction) frame.Edge = Theme.B("#4a3b28"); };
-            b.MouseLeftButtonUp += (_, e) => { e.Handled = true; Sfx.Play("cursor_movement"); SwitchFaction(key); };
+            b.MouseLeftButtonUp += (_, e) => { e.Handled = true; Sfx.Play("cursor_movement"); Guard(() => SwitchFaction(key)); };
             fr.Children.Add(b);
         }
         row.Children.Add(fr);
@@ -268,9 +347,14 @@ public sealed class DeckBuilderView : Grid
         if (_career != null)
         {
             var (have, total) = GwentAI.Career.CareerLogic.Progress(_career);
-            var info = Ui.Text($"Koleksiyon {have}/{total} kart  ·  Yeni kartları rakipleri yenerek ya da tüccardan alırsın.", 15, Theme.TextDim, false, TextAlignment.Right);
-            info.HorizontalAlignment = HorizontalAlignment.Right;
-            info.VerticalAlignment = VerticalAlignment.Center;
+            var info = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+            var how = Ui.Text("Karta tıkla: desteye ekle   ·   Sağ tık ya da listedeki −: çıkar   ·   Bitince “Kaydet ve kullan”", 16, Theme.B("#e8dcc4"), true, TextAlignment.Right);
+            how.HorizontalAlignment = HorizontalAlignment.Right;
+            info.Children.Add(how);
+            var active = _career.Decks.ContainsKey(_career.ActiveFaction) ? $"Masada kullanılan deste: {Texts.Faction(_career.ActiveFaction)}  ·  " : "";
+            var coll = Ui.Text($"{active}Koleksiyon {have}/{total} kart  ·  Yeni kartlar: rakipleri yenerek ya da tüccardan.", 14, Theme.TextDim, false, TextAlignment.Right);
+            coll.HorizontalAlignment = HorizontalAlignment.Right;
+            info.Children.Add(coll);
             SetColumn(info, 1);
             row.Children.Add(info);
             _header.Children.Add(row);
@@ -294,10 +378,10 @@ public sealed class DeckBuilderView : Grid
                 Padding = new Thickness(12, 5, 12, 5),
                 Tag = "saved-deck"
             };
-            tb.Click += (_, _) => LoadDeck(deck);
+            tb.Click += (_, _) => { Guard(() => LoadDeck(deck)); tb.IsChecked = _loadedName == deck.Name; };
             saved.Children.Add(tb);
         }
-        var fresh = Ui.Button("+ Yeni deste", NewDeck);
+        var fresh = Ui.Button("+ Yeni deste", () => Guard(NewDeck));
         fresh.Padding = new Thickness(12, 5, 12, 5);
         fresh.FontSize = 14;
         saved.Children.Add(fresh);
@@ -536,12 +620,21 @@ public sealed class DeckBuilderView : Grid
         if (errors.Count == 0) bottom.Children.Add(Ui.Text("✓ Deste geçerli.", 15, Theme.Good, true));
         else foreach (var e in errors) bottom.Children.Add(Ui.Text("• " + e, 14, Theme.Bad, false, TextAlignment.Left, true));
         if (!string.IsNullOrEmpty(_message)) bottom.Children.Add(Ui.Text(_message, 14, Theme.Gold, true, TextAlignment.Left, true));
+        if (Dirty)
+        {
+            var dirty = Ui.Text("● Kaydedilmemiş değişiklik var", 15, Theme.B("#f0b070"), true);
+            dirty.Tag = "unsaved-mark";
+            dirty.Margin = new Thickness(0, 4, 0, 0);
+            bottom.Children.Add(dirty);
+        }
 
         var btns = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         if (_career != null)
         {
-            var use = Ui.Button("Kaydet ve kullan", SaveCareer, primary: true);
-            use.Margin = new Thickness(0, 0, 6, 0);
+            var use = Ui.Button(Dirty ? "Kaydet ve kullan •" : "Kaydet ve kullan", SaveCareer, primary: true);
+            use.Margin = new Thickness(0, 0, 6, 6);
+            use.FontSize = 19;
+            use.Padding = new Thickness(26, 9, 26, 9);
             use.Tag = "career-deck-save";
             btns.Children.Add(use);
             var auto = Ui.Button("Otomatik doldur", () =>
@@ -564,7 +657,8 @@ public sealed class DeckBuilderView : Grid
             _deckHost.Child = cbox;
             return;
         }
-        var save = Ui.Button("Kaydet", Save, primary: true, enabled: !string.IsNullOrWhiteSpace(_name));
+        var save = Ui.Button(Dirty ? "Kaydet •" : "Kaydet", Save, primary: true, enabled: !string.IsNullOrWhiteSpace(_name));
+        save.Tag = "deck-save";
         save.Margin = new Thickness(0, 0, 6, 0);
         _saveButton = save;
         btns.Children.Add(save);
@@ -672,7 +766,8 @@ public sealed class DeckBuilderView : Grid
         CareerStore.Save(_career);
         var errors = DeckValidator.Validate(deck, _options);
         _message = errors.Count == 0 ? $"Kaydedildi. Masada bu desteyle ({Texts.Faction(_faction)}) oynayacaksın." : "Kaydedildi ama geçersiz: oynamak için eksikleri tamamla.";
-        RebuildLight();
+        MarkClean();
+        Rebuild();
     }
 
     private void Save()
@@ -683,6 +778,7 @@ public sealed class DeckBuilderView : Grid
         // Yeniden adlandırılan deste eskisinin üstüne yazmasın: ad değiştiyse eskisi kalır (farklı deste).
         DeckStore.Save(new SavedDeck(name, deck.Faction, deck.LeaderId, deck.CardIds.ToList()));
         _loadedName = name;
+        MarkClean();
         var errors = DeckValidator.Validate(deck, _options);
         _message = errors.Count == 0
             ? $"“{name}” kaydedildi."
