@@ -20,6 +20,7 @@ public partial class App : Application
             catch { }
         };
         Sfx.LoadSettings();
+        Settings.NoSave = e.Args.Any(a => a.StartsWith("--shot") || a.StartsWith("--selftest") || a == "--perf");
         Ornate.Animate = !e.Args.Any(a => a.StartsWith("--shot") || a.StartsWith("--selftest") || a == "--perf");   // sınamalar animasyonsuz
         if (e.Args.Contains("--noassets")) Assets.Override = ""; // varlıksız (yer tutucu) modu denemek için
         // --shot <klasör>: pencere açmadan ekranları PNG'ye çizer (görsel doğrulama için)
@@ -38,6 +39,20 @@ public partial class App : Application
             var li = Array.IndexOf(e.Args, "--selftest-lobby");
             var rounds = li + 1 < e.Args.Length && int.TryParse(e.Args[li + 1], out var rn) ? rn : 3;
             Shutdown(UiSelfTest.RunOnlineLobby(rounds) == 0 ? 0 : 1);
+            return;
+        }
+        if (e.Args.Contains("--selftest-tournament-ui"))
+        {
+            Sfx.Enabled = false;
+            Shutdown(UiSelfTest.RunTournamentUiCheck());
+            return;
+        }
+        if (e.Args.Contains("--selftest-tournament"))
+        {
+            Sfx.Enabled = false;
+            var ti = Array.IndexOf(e.Args, "--selftest-tournament");
+            var tr = ti + 1 < e.Args.Length && int.TryParse(e.Args[ti + 1], out var trn) ? trn : 2;
+            Shutdown(UiSelfTest.RunTournamentCheck(tr) == 0 ? 0 : 1);
             return;
         }
         if (e.Args.Contains("--selftest-resume"))

@@ -169,6 +169,41 @@ public static class Screenshots
             try { System.IO.Directory.Delete(rdir, true); } catch { }
         }
         {
+            // Turnuva: bekleme odası, 8 kişilik bracket ve biten 4 kişilik turnuva
+            var lobbyPlayers = UiSelfTest.OpenTournament(5, 8, 100, ready: false);
+            var lobbyHost = lobbyPlayers[0].Link;
+            UiSelfTest.Await(() => lobbyPlayers[1].Link.TournamentReadyAsync(true));
+            UiSelfTest.Await(() => lobbyPlayers[3].Link.TournamentReadyAsync(true));
+            UiSelfTest.PumpUntil(() => lobbyHost.TState!.Players.Count(p => p.Ready) == 2, "hazır", lobbyPlayers.Select(c => c.Link).ToArray());
+            var tl = new TournamentLobbyView(lobbyPlayers[0], () => Task.CompletedTask);
+            UiSelfTest.Layout(tl);
+            Save(tl, "tourney_lobby.png");
+            UiSelfTest.CloseAll(lobbyPlayers);
+
+            var eight = UiSelfTest.OpenTournament(8, 8, 100, ready: true);
+            UiSelfTest.Await(() => eight[0].Link.StartTournamentAsync());
+            UiSelfTest.PumpUntil(() => eight[0].Link.TState!.Phase == GwentNet.TournamentPhase.Running, "başladı", eight.Select(c => c.Link).ToArray());
+            // bir eşleşmede iki taraf da hazır olsun (kart "oynanıyor" görünsün)
+            var m0 = eight[0].Link.TState!.Matches.First(m => m.Round == 0 && m.Index == 0);
+            UiSelfTest.Await(() => eight[m0.A!.Value].Link.TournamentReadyAsync(true));
+            var m1 = eight[0].Link.TState!.Matches.First(m => m.Round == 0 && m.Index == 1);
+            UiSelfTest.Await(() => eight[m1.A!.Value].Link.TournamentReadyAsync(true));
+            UiSelfTest.PumpUntil(() => eight[0].Link.TState!.Matches.Any(m => m.ReadyA), "hazır", eight.Select(c => c.Link).ToArray());
+            var viewer = eight[m1.A!.Value];
+            var tb = new BracketView(viewer, () => Task.CompletedTask, () => { });
+            UiSelfTest.Layout(tb);
+            Save(tb, "tourney_bracket.png");
+            UiSelfTest.CloseAll(eight);
+
+            var four = UiSelfTest.OpenTournament(4, 4, 100, ready: true);
+            UiSelfTest.Await(() => four[0].Link.StartTournamentAsync());
+            UiSelfTest.PlayTournament(four);
+            var tf = new BracketView(four[0], () => Task.CompletedTask, () => { });
+            UiSelfTest.Layout(tf);
+            Save(tf, "tourney_final.png");
+            UiSelfTest.CloseAll(four);
+        }
+        {
             var (hc, _) = UiSelfTest.Await(() => OnlineController.HostAsync("Geralt", false, lan: false));
             var lh = hc!.Link;
             UiSelfTest.PumpUntil(() => lh.State?.Code is { Length: 5 }, "oda", lh);

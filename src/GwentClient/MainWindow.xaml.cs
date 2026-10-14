@@ -63,8 +63,10 @@ public partial class MainWindow : Window
         c.Link.MatchStarted += OnOnlineMatchStarted;
         c.Link.Notice += OnOnlineNotice;
         c.Link.MatchEnded += OnOnlineMatchEnded;
+        c.Link.TournamentChanged += OnTournamentChanged;
         c.Link.Pump();   // bağlanırken kuyrukta kalan iletiler (ör. yarım kalan maçın kurulumu) hemen işlensin
-        if (c.Link.Match == null) Host.Content = new LobbyView(c, LeaveOnlineAsync);
+        if (c.IsTournament) Host.Content = new TournamentLobbyView(c, LeaveOnlineAsync);
+        else if (c.Link.Match == null) Host.Content = new LobbyView(c, LeaveOnlineAsync);
     }
 
     private async Task LeaveOnlineAsync(string? message = null)
@@ -72,8 +74,10 @@ public partial class MainWindow : Window
         var c = _online;
         _online = null;
         ResumeStore.ClearGuest();   // bilerek ayrılma: dönülecek maç kalmaz
+        if (c is { IsTournament: true, Link.TState: { Phase: GwentNet.TournamentPhase.Lobby } lobby }) TournamentEconomy.Refund(lobby.Code);   // başlamadan ayrılana ücret iade
         if (c != null)
         {
+            c.Link.TournamentChanged -= OnTournamentChanged;
             c.Link.MatchStarted -= OnOnlineMatchStarted;
             c.Link.Notice -= OnOnlineNotice;
             c.Link.MatchEnded -= OnOnlineMatchEnded;
@@ -94,7 +98,7 @@ public partial class MainWindow : Window
         var mine = me == 0 ? setup.Seat0 : setup.Seat1;
         var theirs = me == 0 ? setup.Seat1 : setup.Seat0;
         _pendingNotices.Clear();
-        if (_online is { IsHost: false } && _online.Link is { State: { } st })
+        if (_online is { IsHost: false, IsTournament: false } && _online.Link is { State: { } st })
             ResumeStore.SaveGuest(new GuestResume(st.Code, st.YourToken, _online.Nick, Nick(1 - me), DateTime.UtcNow));
         Music.Start();
         Host.Content = new VsScreen(
@@ -105,12 +109,26 @@ public partial class MainWindow : Window
 
     private void OnOnlineMatchEnded(GwentNet.MatchResult r) => ResumeStore.ClearGuest();
 
+    /// <summary>Turnuva durumu değişti: bekleme odasında başladıysa bracket'e geç.</summary>
+    private void OnTournamentChanged()
+    {
+        if (Host.Content is TournamentLobbyView && _online?.Link.TState is { Phase: GwentNet.TournamentPhase.Running })
+            ShowBracket();
+    }
+
+    private void ShowBracket()
+    {
+        if (_online == null) { ShowMenu(); return; }
+        Host.Content = new BracketView(_online, LeaveOnlineAsync, ShowMenu);
+    }
+
     private void ShowOnlineGame(GameSession session)
     {
         // VS sırasında yeni bir maç başladıysa (rövanş) eski oturumu gösterme
         if (_online?.Link.Match != session) return;
         session.FastForward();   // yarım kalan maçta geçmiş animasyonsuz uygulanır
-        var view = new GwintView(session, () => _ = LeaveOnlineAsync(), _ => { });
+        session.TournamentMode = _online is { IsTournament: true };
+        var view = new GwintView(session, session.TournamentMode ? ShowBracket : () => _ = LeaveOnlineAsync(), _ => { });
         if (_online is { IsHost: true, Invites.Count: > 0 } host) view.InviteText = host.Invites[0].Invite;
         Host.Content = view;
         view.Focus();
@@ -127,6 +145,10 @@ public partial class MainWindow : Window
         {
             case GwintView gv:
                 gv.OnlineNotice(code, text);
+                break;
+            case TournamentLobbyView when code is "tournament_closed" or "connection_lost":
+                if (_online?.Link.TState is { } tl) TournamentEconomy.Refund(tl.Code);
+                _ = LeaveOnlineAsync(code == "tournament_closed" ? "Turnuva kapandı: kuran ayrıldı. Katılım ücretin iade edildi." : text);
                 break;
             case LobbyView when code is "room_closed" or "connection_lost":
                 _ = LeaveOnlineAsync(code == "room_closed" ? "Oda kapandı: oda kuran oyuncu ayrıldı." : text);

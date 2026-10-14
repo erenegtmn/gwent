@@ -188,4 +188,46 @@ public class SignalRTests : IAsyncLifetime
         var room = _server.Rooms.Find(code)!;
         Assert.Equal(room.Game!.Events.Count, host2.Local!.Events.Count);
     }
+
+    [Fact]
+    public async Task A_three_player_tournament_runs_over_the_real_network()
+    {
+        var factions = new[] { "northern_realms", "nilfgaard", "monsters" };
+        var players = new List<NetClient>();
+        for (var i = 0; i < 3; i++) players.Add(await NetClient.ConnectAsync(_server.LocalUrl, "Oyuncu" + i, Difficulty.Hard, 200 + i));
+        var created = await players[0].CreateTournamentAsync(4, 50);
+        Assert.True(created.Ok, created.Error);
+        for (var i = 1; i < 3; i++) Assert.True((await players[i].JoinTournamentAsync(created.Value!)).Ok);
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.True((await players[i].TournamentLoadoutAsync(factions[i])).Ok);
+            Assert.True((await players[i].TournamentReadyAsync()).Ok);
+        }
+        await players[0].WaitAsync(() => players[0].TState is { Players.Count: 3 }, "oyuncular göründü");
+        Assert.True((await players[0].StartTournamentAsync()).Ok);
+
+        var until = DateTime.UtcNow.AddSeconds(60);
+        while (DateTime.UtcNow < until && !players.All(p => p.TState?.Phase == TournamentPhase.Finished))
+        {
+            foreach (var p in players)
+            {
+                p.Pump();
+                var ts = p.TState;
+                if (ts is { Phase: TournamentPhase.Running, YourMatchRound: { } r, YourMatchIndex: { } ix })
+                {
+                    var m = ts.Matches.First(x => x.Round == r && x.Index == ix);
+                    var mine = m.A == ts.YourIndex ? m.ReadyA : m.ReadyB;
+                    if (m.Status == "ready" && !mine) await p.TournamentReadyAsync();
+                }
+                if (p.Result is { WinnerSeat: null } && ts?.Phase == TournamentPhase.Running) await p.Conn.InvokeAsync<Reply>("RequestRematch");
+                await p.TryPlayAsync();
+            }
+            await Task.Delay(3);
+        }
+        foreach (var p in players) p.Pump();
+        Assert.All(players, p => Assert.Equal(TournamentPhase.Finished, p.TState!.Phase));
+        Assert.Single(players[0].TState!.Players, x => x.Placement == 1);
+        Assert.Equal(50, players[0].TState!.EntryFee);
+        foreach (var p in players) await p.DisposeAsync();
+    }
 }

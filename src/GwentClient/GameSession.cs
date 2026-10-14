@@ -40,6 +40,9 @@ public sealed class GameSession
     public string MyAvatar => OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Seat0 : OnlineSetup.Seat1).Avatar ?? Portraits.Default : Settings.Portrait;
     public string OppAvatar => (OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Seat1 : OnlineSetup.Seat0).Avatar : null) ?? Config.OppLeaderId;
     public bool IsRemote => _link != null;
+
+    /// <summary>Turnuva maçı: oyun sonunda "Bracket'e dön" gösterilir (rövanş yalnız berabere kalınca).</summary>
+    public bool TournamentMode { get; set; }
     public IMatchLink? Link => _link;
     public MatchSetup? OnlineSetup { get; }
     private readonly IMatchLink? _link;

@@ -1719,11 +1719,11 @@ public sealed class GwintView : Viewbox
             if (_s.IsRemote) { _s.Link!.RequestRematch(); _hint = "Rövanş isteği gönderildi; rakibin kabul etmesi bekleniyor."; Refresh(); }
             else _rematch(_s.Config with { Seed = Random.Shared.Next(1, int.MaxValue) });
         }, primary: true);
-        var menu = Ui.Button("Menü", _toMenu);
+        var menu = Ui.Button(_s.TournamentMode ? "Bracket'e dön" : "Menü", _toMenu);
         again.FontSize = 26; menu.FontSize = 26;
         again.Padding = new Thickness(50, 14, 50, 14); menu.Padding = new Thickness(50, 14, 50, 14);
         menu.Margin = new Thickness(18, 0, 0, 0);
-        b.Children.Add(again);
+        if (!_s.TournamentMode || winner == null) b.Children.Add(again);   // turnuvada rövanş yalnız berabere kalınca gerekir
         b.Children.Add(menu);
         sp.Children.Add(b);
         if (_s.IsRemote && !string.IsNullOrEmpty(_hint))

@@ -22,6 +22,9 @@ public sealed class OnlineMenuView : Grid
     private readonly TextBlock _status = new() { FontFamily = Theme.Serif, FontSize = 17 * Theme.FontScale, TextWrapping = TextWrapping.Wrap, MinHeight = 28, HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center };
     private readonly Button _create;
     private readonly Button _join;
+    private readonly Button _tour;
+    private readonly ToggleButton _size4, _size8;
+    private readonly List<ToggleButton> _feeButtons = new();
     private bool _busy;
 
     public OnlineMenuView(Action back, Action<OnlineController> connected)
@@ -48,7 +51,7 @@ public sealed class OnlineMenuView : Grid
         _upnp = Ornate.Option("Modemde port aç (UPnP)", "Gelişmiş; her modemde çalışmaz", false);
 
         // ---- Sol kapı: oda kur ----
-        var host = new StackPanel { Width = 600 };
+        var host = new StackPanel { Width = 480 };
         host.Children.Add(Door("ODA KUR", "Oyun senin bilgisayarında sunucu olur; arkadaşın sana bağlanır."));
         if (ResumeStore.LoadHost() is { } resume) host.Children.Add(ResumeStrip(resume));
         host.Children.Add(_tunnel);
@@ -63,7 +66,7 @@ public sealed class OnlineMenuView : Grid
         host.Children.Add(_create);
 
         // ---- Sağ kapı: odaya katıl ----
-        var join = new StackPanel { Width = 600 };
+        var join = new StackPanel { Width = 480 };
         join.Children.Add(Door("ODAYA KATIL", "Host'un sana verdiği davet kodunu yapıştır."));
         if (ResumeStore.LoadGuest() is { } guestSave)
         {
@@ -111,8 +114,41 @@ public sealed class OnlineMenuView : Grid
         _join.Tag = "online-join";
         join.Children.Add(_join);
 
-        var hostPanel = Ornate.Panel(host, new Thickness(40, 34, 40, 38), 20, 58);
-        var joinPanel = Ornate.Panel(join, new Thickness(40, 34, 40, 38), 20, 58);
+        // ---- Orta kapı: turnuva kur ----
+        var tour = new StackPanel { Width = 480 };
+        tour.Children.Add(Door("TURNUVA", "3–8 kişilik tek eleme; ödül havuzu taç ile."));
+        tour.Children.Add(Ornate.Caption("Kişi sayısı", 6));
+        var sizeRow = new StackPanel { Orientation = Orientation.Horizontal };
+        _size4 = ChoiceButton("4 kişi", true);
+        _size8 = ChoiceButton("8 kişi", false);
+        foreach (var b in new[] { _size4, _size8 }) { b.Click += (_, _) => { _size4.IsChecked = ReferenceEquals(b, _size4); _size8.IsChecked = ReferenceEquals(b, _size8); }; sizeRow.Children.Add(b); }
+        tour.Children.Add(sizeRow);
+        tour.Children.Add(Ornate.Caption("Katılım ücreti"));
+        var feeRow = new WrapPanel();
+        foreach (var f in new[] { 0, 50, 100, 200 })
+        {
+            var fee = f;
+            var b = ChoiceButton(fee == 0 ? "Ücretsiz" : $"{fee} taç", fee == 0);
+            b.Tag = fee;
+            b.Click += (_, _) => { foreach (var o in _feeButtons) o.IsChecked = ReferenceEquals(o, b); };
+            _feeButtons.Add(b);
+            feeRow.Children.Add(b);
+        }
+        tour.Children.Add(feeRow);
+        tour.Children.Add(Ui.Text($"Bakiyen: {Settings.Crowns} taç. Havuz = ücret × oyuncu sayısı; şampiyon %55–70, finalist %25–30 alır.", 14, Theme.TextDim, false, TextAlignment.Left, true));
+        ((TextBlock)tour.Children[^1]).Margin = new Thickness(0, 12, 0, 0);
+        tour.Children.Add(Ui.Text("Bağlantı seçenekleri “Oda kur”dakilerle aynıdır.", 13, Theme.TextDim, false, TextAlignment.Left, true));
+        ((TextBlock)tour.Children[^1]).Margin = new Thickness(0, 8, 0, 0);
+        _tour = Ui.Button("Turnuva kur", () => TournamentClicked(), primary: true);
+        _tour.FontSize = 24;
+        _tour.Padding = new Thickness(0, 12, 0, 12);
+        _tour.Margin = new Thickness(0, 22, 0, 0);
+        _tour.Tag = "online-tournament";
+        tour.Children.Add(_tour);
+
+        var hostPanel = Ornate.Panel(host, new Thickness(36, 34, 36, 38), 20, 58);
+        var tourPanel = Ornate.Panel(tour, new Thickness(36, 34, 36, 38), 20, 58);
+        var joinPanel = Ornate.Panel(join, new Thickness(36, 34, 36, 38), 20, 58);
 
         // ---- Üst: başlık + takma ad levhası; alt: durum + geri ----
         var plate = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
@@ -130,7 +166,9 @@ public sealed class OnlineMenuView : Grid
 
         var doors = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 28, 0, 0) };
         doors.Children.Add(hostPanel);
-        doors.Children.Add(new System.Windows.Shapes.Rectangle { Width = 40 });
+        doors.Children.Add(new System.Windows.Shapes.Rectangle { Width = 28 });
+        doors.Children.Add(tourPanel);
+        doors.Children.Add(new System.Windows.Shapes.Rectangle { Width = 28 });
         doors.Children.Add(joinPanel);
 
         var all = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
@@ -144,10 +182,16 @@ public sealed class OnlineMenuView : Grid
         all.Children.Add(back2);
 
         Children.Add(Ornate.Stage(all, "pano_novigrad"));
-        Ornate.Reveal(new UIElement[] { heading, plate, hostPanel, joinPanel, back2 }, 28, 40, 120, 560);
+        Ornate.Reveal(new UIElement[] { heading, plate, hostPanel, tourPanel, joinPanel, back2 }, 28, 40, 120, 560);
         Focusable = true;
         KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Escape && !_busy) _back(); };
     }
+
+    private static ToggleButton ChoiceButton(string text, bool on) => new()
+    {
+        Style = (Style)Application.Current.FindResource("GToggle"), Content = Ui.Text(text, 17, Theme.Text, true, TextAlignment.Center), IsChecked = on,
+        Margin = new Thickness(0, 0, 8, 8), Padding = new Thickness(18, 9, 18, 9), MinWidth = 96
+    };
 
     private static TextBlock Label(string t)
     {
@@ -165,7 +209,7 @@ public sealed class OnlineMenuView : Grid
         var s = Ui.Text(sub, 15, Theme.TextDim, false, TextAlignment.Left, true);
         s.Margin = new Thickness(0, 2, 0, 0);
         sp.Children.Add(s);
-        var rule = Ornate.Rule(520, 12);
+        var rule = Ornate.Rule(430, 12);
         rule.HorizontalAlignment = HorizontalAlignment.Left;
         sp.Children.Add(rule);
         return sp;
@@ -178,6 +222,7 @@ public sealed class OnlineMenuView : Grid
         _busy = busy;
         _create.IsEnabled = !busy;
         _join.IsEnabled = !busy;
+        _tour.IsEnabled = !busy;
         _status.Foreground = Theme.B("#e8c970");
         _status.Text = message ?? "";
     }
@@ -242,6 +287,23 @@ public sealed class OnlineMenuView : Grid
         var opts = new HostOptions(snap.NextGen, _lan.IsChecked == true, _upnp.IsChecked == true, cloudflared);
         var (c, err) = await OnlineController.ResumeHostAsync(snap, opts, new Progress<string>(m => _status.Text = m));
         if (c == null) { Error((err ?? "Maç sürdürülemedi.") + " Kaydı silip yeni oda kurabilirsin."); return; }
+        _connected(c);
+    }
+
+    private async void TournamentClicked()
+    {
+        if (_busy || !NickOk(out var nick)) return;
+        var size = _size8.IsChecked == true ? 8 : 4;
+        var fee = (int)(_feeButtons.FirstOrDefault(b => b.IsChecked == true)?.Tag ?? 0);
+        if (Settings.Crowns < fee) { Error($"Katılım ücreti {fee} taç; bakiyen {Settings.Crowns}."); return; }
+        SetBusy(true, "Sunucu başlatılıyor…");
+        var (cloudflared, terr) = await PrepareTunnelAsync();
+        if (terr != null) { Error(terr); return; }
+        var opts = new HostOptions(_nextGen.IsChecked == true, _lan.IsChecked == true, _upnp.IsChecked == true, cloudflared);
+        var (c, err) = await OnlineController.HostTournamentAsync(nick, opts, size, fee, new Progress<string>(m => _status.Text = m));
+        if (c == null) { Error(err ?? "Turnuva kurulamadı."); return; }
+        Settings.Nick = nick;
+        Settings.Save();
         _connected(c);
     }
 

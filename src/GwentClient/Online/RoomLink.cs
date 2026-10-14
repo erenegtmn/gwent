@@ -17,6 +17,7 @@ public abstract class RoomLinkBase : IMatchLink
     public RoomState? State { get; private set; }
     public MatchSetup? Setup { get; private set; }
     public GameSession? Match { get; private set; }
+    public TournamentState? TState { get; private set; }
     public MatchResult? Result { get; private set; }
     public string? RoomCode => State?.Code;
     public int Seat => State?.YourSeat ?? -1;
@@ -28,6 +29,7 @@ public abstract class RoomLinkBase : IMatchLink
     public event Action<GameSession>? MatchStarted;
     public event Action<MatchResult>? MatchEnded;
     public event Action<string, string>? Notice;
+    public event Action? TournamentChanged;
 
     // ---------- Sunucudan gelenler (herhangi bir iş parçacığında olabilir: yalnız kuyruğa al) ----------
 
@@ -73,6 +75,8 @@ public abstract class RoomLinkBase : IMatchLink
         MatchEnded?.Invoke(r);
     });
 
+    protected void ReceiveTournamentState(TournamentState s) => Enqueue(() => { TState = s; TournamentChanged?.Invoke(); });
+
     protected void ReceiveNotice(string code, string text) => Enqueue(() => Notice?.Invoke(code, text));
 
     /// <summary>Kuyruktaki iletileri işler. Arayüz iş parçacığında çağrılmalı.</summary>
@@ -97,6 +101,14 @@ public abstract class RoomLinkBase : IMatchLink
     public abstract Task<Reply> SetLoadoutAsync(LoadoutDto loadout);
     public abstract Task<Reply> SetReadyAsync(bool ready);
     public abstract Task LeaveAsync();
+
+    // Turnuva
+    public abstract Task<Reply> CreateTournamentAsync(string nick, bool nextGen, int maxPlayers, int entryFee);
+    public abstract Task<Reply> JoinTournamentAsync(string code, string nick);
+    public abstract Task<Reply> SetTournamentLoadoutAsync(LoadoutDto loadout);
+    public abstract Task<Reply> TournamentReadyAsync(bool ready);
+    public abstract Task<Reply> StartTournamentAsync();
+    public abstract Task<Reply> TournamentWalkoverAsync();
     public abstract void Submit(ReplayAction action);
     public abstract void Resign();
     public abstract void RequestRematch();
@@ -130,12 +142,19 @@ public sealed class RoomLink : RoomLinkBase, IGwentClient
     public void OnActionRejected(string reason, int expectedSeq) => ReceiveActionRejected(reason);
     public void OnMatchEnded(MatchResult result) => ReceiveMatchEnded(result);
     public void OnNotice(string code, string text) => ReceiveNotice(code, text);
+    public void OnTournamentState(TournamentState state) => ReceiveTournamentState(state);
 
     public override Task<Reply> CreateRoomAsync(string nick, bool nextGen = false) => Task.FromResult(_svc.CreateRoom(Session, nick, ProtocolInfo.Version, nextGen));
     public override Task<Reply> JoinRoomAsync(string code, string nick) => Task.FromResult(_svc.JoinRoom(Session, code, nick, ProtocolInfo.Version));
     public override Task<Reply> SetLoadoutAsync(LoadoutDto loadout) => Task.FromResult(_svc.SetLoadout(Session, loadout));
     public override Task<Reply> SetReadyAsync(bool ready) => Task.FromResult(_svc.SetReady(Session, ready));
     public override Task LeaveAsync() { _svc.Leave(Session); return Task.CompletedTask; }
+    public override Task<Reply> CreateTournamentAsync(string nick, bool nextGen, int maxPlayers, int entryFee) => Task.FromResult(_svc.CreateTournament(Session, nick, ProtocolInfo.Version, nextGen, maxPlayers, entryFee));
+    public override Task<Reply> JoinTournamentAsync(string code, string nick) => Task.FromResult(_svc.JoinTournament(Session, code, nick, ProtocolInfo.Version));
+    public override Task<Reply> SetTournamentLoadoutAsync(LoadoutDto loadout) => Task.FromResult(_svc.SetTournamentLoadout(Session, loadout));
+    public override Task<Reply> TournamentReadyAsync(bool ready) => Task.FromResult(_svc.TournamentSetReady(Session, ready));
+    public override Task<Reply> StartTournamentAsync() => Task.FromResult(_svc.StartTournament(Session));
+    public override Task<Reply> TournamentWalkoverAsync() => Task.FromResult(_svc.TournamentClaimWalkover(Session));
     public override void Submit(ReplayAction action) => _svc.SubmitAction(Session, action);
     public override void Resign() => _svc.Resign(Session);
     public override void RequestRematch() => _svc.RequestRematch(Session);

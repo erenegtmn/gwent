@@ -22,6 +22,8 @@ public sealed class ServerSession
     internal IGwentClient Client { get; set; }
     internal Room? Room { get; set; }
     internal int Seat { get; set; } = -1;
+    internal Tournament? Tournament { get; set; }
+    internal int TIndex { get; set; } = -1;
 }
 
 internal sealed class Seat
@@ -69,6 +71,13 @@ public sealed class Room
 
     /// <summary>Maç durumu değişince (kurulum, doğrulanan eylem, bitiş) çağrılır; host kalıcı kayıt için kullanır.</summary>
     internal Action<Room>? Changed { get; set; }
+
+    /// <summary>Turnuva maçıysa bağlı olduğu turnuva ve eşleşme (normal odalarda null).</summary>
+    internal Tournament? Tournament { get; set; }
+    internal TMatch? TMatch { get; set; }
+
+    /// <summary>Maç bitince (sonuçla) çağrılır; turnuva bracket'i ilerletmek için kullanır.</summary>
+    internal Action<Room, MatchResult>? Finished { get; set; }
 
     internal RoomSnapshot? ExportSnapshot() =>
         Phase == RoomPhase.Playing && Setup != null && Seats[0] != null && Seats[1] != null
@@ -134,13 +143,15 @@ public sealed class Room
 
     internal static readonly string[] Factions = { "northern_realms", "nilfgaard", "scoiatael", "monsters", "skellige" };
 
-    internal string? ValidateLoadout(LoadoutDto l)
+    internal string? ValidateLoadout(LoadoutDto l) => ValidateLoadout(l, NextGen);
+
+    internal static string? ValidateLoadout(LoadoutDto l, bool nextGenOn)
     {
         if (!Factions.Contains(l.Faction)) return "Bilinmeyen fraksiyon.";
         // Portre yalnızca kısa bir kimliktir (istemci gösterir); rastgele uzun/garip metin yayınlanmasın
         if (l.Avatar != null && (l.Avatar.Length > 64 || !l.Avatar.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-'))) return "Geçersiz portre.";
-        var opts = new GameOptions { NextGen = NextGen };
-        var leader = CardCatalog.Default.Leaders(l.Faction).FirstOrDefault(x => x.Id == l.LeaderId && (x.Edition != "nextgen" || NextGen));
+        var opts = new GameOptions { NextGen = nextGenOn };
+        var leader = CardCatalog.Default.Leaders(l.Faction).FirstOrDefault(x => x.Id == l.LeaderId && (x.Edition != "nextgen" || nextGenOn));
         if (leader == null) return "Bu lider bu fraksiyonda yok ya da yeni nesil kapalı.";
         if (l.CardIds != null)
         {
@@ -220,6 +231,7 @@ public sealed class Room
         for (var i = 0; i < 2; i++) Send(i, c => c.OnMatchEnded(Result));
         BroadcastState();
         Changed?.Invoke(this);
+        Finished?.Invoke(this, Result);
     }
 
     /// <summary>Yeniden bağlanan oyuncuya durumu ve kaçırdığı eylemleri gönderir (lastSeq = elindeki son sıra numarası, yoksa -1).</summary>

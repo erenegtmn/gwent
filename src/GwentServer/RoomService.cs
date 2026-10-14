@@ -9,7 +9,7 @@ namespace GwentServer;
 /// yalnız bu sınıfın yöntemlerini çağırır. Tek kilit kullanılır (arkadaşlar arası ölçek için yeterli ve yarış durumundan arınık);
 /// bu yüzden <see cref="IGwentClient"/> uygulamaları çağrı içinde geri çağırma yapmamalı (iletiyi kuyruğa atmalı).
 /// </summary>
-public sealed class RoomService
+public sealed partial class RoomService
 {
     private const string CodeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 0/O, 1/I/L gibi karışanlar yok
     private readonly object _gate = new();
@@ -77,7 +77,7 @@ public sealed class RoomService
             var chars = new char[5];
             for (var i = 0; i < chars.Length; i++) chars[i] = CodeAlphabet[RandomNumberGenerator.GetInt32(CodeAlphabet.Length)];
             var code = new string(chars);
-            if (!_rooms.ContainsKey(code)) return code;
+            if (!_rooms.ContainsKey(code) && !_tournaments.ContainsKey(code)) return code;
         }
         throw new InvalidOperationException("Oda kodu üretilemedi.");
     }
@@ -145,6 +145,7 @@ public sealed class RoomService
             room.Send(1 - seat, c => c.OnNotice("opponent_returned", $"{st.Nick} geri döndü."));
             room.Resync(seat, lastSeq);
             room.BroadcastState();
+            if (room.Tournament is { } t && t.Players.FindIndex(p => p.Token == token) is var ti and >= 0) Reattach(t, ti, s);
             return Reply.Success(room.Code);
         }
     }
@@ -238,9 +239,12 @@ public sealed class RoomService
     {
         lock (_gate)
         {
-            if (s.Room is not { } room) return;
-            if (room.Phase == RoomPhase.Playing) room.Finish(1 - s.Seat, "resigned");
-            Remove(room, s);
+            if (s.Room is { } room)
+            {
+                if (room.Phase == RoomPhase.Playing) room.Finish(1 - s.Seat, "resigned");
+                Remove(room, s);
+            }
+            TournamentLeft(s);
         }
     }
 
@@ -249,6 +253,7 @@ public sealed class RoomService
     {
         lock (_gate)
         {
+            TournamentDisconnected(s);
             if (s.Room is not { } room) return;
             var seat = room.Seats[s.Seat];
             if (seat == null || seat.Session != s) return;
@@ -274,6 +279,7 @@ public sealed class RoomService
         s.Room = null;
         s.Seat = -1;
         if (seat == null) return;
+        if (room.Tournament != null) { seat.Connected = false; seat.Session = null; return; }   // turnuva maç odası: yalnız koltuk boşalır, oda bracket için kalır
         var other = room.Other(seatIndex);
         // Host (koltuk 0) ayrılırsa oda kapanır: sunucu zaten host'un kendisidir
         if (seatIndex == 0 || other == null)
@@ -301,7 +307,7 @@ public sealed class RoomService
                 _clock.UtcNow - r.LastActivity > idle
                 || (r.Phase != RoomPhase.Playing && r.Seats.All(x => x == null || !x.Connected))).Select(r => r.Code).ToList();
             foreach (var code in dead) _rooms.Remove(code);
-            return dead.Count;
+            return dead.Count + SweepTournaments(idle);
         }
     }
 }

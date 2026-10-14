@@ -23,9 +23,7 @@ public sealed class LobbyView : Grid
     private readonly Border _host = new();
     private bool _revealed;
     private bool _meReadyShown, _oppReadyShown;
-    private string _faction = "northern_realms";
-    private string _leaderId = "";
-    private string? _deckName; // null = önerilen deste
+    private readonly LoadoutPicker _picker;
     private string _error = "";
     private bool _leaving;
 
@@ -35,7 +33,8 @@ public sealed class LobbyView : Grid
         _leave = leave;
         Children.Add(Ornate.Stage(_host));
 
-        _leaderId = DefaultLeader(_faction);
+        _picker = new LoadoutPicker(() => NextGen);
+        _picker.Changed += SendLoadout;
         _c.Link.StateChanged += OnState;
         Unloaded += (_, _) => _c.Link.StateChanged -= OnState;
         Rebuild();
@@ -47,21 +46,11 @@ public sealed class LobbyView : Grid
     private RoomState? State => _c.Link.State;
     private bool NextGen => State?.NextGen == true;
 
-    private string DefaultLeader(string faction) =>
-        CardCatalog.Default.Leaders(faction).First(l => l.Edition != "nextgen" || NextGen).Id;
-
     // ---------- Gönderim ----------
 
     private async void SendLoadout()
     {
-        List<string>? cards = null;
-        var leader = _leaderId;
-        if (_deckName != null)
-        {
-            var saved = DeckStore.For(_faction).FirstOrDefault(d => d.Name == _deckName);
-            if (saved != null) { cards = saved.CardIds.ToList(); leader = saved.LeaderId; }
-        }
-        var r = await _c.Link.SetLoadoutAsync(new LoadoutDto(_faction, leader, cards, Settings.Portrait));
+        var r = await _c.Link.SetLoadoutAsync(_picker.ToLoadout());
         _error = r.Ok ? "" : r.Error ?? "Seçim gönderilemedi.";
         Rebuild();
     }
@@ -98,33 +87,7 @@ public sealed class LobbyView : Grid
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         head.Children.Add(Ornate.Heading("Bekleme odası", NextGen ? "Yeni nesil içerik açık" : "Standart kartlar", 46));
 
-        var code = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right };
-        var codeRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Tag = "lobby-code" };
-        var codeLabel = Ui.Text("ODA KODU", 13, Theme.TextDim, true);
-        codeLabel.VerticalAlignment = VerticalAlignment.Center;
-        codeLabel.Margin = new Thickness(0, 0, 16, 0);
-        codeRow.Children.Add(codeLabel);
-        foreach (var ch in st?.Code ?? "…")
-        {
-            var tile = new Grid { Width = 58, Height = 76, Margin = new Thickness(4, 0, 0, 0) };
-            tile.Children.Add(new ChamferFrame { Fill = Theme.B("#18110a"), Edge = Ornate.GoldEdge, Inner = Ornate.GoldThin, Cut = 9, Inset = 4 });
-            var tx = Ui.Text(ch.ToString(), 46, Theme.B("#f4dc98"), true, TextAlignment.Center);
-            tx.HorizontalAlignment = HorizontalAlignment.Center;
-            tx.VerticalAlignment = VerticalAlignment.Center;
-            tx.Effect = new DropShadowEffect { Color = Color.FromRgb(255, 160, 50), BlurRadius = 18, ShadowDepth = 0, Opacity = 0.7 };
-            tile.Children.Add(tx);
-            codeRow.Children.Add(tile);
-        }
-        var copy = Ui.Button("Kopyala", () =>
-        {
-            try { Clipboard.SetText(st?.Code ?? ""); } catch { /* pano başka uygulamada kilitli olabilir */ }
-        });
-        copy.VerticalAlignment = VerticalAlignment.Center;
-        copy.Margin = new Thickness(16, 0, 0, 0);
-        copy.FontSize = 14;
-        codeRow.Children.Add(copy);
-        code.Children.Add(codeRow);
-        if (_c.IsHost) AddInvites(code);
+        var code = LobbyParts.CodePanel(st?.Code, _c, "ODA KODU");
         Grid.SetColumn(code, 1);
         head.Children.Add(code);
         grid.Children.Add(head);
@@ -175,7 +138,7 @@ public sealed class LobbyView : Grid
     }
 
     /// <summary>İki koltuk arasındaki dikey altın çizgi ve "VS" mührü.</summary>
-    private static UIElement VersusMark()
+    internal static UIElement VersusMark()
     {
         var g = new Grid { HorizontalAlignment = HorizontalAlignment.Center, IsHitTestVisible = false };
         g.Children.Add(new Rectangle
@@ -198,7 +161,7 @@ public sealed class LobbyView : Grid
     }
 
     /// <summary>Hazır mührü: hazırsa mum kırmızısı, "damgalanarak" belirir; değilse boş halka.</summary>
-    private static UIElement Seal(bool ready, bool stampNow, double size = 72)
+    internal static UIElement Seal(bool ready, bool stampNow, double size = 72)
     {
         var g = new Grid { Width = size, Height = size, RenderTransformOrigin = new Point(0.5, 0.5) };
         g.Children.Add(new Ellipse
@@ -226,33 +189,6 @@ public sealed class LobbyView : Grid
         return g;
     }
 
-    /// <summary>Host için davet kodları: en iyisi büyük ve kopyalanabilir; diğer yöntemler altında. Başarısız yöntemlerin nedeni silik yazılır.</summary>
-    private void AddInvites(StackPanel code)
-    {
-        void CopyButton(string text, StackPanel row)
-        {
-            var b = Ui.Button("Kopyala", () => { try { Clipboard.SetText(text); } catch { /* pano kilitli olabilir */ } });
-            b.FontSize = 13;
-            b.Margin = new Thickness(10, 0, 0, 0);
-            b.VerticalAlignment = VerticalAlignment.Center;
-            row.Children.Add(b);
-        }
-
-        var invites = _c.Invites;
-        if (invites.Count == 0)
-        {
-            code.Children.Add(Ui.Text("Bağlantı yöntemi yok: arkadaşın bağlanamaz.", 14, Theme.Bad, false, TextAlignment.Right));
-            return;
-        }
-        var best = invites[0];
-        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
-        var box = new TextBox { Text = best.Invite, IsReadOnly = true, Width = 640, TextWrapping = TextWrapping.Wrap, Tag = "lobby-invite", FontFamily = Theme.Serif, FontSize = 14 };
-        box.Style = (Style)Application.Current.FindResource("GText");
-        row.Children.Add(box);
-        CopyButton(best.Invite, row);
-        code.Children.Add(row);
-    }
-
     private string FootMessage()
     {
         if (Opp == null) return "Rakip bekleniyor… Oda kodunu arkadaşına ver.";
@@ -265,7 +201,7 @@ public sealed class LobbyView : Grid
     private static string BannerFor(string faction) => Assets.Ui("banner_" + faction) != null ? "banner_" + faction : "banner_neutral";
 
     /// <summary>Koltuk başlığı: küçük etiket + büyük takma ad + sağda mühür.</summary>
-    private static UIElement SeatHeader(string label, string nick, UIElement seal, string? avatar)
+    internal static UIElement SeatHeader(string label, string nick, UIElement seal, string? avatar)
     {
         var g = new Grid();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -297,101 +233,9 @@ public sealed class LobbyView : Grid
         rule.HorizontalAlignment = HorizontalAlignment.Left;
         root.Children.Add(rule);
 
-        // Fraksiyon: kalkan rozetleri (seçili olan altın çerçeveli ve parlar)
-        root.Children.Add(Label("FRAKSİYON"));
-        var badges = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
-        foreach (var f in Factions)
-        {
-            var key = f;
-            var sel = f == _faction;
-            var cell = new Grid { Width = 112, Margin = new Thickness(0, 0, 10, 0) };
-            cell.Children.Add(new ChamferFrame
-            {
-                Fill = sel ? Theme.B("#3a2c14") : Theme.B("#1a130b"), Edge = sel ? Ornate.GoldEdge : Theme.B("#4a3b28"), Inner = sel ? Theme.B("#88e0bf6a") : null, Cut = 10, Inset = 4
-            });
-            var inner = new StackPanel { IsHitTestVisible = false, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 10) };
-            var shield = Assets.Ui("shield_" + f);
-            if (shield != null) inner.Children.Add(new System.Windows.Controls.Image { Source = shield, Width = 66, Height = 66, Opacity = sel ? 1 : 0.7 });
-            else inner.Children.Add(new Ellipse { Width = 60, Height = 60, Fill = Theme.FactionColor(f), Opacity = sel ? 1 : 0.7 });
-            var tn = Ui.Text(Texts.FactionShort(f), 14, sel ? Theme.B("#f0d890") : Theme.B("#9c927a"), true, TextAlignment.Center);
-            tn.Margin = new Thickness(0, 5, 0, 0);
-            inner.Children.Add(tn);
-            cell.Children.Add(inner);
-            if (sel) cell.Effect = new DropShadowEffect { Color = Color.FromRgb(255, 200, 90), BlurRadius = 18, ShadowDepth = 0, Opacity = 0.55 };
-            var b = new Border { Child = cell, Cursor = Cursors.Hand, Background = Brushes.Transparent, Tag = "lobby-faction:" + f, ToolTip = Texts.Faction(f) };
-            b.MouseLeftButtonUp += (_, e) =>
-            {
-                e.Handled = true;
-                if (key == _faction) return;
-                Sfx.Play("cursor_movement");
-                _faction = key;
-                _leaderId = DefaultLeader(key);
-                _deckName = null;
-                SendLoadout();
-            };
-            badges.Children.Add(b);
-        }
-        root.Children.Add(badges);
-
-        var right = root;
-
-        // Deste
-        right.Children.Add(Label("DESTE"));
-        var decks = new WrapPanel();
-        void AddDeck(string? name, string title, string sub, bool enabled = true)
-        {
-            var c = new StackPanel();
-            c.Children.Add(Ui.Text(title, 15, enabled ? Theme.Text : Theme.TextDim, true));
-            c.Children.Add(Ui.Text(sub, 12, Theme.TextDim));
-            var tb = new ToggleButton
-            {
-                Style = (Style)Application.Current.FindResource("GToggle"), Content = c, IsChecked = _deckName == name, IsEnabled = enabled,
-                Margin = new Thickness(0, 0, 10, 8), Padding = new Thickness(16, 8, 16, 8), MinWidth = 180, Tag = "lobby-deck:" + (name ?? "@rec")
-            };
-            tb.Click += (_, _) => { _deckName = name; SendLoadout(); };
-            decks.Children.Add(tb);
-        }
-        AddDeck(null, "Önerilen deste", "kahramanlar + en güçlü birimler");
-        foreach (var d in DeckStore.For(_faction))
-        {
-            var errs = DeckValidator.Validate(d.ToDeck(), new GameOptions { NextGen = NextGen });
-            AddDeck(d.Name, d.Name, errs.Count == 0 ? $"{d.CardIds.Count} kart" : "geçersiz", errs.Count == 0);
-        }
-        right.Children.Add(decks);
-
-        // Lider (kayıtlı deste seçiliyse destenin lideri kullanılır): kart şeridi
-        if (_deckName == null)
-        {
-            right.Children.Add(Label("LİDER"));
-            var strip = new WrapPanel();
-            CardDef? chosen = null;
-            foreach (var l in CardCatalog.Default.Leaders(_faction).Where(l => l.Edition != "nextgen" || NextGen))
-            {
-                var leader = l;
-                var sel = leader.Id == _leaderId;
-                if (sel) chosen = leader;
-                var c = new StackPanel { Width = 118 };
-                c.Children.Add(new GwintCard(leader, 118, null, null, height: 118 * GwintCard.Aspect) { IsHitTestVisible = false, Opacity = sel ? 1 : 0.7 });
-                var nm = Ui.Text(leader.Name.Contains(':') ? leader.Name[(leader.Name.IndexOf(':') + 1)..].Trim() : leader.Name, 12, sel ? Theme.B("#f0d890") : Theme.TextDim, true, TextAlignment.Center, true);
-                nm.Margin = new Thickness(0, 5, 0, 0);
-                c.Children.Add(nm);
-                var tb = new ToggleButton
-                {
-                    Style = (Style)Application.Current.FindResource("GToggle"), Content = c, IsChecked = sel,
-                    Margin = new Thickness(0, 0, 10, 10), Padding = new Thickness(6, 6, 6, 6), Tag = "lobby-leader:" + leader.Id, ToolTip = leader.Name
-                };
-                tb.Click += (_, _) => { _leaderId = leader.Id; SendLoadout(); };
-                strip.Children.Add(tb);
-            }
-            right.Children.Add(strip);
-            if (chosen != null)
-            {
-                var d = Ui.Text(Texts.LeaderText(chosen), 15, Theme.B("#c9c0aa"), false, TextAlignment.Left, true);
-                d.Margin = new Thickness(2, 4, 0, 0);
-                d.FontStyle = FontStyles.Italic;
-                right.Children.Add(d);
-            }
-        }
+        (_picker.Parent as Panel)?.Children.Remove(_picker);   // önceki çizimin kökünden ayır
+        _picker.Build();
+        root.Children.Add(_picker);
         return new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 8, 0) };
     }
 

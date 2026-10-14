@@ -12,7 +12,7 @@ namespace GwentClient;
 /// tetikler, oyunun takılmadan bitmesini ve hiçbir tıklamanın istisna fırlatmamasını denetler.
 /// Kullanım: <c>Gwent.exe --selftest [oyunSayisi]</c>. Başarısızlıkta çıkış kodu 1.
 /// </summary>
-public static class UiSelfTest
+public static partial class UiSelfTest
 {
     private static readonly string[] Factions = { "northern_realms", "nilfgaard", "scoiatael", "monsters", "skellige" };
 

@@ -42,6 +42,7 @@ public sealed class HubClientProxy : IGwentClient
     public void OnActionRejected(string reason, int expectedSeq) => Send(HubMethods.OnActionRejected, reason, expectedSeq);
     public void OnMatchEnded(MatchResult result) => Send(HubMethods.OnMatchEnded, result);
     public void OnNotice(string code, string text) => Send(HubMethods.OnNotice, code, text);
+    public void OnTournamentState(TournamentState state) => Send(HubMethods.OnTournamentState, state);
 }
 
 /// <summary>Bağlantı kimliği → sunucu oturumu.</summary>
@@ -106,4 +107,13 @@ public sealed class GwentHub : Hub
     public Reply ClaimWin() => _rooms.ClaimWin(Session);
     public Reply RequestRematch() => _rooms.RequestRematch(Session);
     public void Leave() => _rooms.Leave(Session);
+
+    // Turnuva
+    public Reply CreateTournament(string nick, string version, bool nextGen, int maxPlayers, int entryFee) => _rooms.CreateTournament(Session, nick, version, nextGen, maxPlayers, entryFee);
+    public Reply JoinTournament(string code, string nick, string version) => _rooms.JoinTournament(Session, code, nick, version);
+    public Reply RejoinTournament(string code, string token, int lastSeq) => _rooms.RejoinTournament(Session, code, token, lastSeq);
+    public Reply SetTournamentLoadout(LoadoutDto loadout) => _rooms.SetTournamentLoadout(Session, loadout);
+    public Reply TournamentSetReady(bool ready) => _rooms.TournamentSetReady(Session, ready);
+    public Reply StartTournament() => _rooms.StartTournament(Session);
+    public Reply TournamentClaimWalkover() => _rooms.TournamentClaimWalkover(Session);
 }

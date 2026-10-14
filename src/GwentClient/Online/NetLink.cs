@@ -22,6 +22,8 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
     private readonly HubConnection _conn;
     private volatile string _code = "";
     private volatile string _token = "";
+    private volatile string _tcode = "";
+    private volatile string _ttoken = "";
 
     private NetLink(HubConnection conn)
     {
@@ -31,6 +33,12 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
             _code = s.Code;
             _token = s.YourToken;
             ReceiveRoomState(s);
+        });
+        _conn.On<TournamentState>(HubMethods.OnTournamentState, s =>
+        {
+            _tcode = s.Code;
+            _ttoken = s.YourToken;
+            ReceiveTournamentState(s);
         });
         _conn.On<MatchSetup>(HubMethods.OnMatchStarted, ReceiveMatchStarted);
         _conn.On<ActionBroadcast>(HubMethods.OnActionApplied, ReceiveActionApplied);
@@ -45,8 +53,11 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
         _conn.Reconnected += async _ =>
         {
             // Yeni bağlantı yeni oturumdur: koltuk anahtarıyla odaya dön, kaçırılan eylemleri iste
-            if (_code.Length == 0) { ReceiveNotice("connection_lost", "Bağlantı yenilendi ama oda bilgisi yok."); return; }
-            var r = await InvokeAsync("Rejoin", _code, _token, LastReceivedSeq).ConfigureAwait(false);
+            if (_code.Length == 0 && _tcode.Length == 0) { ReceiveNotice("connection_lost", "Bağlantı yenilendi ama oda bilgisi yok."); return; }
+            // Turnuvadaysam önce turnuvaya dönerim (sunucu sürmekte olan maç odasına da geri sokar); yoksa doğrudan odaya
+            var r = _tcode.Length > 0
+                ? await InvokeAsync("RejoinTournament", _tcode, _ttoken, LastReceivedSeq).ConfigureAwait(false)
+                : await InvokeAsync("Rejoin", _code, _token, LastReceivedSeq).ConfigureAwait(false);
             ReceiveNotice(r.Ok ? "reconnected" : "room_closed", r.Ok ? "Bağlantı yenilendi." : "Odaya geri dönülemedi: " + r.Error);
         };
         _conn.Closed += ex =>
@@ -81,7 +92,8 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
                 0 => await _conn.InvokeAsync<Reply>(method).ConfigureAwait(false),
                 1 => await _conn.InvokeAsync<Reply>(method, args[0]).ConfigureAwait(false),
                 2 => await _conn.InvokeAsync<Reply>(method, args[0], args[1]).ConfigureAwait(false),
-                _ => await _conn.InvokeAsync<Reply>(method, args[0], args[1], args[2]).ConfigureAwait(false)
+                3 => await _conn.InvokeAsync<Reply>(method, args[0], args[1], args[2]).ConfigureAwait(false),
+                _ => await _conn.InvokeAsync<Reply>(method, args[0], args[1], args[2], args[3], args[4]).ConfigureAwait(false)
             };
         }
         catch (Exception ex)
@@ -94,6 +106,13 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
     public override Task<Reply> JoinRoomAsync(string code, string nick) => InvokeAsync("JoinRoom", code, nick, ProtocolInfo.Version);
     /// <summary>Koltuk anahtarıyla odaya geri dön (yarım kalan maç): sunucu kurulumu ve tüm eylem geçmişini yeniden gönderir.</summary>
     public Task<Reply> RejoinAsync(string code, string token) => InvokeAsync("Rejoin", code, token, -1);
+
+    public override Task<Reply> CreateTournamentAsync(string nick, bool nextGen, int maxPlayers, int entryFee) => InvokeAsync("CreateTournament", nick, ProtocolInfo.Version, nextGen, maxPlayers, entryFee);
+    public override Task<Reply> JoinTournamentAsync(string code, string nick) => InvokeAsync("JoinTournament", code, nick, ProtocolInfo.Version);
+    public override Task<Reply> SetTournamentLoadoutAsync(LoadoutDto loadout) => InvokeAsync("SetTournamentLoadout", loadout);
+    public override Task<Reply> TournamentReadyAsync(bool ready) => InvokeAsync("TournamentSetReady", ready);
+    public override Task<Reply> StartTournamentAsync() => InvokeAsync("StartTournament");
+    public override Task<Reply> TournamentWalkoverAsync() => InvokeAsync("TournamentClaimWalkover");
 
     public override Task<Reply> SetLoadoutAsync(LoadoutDto loadout) => InvokeAsync("SetLoadout", loadout);
     public override Task<Reply> SetReadyAsync(bool ready) => InvokeAsync("SetReady", ready);

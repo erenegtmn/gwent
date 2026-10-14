@@ -62,6 +62,8 @@ public sealed class FakeClient : IGwentClient
     public void OnActionRejected(string reason, int expectedSeq) => _inbox.Enqueue(() => { Rejections.Add(reason); _awaitingOwn = false; });
     public void OnMatchEnded(MatchResult r) => _inbox.Enqueue(() => Result = r);
     public void OnNotice(string code, string text) => _inbox.Enqueue(() => Notices.Add(code));
+    public TournamentState? TState { get; private set; }
+    public void OnTournamentState(TournamentState s) => _inbox.Enqueue(() => TState = s);
 
     // ---------- Sürücü ----------
 

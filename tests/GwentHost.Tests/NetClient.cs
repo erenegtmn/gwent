@@ -37,11 +37,13 @@ public sealed class NetClient : IAsyncDisposable
         conn.On<string, int>(HubMethods.OnActionRejected, (r, _) => Enqueue(() => { Rejections.Add(r); _awaitingOwn = false; }));
         conn.On<MatchResult>(HubMethods.OnMatchEnded, r => Enqueue(() => Result = r));
         conn.On<string, string>(HubMethods.OnNotice, (code, _) => Enqueue(() => Notices.Add(code)));
+        conn.On<TournamentState>(HubMethods.OnTournamentState, s => Enqueue(() => TState = s));
     }
 
     public HubConnection Conn { get; }
     public string Nick { get; }
     public RoomState? State { get; private set; }
+    public TournamentState? TState { get; private set; }
     public MatchSetup? Setup { get; private set; }
     public Game? Local { get; set; }
     public int NextSeq { get; set; }
@@ -89,6 +91,15 @@ public sealed class NetClient : IAsyncDisposable
     public Task<Reply> CreateAsync(bool nextGen = false) => Conn.InvokeAsync<Reply>("CreateRoom", Nick, ProtocolInfo.Version, nextGen);
     public Task<Reply> JoinAsync(string code) => Conn.InvokeAsync<Reply>("JoinRoom", code, Nick, ProtocolInfo.Version);
     public Task<Reply> RejoinAsync(string code, string token) => Conn.InvokeAsync<Reply>("Rejoin", code, token, -1);
+    public Task<Reply> CreateTournamentAsync(int max, int fee) => Conn.InvokeAsync<Reply>("CreateTournament", Nick, ProtocolInfo.Version, false, max, fee);
+    public Task<Reply> JoinTournamentAsync(string code) => Conn.InvokeAsync<Reply>("JoinTournament", code, Nick, ProtocolInfo.Version);
+    public Task<Reply> TournamentReadyAsync(bool ready = true) => Conn.InvokeAsync<Reply>("TournamentSetReady", ready);
+    public Task<Reply> StartTournamentAsync() => Conn.InvokeAsync<Reply>("StartTournament");
+    public Task<Reply> TournamentLoadoutAsync(string faction)
+    {
+        var leader = CardCatalog.Default.Leaders(faction).First(l => l.Edition != "nextgen").Id;
+        return Conn.InvokeAsync<Reply>("SetTournamentLoadout", new LoadoutDto(faction, leader));
+    }
     public Task<Reply> ReadyAsync(bool ready = true) => Conn.InvokeAsync<Reply>("SetReady", ready);
 
     public Task<Reply> ChooseAsync(string faction)
