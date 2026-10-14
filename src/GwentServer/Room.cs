@@ -37,6 +37,10 @@ internal sealed class Seat
     public bool Connected;
     public DateTime? DisconnectedAt;
     public bool Rematch;
+    /// <summary>Draft odasında oyuncunun koşusu (sunucu yürütür ve doğrular).</summary>
+    public GwentAI.Draft.DraftRun? Draft;
+    /// <summary>Son bilinen portre (deste henüz yokken de rakibe gösterilir).</summary>
+    public string? Avatar;
 }
 
 /// <summary>
@@ -61,6 +65,11 @@ public sealed class Room
     public string Code { get; }
     public bool NextGen { get; }
     public RoomPhase Phase { get; private set; } = RoomPhase.Lobby;
+
+    /// <summary>Draft maçı: iki oyuncu da desteyi bekleme odasında draft ile kurar (oda kuran açar/kapatır).</summary>
+    public bool Draft { get; internal set; }
+
+    internal int NextSeed() => _seed();
     public DateTime LastActivity { get; internal set; }
 
     /// <summary>Sunucunun hakem oyunu (yalnız maç sırasında dolu; testler kopyalarla karşılaştırır).</summary>
@@ -146,8 +155,10 @@ public sealed class Room
     internal RoomState Snapshot(int seat) => new(
         Code, Phase,
         Enumerable.Range(0, 2).Where(i => Seats[i] != null)
-            .Select(i => new PlayerInfo(Seats[i]!.Nick, i, Seats[i]!.Connected, Seats[i]!.Ready, Seats[i]!.Loadout)).ToList(),
-        seat, Seats[seat]?.Token ?? "", NextGen, _log.Count);
+            .Select(i => new PlayerInfo(Seats[i]!.Nick, i, Seats[i]!.Connected, Seats[i]!.Ready, Seats[i]!.Loadout,
+                Seats[i]!.Draft?.Picks.Count ?? -1, Seats[i]!.Draft?.Faction, Seats[i]!.Loadout?.Avatar ?? Seats[i]!.Avatar)).ToList(),
+        seat, Seats[seat]?.Token ?? "", NextGen, _log.Count, Draft,
+        Seats[seat]?.Draft is { } d ? new DraftDto(d.Faction, d.LeaderOffer.ToList(), d.LeaderId, d.Picks.ToList(), d.Offer.ToList()) : null);
 
     internal void Send(int seat, Action<IGwentClient> send)
     {

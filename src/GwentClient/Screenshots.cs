@@ -349,6 +349,22 @@ public static class Screenshots
             UiSelfTest.PumpUntil(() => lh.State!.Players.Any(p => p.Loadout?.Faction == "nilfgaard"), "konuk seçimi", lh, lg);
             UiSelfTest.Layout(hl);
             Save(hl, "lobby.png");
+            // Draft odası: oda kuran açar; host 6 kart seçmiş, konuk fraksiyonunu seçmiş
+            UiSelfTest.Await(() => lh.SetDraftAsync(true));
+            UiSelfTest.PumpUntil(() => lh.State!.Draft && lg.State?.Draft == true, "draft", lh, lg);
+            UiSelfTest.Await(() => lg.DraftChooseAsync("faction", "skellige", null));
+            UiSelfTest.Await(() => lh.DraftChooseAsync("faction", "monsters", null));
+            UiSelfTest.PumpUntil(() => lh.State!.YourDraft?.LeaderOffer.Count > 0, "lider teklifi", lh, lg);
+            UiSelfTest.Await(() => lh.DraftChooseAsync("leader", lh.State!.YourDraft!.LeaderOffer[0], null));
+            for (var k = 0; k < 6; k++)
+            {
+                UiSelfTest.PumpUntil(() => lh.State!.YourDraft?.Picks.Count == k && lh.State.YourDraft.Offer.Count > 0, "teklif", lh, lg);
+                UiSelfTest.Await(() => lh.DraftChooseAsync("card", lh.State!.YourDraft!.Offer[0], null));
+            }
+            UiSelfTest.PumpUntil(() => lh.State!.YourDraft?.Picks.Count == 6 && lh.State.Players.Any(p => p.DraftFaction == "skellige"), "draft ilerledi", lh, lg);
+            var dl = new LobbyView(hc, () => Task.CompletedTask);
+            UiSelfTest.Layout(dl);
+            Save(dl, "lobby_draft.png");
             UiSelfTest.Await(async () => { await gc.DisposeAsync(); await hc.DisposeAsync(); return 0; });
         }
         {

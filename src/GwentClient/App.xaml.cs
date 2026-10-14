@@ -41,6 +41,12 @@ public partial class App : Application
             Shutdown(UiSelfTest.RunOnlineLobby(rounds) == 0 ? 0 : 1);
             return;
         }
+        if (e.Args.Contains("--selftest-online-draft"))
+        {
+            Sfx.Enabled = false;
+            Shutdown(UiSelfTest.RunOnlineDraftCheck());
+            return;
+        }
         if (e.Args.Contains("--selftest-draft"))
         {
             Sfx.Enabled = false;

@@ -160,9 +160,91 @@ public sealed partial class RoomService
             if (room.Phase == RoomPhase.Playing) return Reply.Fail("Maç sürerken deste değiştirilemez.");
             if (room.ValidateLoadout(loadout) is { } err) return Reply.Fail(err);
             var seat = room.Seats[s.Seat]!;
+            if (room.Draft)
+            {
+                // Draft odasında deste yalnız draft ile kurulur; burada yalnız portre değişebilir
+                if (seat.Draft is not { Phase: not GwentAI.Draft.DraftPhase.Leader and not GwentAI.Draft.DraftPhase.Picking } d
+                    || loadout.Faction != d.Faction || loadout.LeaderId != d.LeaderId || loadout.CardIds == null || !loadout.CardIds.SequenceEqual(d.Picks))
+                    return Reply.Fail("Draft odasında deste draft ile kurulur.");
+            }
             var unchanged = Room.SameLoadout(seat.Loadout, loadout);
             seat.Loadout = loadout;
             if (!unchanged) seat.Ready = false;
+            room.Touch();
+            room.BroadcastState();
+            return Reply.Success();
+        }
+    }
+
+    /// <summary>Oda kuran, bekleme odasında draft maçını açar/kapatır. Değişince iki oyuncunun da draft'ı ve hazırlığı sıfırlanır.</summary>
+    public Reply SetDraft(ServerSession s, bool on)
+    {
+        lock (_gate)
+        {
+            if (s.Room is not { } room) return Reply.Fail("Bir odada değilsin.");
+            if (s.Seat != 0) return Reply.Fail("Draft'ı yalnız odayı kuran açıp kapatabilir.");
+            if (room.Phase != RoomPhase.Lobby) return Reply.Fail("Draft yalnız bekleme odasında seçilir.");
+            if (room.Tournament != null) return Reply.Fail("Turnuva maçında draft yok.");
+            if (room.Draft == on) return Reply.Success();
+            room.Draft = on;
+            foreach (var seat in room.Seats)
+            {
+                if (seat == null) continue;
+                seat.Draft = null;
+                seat.Ready = false;
+                if (on) seat.Loadout = null;
+            }
+            room.Touch();
+            room.BroadcastState();
+            return Reply.Success();
+        }
+    }
+
+    /// <summary>
+    /// Draft seçimi (sunucu yürütür, teklif dışı seçim reddedilir): kind = faction | leader | card. 25 kart tamamlanınca oyuncunun destesi
+    /// draft destesi olur; sonra "Hazırım" ile maç başlar. avatar: oyuncunun portresi (deste tamamlanınca loadout'a yazılır).
+    /// </summary>
+    public Reply DraftChoose(ServerSession s, string kind, string id, string? avatar = null)
+    {
+        lock (_gate)
+        {
+            if (s.Room is not { } room) return Reply.Fail("Bir odada değilsin.");
+            if (!room.Draft) return Reply.Fail("Bu oda draft odası değil.");
+            if (room.Phase != RoomPhase.Lobby) return Reply.Fail("Draft yalnız bekleme odasında yapılır.");
+            if (avatar != null && (avatar.Length > 64 || !avatar.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-'))) return Reply.Fail("Geçersiz portre.");
+            var seat = room.Seats[s.Seat]!;
+            if (avatar != null) seat.Avatar = avatar;
+            try
+            {
+                switch (kind)
+                {
+                    case "faction":
+                        if (seat.Draft != null) return Reply.Fail("Fraksiyon zaten seçildi.");
+                        if (!Room.Factions.Contains(id)) return Reply.Fail("Bilinmeyen fraksiyon.");
+                        seat.Draft = GwentAI.Draft.DraftLogic.Start(id, room.NextSeed());
+                        break;
+                    case "leader":
+                        if (seat.Draft == null) return Reply.Fail("Önce fraksiyon seç.");
+                        GwentAI.Draft.DraftLogic.PickLeader(seat.Draft, id);
+                        break;
+                    case "card":
+                        if (seat.Draft == null) return Reply.Fail("Önce fraksiyon seç.");
+                        GwentAI.Draft.DraftLogic.PickCard(seat.Draft, id);
+                        break;
+                    default:
+                        return Reply.Fail("Bilinmeyen seçim.");
+                }
+            }
+            catch (InvalidOperationException e) { return Reply.Fail(e.Message); }
+
+            var d = seat.Draft!;
+            if (d.Picks.Count == GwentAI.Draft.DraftLogic.DeckSize && d.LeaderId != null)
+            {
+                var deck = new LoadoutDto(d.Faction, d.LeaderId, d.Picks.ToList(), avatar ?? seat.Loadout?.Avatar);
+                if (room.ValidateLoadout(deck) is { } err) return Reply.Fail(err);   // kurallar gereği olmaz; yine de doğrulanır
+                seat.Loadout = deck;
+            }
+            seat.Ready = false;
             room.Touch();
             room.BroadcastState();
             return Reply.Success();
@@ -176,7 +258,7 @@ public sealed partial class RoomService
             if (s.Room is not { } room) return Reply.Fail("Bir odada değilsin.");
             if (room.Phase != RoomPhase.Lobby) return Reply.Fail("Hazır olma yalnız bekleme odasında.");
             var seat = room.Seats[s.Seat]!;
-            if (ready && seat.Loadout == null) return Reply.Fail("Önce fraksiyon, lider ve deste seç.");
+            if (ready && seat.Loadout == null) return Reply.Fail(room.Draft ? "Önce draft'ı bitir (25 kart)." : "Önce fraksiyon, lider ve deste seç.");
             seat.Ready = ready;
             room.Touch();
             if (room.SeatCount == 2 && room.AllReady()) room.StartMatch();

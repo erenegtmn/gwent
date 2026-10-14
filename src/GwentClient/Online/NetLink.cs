@@ -125,6 +125,8 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
 
     public override Task<Reply> SetLoadoutAsync(LoadoutDto loadout) => InvokeAsync("SetLoadout", loadout);
     public override Task<Reply> SetReadyAsync(bool ready) => InvokeAsync("SetReady", ready);
+    public override Task<Reply> SetDraftAsync(bool on) => InvokeAsync("SetDraft", on);
+    public override Task<Reply> DraftChooseAsync(string kind, string id, string? avatar) => InvokeAsync("DraftChoose", kind, id, avatar);
 
     public override async Task LeaveAsync()
     {

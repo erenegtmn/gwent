@@ -113,6 +113,10 @@ public abstract class RoomLinkBase : IMatchLink
     public abstract Task<Reply> SetReadyAsync(bool ready);
     public abstract Task LeaveAsync();
 
+    // Draft (oda kuran açar; seçimleri sunucu yürütür)
+    public abstract Task<Reply> SetDraftAsync(bool on);
+    public abstract Task<Reply> DraftChooseAsync(string kind, string id, string? avatar);
+
     // Turnuva
     public abstract Task<Reply> CreateTournamentAsync(string nick, bool nextGen, int maxPlayers, int entryFee);
     public abstract Task<Reply> JoinTournamentAsync(string code, string nick);
@@ -166,6 +170,8 @@ public sealed class RoomLink : RoomLinkBase, IGwentClient
     public override Task<Reply> SetLoadoutAsync(LoadoutDto loadout) => Task.FromResult(_svc.SetLoadout(Session, loadout));
     public override Task<Reply> SetReadyAsync(bool ready) => Task.FromResult(_svc.SetReady(Session, ready));
     public override Task LeaveAsync() { _svc.Leave(Session); return Task.CompletedTask; }
+    public override Task<Reply> SetDraftAsync(bool on) => Task.FromResult(_svc.SetDraft(Session, on));
+    public override Task<Reply> DraftChooseAsync(string kind, string id, string? avatar) => Task.FromResult(_svc.DraftChoose(Session, kind, id, avatar));
     public override Task<Reply> CreateTournamentAsync(string nick, bool nextGen, int maxPlayers, int entryFee) => Task.FromResult(_svc.CreateTournament(Session, nick, ProtocolInfo.Version, nextGen, maxPlayers, entryFee));
     public override Task<Reply> JoinTournamentAsync(string code, string nick) => Task.FromResult(_svc.JoinTournament(Session, code, nick, ProtocolInfo.Version));
     public override Task<Reply> SetTournamentLoadoutAsync(LoadoutDto loadout) => Task.FromResult(_svc.SetTournamentLoadout(Session, loadout));

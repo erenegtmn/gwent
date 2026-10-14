@@ -12,7 +12,7 @@ namespace GwentNet;
 public static class ProtocolInfo
 {
     /// <summary>Mesaj biçimi değişince artırılır.</summary>
-    public const int Number = 1;
+    public const int Number = 2;   // 2: online draft (RoomState.Draft, PlayerInfo.DraftPicks, SetDraft/DraftChoose)
 
     /// <summary>
     /// Sürüm kimliği = protokol numarası + kart verisinin özeti. Kart/kural farkı olan istemci odaya girmesin
@@ -34,12 +34,18 @@ public static class ProtocolInfo
 /// <summary>Oyuncunun seçtiği fraksiyon, lider ve deste. CardIds boşsa fraksiyonun "önerilen" destesi kullanılır.</summary>
 public sealed record LoadoutDto(string Faction, string LeaderId, List<string>? CardIds = null, string? Avatar = null);
 
-public sealed record PlayerInfo(string Nick, int Seat, bool Connected, bool Ready, LoadoutDto? Loadout);
+/// <summary>Oda oyuncusu. Draft odasında DraftPicks = seçilen kart sayısı (-1: henüz fraksiyon seçmedi), DraftFaction = seçtiği fraksiyon.</summary>
+public sealed record PlayerInfo(string Nick, int Seat, bool Connected, bool Ready, LoadoutDto? Loadout, int DraftPicks = -1, string? DraftFaction = null, string? Avatar = null);
+
+/// <summary>Oyuncunun kendi draft durumu (yalnız kendisine gider): fraksiyon, lider teklifi, seçilen lider, seçilen kartlar ve o anki 3 kartlık teklif.</summary>
+public sealed record DraftDto(string? Faction, List<string> LeaderOffer, string? LeaderId, List<string> Picks, List<string> Offer);
 
 public enum RoomPhase { Lobby, Playing, Finished }
 
 /// <summary>Odanın herkese görünen durumu. YourSeat/YourToken her oyuncuya kendine özel doldurulur (token yeniden bağlanma anahtarıdır).</summary>
-public sealed record RoomState(string Code, RoomPhase Phase, List<PlayerInfo> Players, int YourSeat, string YourToken, bool NextGen, int ActionCount);
+/// <summary>Draft: oda draft maçı (desteler masada kurulur); YourDraft oyuncunun kendi draft durumu.</summary>
+public sealed record RoomState(string Code, RoomPhase Phase, List<PlayerInfo> Players, int YourSeat, string YourToken, bool NextGen, int ActionCount,
+    bool Draft = false, DraftDto? YourDraft = null);
 
 /// <summary>Maçın kurulumu: iki açık deste + tohum. Aynı paket iki istemcide aynı <c>Game</c>'i kurar.</summary>
 public sealed record MatchSetup(int Seed, bool NextGen, LoadoutDto Seat0, LoadoutDto Seat1, string Nick0, string Nick1, int YourSeat)
