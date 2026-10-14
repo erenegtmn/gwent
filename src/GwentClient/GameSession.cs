@@ -47,7 +47,7 @@ public sealed class GameSession
     public string MyAvatar => OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Seat0 : OnlineSetup.Seat1).Avatar ?? Portraits.Default : Settings.Portrait;
     public string OppAvatar => (OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Seat1 : OnlineSetup.Seat0).Avatar : null) ?? OppAvatarOverride ?? Config.OppLeaderId;
 
-    /// <summary>Kariyer maçı: rakibin adı ve portresi (ör. "Kanlı Baron", "face:baron").</summary>
+    /// <summary>Kariyer maçı: rakibin adı ve portresi (ör. "Kanlı Baron", "face_baron").</summary>
     public string? OppNameOverride { get; init; }
     public string? OppAvatarOverride { get; init; }
 
