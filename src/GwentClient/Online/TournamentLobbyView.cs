@@ -36,16 +36,12 @@ public sealed class TournamentLobbyView : Grid
     private TournamentState? St => _c.Link.TState;
     private void OnState() { EnsureFee(); Rebuild(); }
 
-    /// <summary>Katılım ücreti bir kez düşer; bakiye yetmiyorsa turnuvadan ayrılınır.</summary>
+    /// <summary>Katılım ücreti bir kez düşer; bakiye yetmezse eldeki kadar (turnuvaya girişi engellemez).</summary>
     private void EnsureFee()
     {
         if (_feeChecked || St is not { } st) return;
         _feeChecked = true;
-        if (!TournamentEconomy.TryPayEntry(st.Code, st.EntryFee))
-        {
-            _error = $"Katılım ücreti {st.EntryFee} taç; bakiyen {Settings.Crowns}. Turnuvadan ayrılıyorsun.";
-            Dispatcher.BeginInvoke(new Action(LeaveClicked));
-        }
+        TournamentEconomy.PayEntry(st.Code, st.EntryFee);
     }
 
     private async void SendLoadout()

@@ -104,6 +104,7 @@ public partial class App : Application
         if (e.Args.Contains("--perf")) { PerfProbe.Run(); return; }
         // Her maç %AppData%\Gwent\last_match.json içine kaydedilir (hata bildirirken bu dosyayı göster)
         GameSession.ReplayPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Gwent", "last_match.json");
+        TournamentEconomy.ApplyFloor();
         Stats.Enabled = true;
         ResumeStore.Enabled = true;
         new MainWindow().Show();

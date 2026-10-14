@@ -135,7 +135,7 @@ public sealed class OnlineMenuView : Grid
             feeRow.Children.Add(b);
         }
         tour.Children.Add(feeRow);
-        tour.Children.Add(Ui.Text($"Bakiyen: {Settings.Crowns} taç. Havuz = ücret × oyuncu sayısı; şampiyon %55–70, finalist %25–30 alır.", 14, Theme.TextDim, false, TextAlignment.Left, true));
+        tour.Children.Add(Ui.Text($"Bakiyen: {Settings.Crowns} taç. Ücretli turnuvada havuz = ücret × oyuncu; şampiyon %55–70, finalist %25–30 alır. Taç yetmese de katılabilirsin.", 14, Theme.TextDim, false, TextAlignment.Left, true));
         ((TextBlock)tour.Children[^1]).Margin = new Thickness(0, 12, 0, 0);
         tour.Children.Add(Ui.Text("Bağlantı seçenekleri “Oda kur”dakilerle aynıdır.", 13, Theme.TextDim, false, TextAlignment.Left, true));
         ((TextBlock)tour.Children[^1]).Margin = new Thickness(0, 8, 0, 0);
@@ -295,7 +295,6 @@ public sealed class OnlineMenuView : Grid
         if (_busy || !NickOk(out var nick)) return;
         var size = _size8.IsChecked == true ? 8 : 4;
         var fee = (int)(_feeButtons.FirstOrDefault(b => b.IsChecked == true)?.Tag ?? 0);
-        if (Settings.Crowns < fee) { Error($"Katılım ücreti {fee} taç; bakiyen {Settings.Crowns}."); return; }
         SetBusy(true, "Sunucu başlatılıyor…");
         var (cloudflared, terr) = await PrepareTunnelAsync();
         if (terr != null) { Error(terr); return; }

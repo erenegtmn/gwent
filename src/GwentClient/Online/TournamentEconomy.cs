@@ -10,16 +10,29 @@ public static class TournamentEconomy
 {
     public static int Prize(int entryFee, int players, int placement) => TournamentPrizes.Prize(entryFee, players, placement);
 
-    /// <summary>Katılım ücretini düşer. Yetersizse false (bakiye değişmez). Ücret 0 ise her zaman true.</summary>
-    public static bool TryPayEntry(string code, int fee)
+    /// <summary>Bakiye bu değerin altına düşmez: açılışta daha azı varsa buna tamamlanır. Taç eğlence içindir, kimse turnuvadan taçsızlık yüzünden kalmasın.</summary>
+    public const int Floor = 100;
+
+    /// <summary>
+    /// Katılım ücretini düşer; **asla engellemez**: bakiye yetmezse eldeki kadar düşer (bakiye 0'ın altına inmez). Düşen miktar
+    /// kaydedilir, iade ve ödül ona göre işlenir. Ücretsiz turnuvada bir şey olmaz.
+    /// </summary>
+    public static int PayEntry(string code, int fee)
     {
-        if (fee <= 0) return true;
-        if (Settings.PaidTournaments.ContainsKey(code)) return true;
-        if (Settings.Crowns < fee) return false;
-        Settings.Crowns -= fee;
-        Settings.PaidTournaments[code] = fee;
+        if (fee <= 0 || Settings.PaidTournaments.TryGetValue(code, out var already)) return Settings.PaidTournaments.GetValueOrDefault(code);
+        var paid = Math.Min(fee, Settings.Crowns);
+        Settings.Crowns -= paid;
+        Settings.PaidTournaments[code] = paid;
         Settings.Save();
-        return true;
+        return paid;
+    }
+
+    /// <summary>Açılışta bakiye tabanın altındaysa tabana tamamlar.</summary>
+    public static void ApplyFloor()
+    {
+        if (Settings.Crowns >= Floor) return;
+        Settings.Crowns = Floor;
+        Settings.Save();
     }
 
     /// <summary>Turnuva başlamadan ayrılma/kapanma: ödenen ücret iade edilir.</summary>
