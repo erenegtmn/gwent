@@ -65,8 +65,10 @@ public partial class MainWindow : Window
         c.Link.MatchEnded += OnOnlineMatchEnded;
         c.Link.TournamentChanged += OnTournamentChanged;
         c.Link.SpectateStarted += OnSpectateStarted;
+        c.Link.SpectateEnded += OnSpectateEnded;
         c.Link.Pump();   // bağlanırken kuyrukta kalan iletiler (ör. yarım kalan maçın kurulumu) hemen işlensin
-        if (c.IsTournament) Host.Content = new TournamentLobbyView(c, LeaveOnlineAsync);
+        if (c.IsTournament && c.Link.TState is { Phase: GwentNet.TournamentPhase.Running }) { if (c.Link.Match == null) ShowBracket(); }   // yarım kalan turnuva: doğrudan bracket (sürmekte olan maç varsa VS ekranı açılmıştır)
+        else if (c.IsTournament) Host.Content = new TournamentLobbyView(c, LeaveOnlineAsync);
         else if (c.Link.Match == null) Host.Content = new LobbyView(c, LeaveOnlineAsync);
     }
 
@@ -75,11 +77,13 @@ public partial class MainWindow : Window
         var c = _online;
         _online = null;
         ResumeStore.ClearGuest();   // bilerek ayrılma: dönülecek maç kalmaz
+        if (c is { IsHost: true, IsTournament: true }) ResumeStore.ClearHostTournament();   // kuran bilerek ayrılırsa turnuva biter
         if (c is { IsTournament: true, Link.TState: { Phase: GwentNet.TournamentPhase.Lobby } lobby }) TournamentEconomy.Refund(lobby.Code);   // başlamadan ayrılana ücret iade
         if (c != null)
         {
             c.Link.TournamentChanged -= OnTournamentChanged;
             c.Link.SpectateStarted -= OnSpectateStarted;
+            c.Link.SpectateEnded -= OnSpectateEnded;
             c.Link.MatchStarted -= OnOnlineMatchStarted;
             c.Link.Notice -= OnOnlineNotice;
             c.Link.MatchEnded -= OnOnlineMatchEnded;
@@ -116,6 +120,22 @@ public partial class MainWindow : Window
     {
         if (Host.Content is TournamentLobbyView && _online?.Link.TState is { Phase: GwentNet.TournamentPhase.Running })
             ShowBracket();
+        // Konuk: turnuva sürerken anahtarını sakla (uygulama kapanırsa host'un yeni davet kodu ile geri dönebilsin); bitince sil
+        if (_online is { IsHost: false, IsTournament: true } o && o.Link.TState is { } st)
+        {
+            if (st.Phase == GwentNet.TournamentPhase.Running)
+                ResumeStore.SaveGuest(new GuestResume(st.Code, st.YourToken, o.Nick, st.Players.Count > 0 ? st.Players[0].Nick : "", DateTime.UtcNow, IsTournament: true));
+            else if (st.Phase == GwentNet.TournamentPhase.Finished) ResumeStore.ClearGuest();
+        }
+    }
+
+    /// <summary>İzlenen maç bitti: sonucu görmek için kısa bir bekleyişten sonra otomatik bracket'e dönülür (rövanşla yeniden başlarsa dönülmez).</summary>
+    private async void OnSpectateEnded(GwentNet.MatchResult r)
+    {
+        var session = _online?.Link.Spectate;
+        await Task.Delay(4500);
+        if (session == null || _online?.Link.Spectate != session) return;
+        if (Host.Content is GwintView gv && gv.Session == session) StopSpectating();
     }
 
     /// <summary>Canlı izleme başladı (ya da izlenen maç rövanşla yeniden başladı): geçmiş animasyonsuz uygulanır, sonra masa gösterilir.</summary>

@@ -117,6 +117,7 @@ public sealed class OnlineMenuView : Grid
         // ---- Orta kapı: turnuva kur ----
         var tour = new StackPanel { Width = 480 };
         tour.Children.Add(Door("TURNUVA", "3–8 kişilik tek eleme; ödül havuzu taç ile."));
+        if (ResumeStore.LoadHostTournament() is { } tresume) tour.Children.Add(TournamentResumeStrip(tresume));
         tour.Children.Add(Ornate.Caption("Kişi sayısı", 6));
         var sizeRow = new StackPanel { Orientation = Orientation.Horizontal };
         _size4 = ChoiceButton("4 kişi", true);
@@ -275,6 +276,37 @@ public sealed class OnlineMenuView : Grid
         Settings.Nick = nick;
         Settings.Save();
         _connected(c);
+    }
+
+    /// <summary>Yarım kalan turnuvayı sürdürür: aynı bracket ve maçlar yeniden kurulur, yeni davet kodu çıkar.</summary>
+    private async void TournamentResumeClicked(GwentNet.TournamentSnapshot snap)
+    {
+        if (_busy) return;
+        SetBusy(true, "Yarım kalan turnuva yeniden kuruluyor…");
+        var (cloudflared, terr) = await PrepareTunnelAsync();
+        if (terr != null) { Error(terr); return; }
+        var opts = new HostOptions(snap.NextGen, _lan.IsChecked == true, _upnp.IsChecked == true, cloudflared);
+        var (c, err) = await OnlineController.ResumeTournamentAsync(snap, opts, new Progress<string>(m => _status.Text = m));
+        if (c == null) { Error((err ?? "Turnuva sürdürülemedi.") + " Kaydı silip yeni turnuva kurabilirsin."); return; }
+        _connected(c);
+    }
+
+    private UIElement TournamentResumeStrip(GwentNet.TournamentSnapshot snap)
+    {
+        var box = new StackPanel { Margin = new Thickness(0, 4, 0, 10) };
+        var done = snap.Matches.Count(m => m.Winner != null && m.A != null && m.B != null);
+        box.Children.Add(Ui.Text($"Yarım kalan turnuva: {snap.Players.Count} oyuncu, {done} maç bitti", 17, Theme.B("#e8c970"), true, TextAlignment.Left, true));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        var go = Ui.Button("Turnuvaya devam et", () => TournamentResumeClicked(snap), primary: true);
+        go.Tag = "online-tournament-resume";
+        go.FontSize = 16;
+        var del = Ui.Button("Kaydı sil", () => { ResumeStore.ClearHostTournament(); box.Visibility = Visibility.Collapsed; });
+        del.FontSize = 14;
+        del.Margin = new Thickness(12, 0, 0, 0);
+        row.Children.Add(go);
+        row.Children.Add(del);
+        box.Children.Add(row);
+        return box;
     }
 
     /// <summary>Yarım kalan maçı sürdürür: aynı oda ve koltuklar yeniden kurulur, yeni davet kodu çıkar.</summary>

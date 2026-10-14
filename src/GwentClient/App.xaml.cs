@@ -41,6 +41,12 @@ public partial class App : Application
             Shutdown(UiSelfTest.RunOnlineLobby(rounds) == 0 ? 0 : 1);
             return;
         }
+        if (e.Args.Contains("--selftest-tournament-resume"))
+        {
+            Sfx.Enabled = false;
+            Shutdown(UiSelfTest.RunTournamentResumeCheck());
+            return;
+        }
         if (e.Args.Contains("--selftest-tournament-rules"))
         {
             Sfx.Enabled = false;

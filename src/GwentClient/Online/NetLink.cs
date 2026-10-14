@@ -115,6 +115,9 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
     public override Task<Reply> SetTournamentLoadoutAsync(LoadoutDto loadout) => InvokeAsync("SetTournamentLoadout", loadout);
     public override Task<Reply> TournamentReadyAsync(bool ready) => InvokeAsync("TournamentSetReady", ready);
     public override Task<Reply> StartTournamentAsync() => InvokeAsync("StartTournament");
+    /// <summary>Yarım kalan turnuvaya oyuncu anahtarıyla geri dön (uygulama yeniden açıldı): sürmekteki maç varsa sunucu o odaya da sokar.</summary>
+    public Task<Reply> RejoinTournamentAsync(string code, string token) => InvokeAsync("RejoinTournament", code, token, -1);
+
     public override Task<Reply> SetTournamentRulesAsync(TournamentRules rules) => InvokeAsync("SetTournamentRules", rules);
     public override Task<Reply> WatchMatchAsync(int round, int index) => InvokeAsync("WatchMatch", round, index);
     public override Task<Reply> StopWatchingAsync() => InvokeAsync("StopWatching");

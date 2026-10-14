@@ -64,6 +64,16 @@ public sealed record RoomSnapshot(string Code, bool NextGen, MatchSetup Setup, L
 
 public sealed record MatchResult(int? WinnerSeat, string Reason);
 
+// ---------- Turnuva kaydı (host'ta diske yazılır; uygulama kapanınca turnuva buradan yeniden kurulur) ----------
+
+public sealed record TPlayerSnapshot(string Nick, string Token, LoadoutDto? Loadout, string? Avatar, bool Eliminated, bool Forfeit, int Placement);
+
+/// <summary>Bracket'teki bir eşleşme; oynanmakta olan maçın odası (kurulum + eylemler) <c>Room</c> içindedir, biten ya da başlamamış maçlarda null.</summary>
+public sealed record TMatchSnapshot(int Round, int Index, int? A, int? B, int? Winner, RoomSnapshot? Room);
+
+public sealed record TournamentSnapshot(string Code, bool NextGen, int MaxPlayers, int EntryFee, TournamentRules Rules,
+    List<TPlayerSnapshot> Players, List<TMatchSnapshot> Matches, DateTime SavedAtUtc);
+
 /// <summary>İzleyiciye giden maç kurulumu: iki açık deste + tohum, izleyici ellerin görünüp görünmeyeceği (turnuva kuralı) ve eşleşme konumu.</summary>
 public sealed record SpectateSetup(MatchSetup Setup, bool ShowHands, int TournamentRound, int TournamentIndex);
 

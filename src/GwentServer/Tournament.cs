@@ -59,6 +59,15 @@ public sealed class Tournament
     internal List<List<TMatch>> Rounds { get; private set; } = new();
 
     internal int RoundCount => Rounds.Count;
+
+    /// <summary>Kayıttan bracket iskeletini kurar (eşleşmeler boş oda ile; odalar ayrıca bağlanır).</summary>
+    internal void RestoreRounds(IEnumerable<TMatchSnapshot> matches)
+    {
+        var list = matches.ToList();
+        var rounds = list.Max(m => m.Round) + 1;
+        Rounds = Enumerable.Range(0, rounds).Select(r => list.Where(m => m.Round == r).OrderBy(m => m.Index)
+            .Select(m => new TMatch { Round = m.Round, Index = m.Index, A = m.A, B = m.B, Winner = m.Winner }).ToList()).ToList();
+    }
     internal IEnumerable<TMatch> AllMatches => Rounds.SelectMany(r => r);
 
     /// <summary>Bracket yerleşimi: katılımcı sayısına göre 4 ya da 8; bye'lar üst ve alttaki eşleşmelere dağıtılır. Sıra <paramref name="order"/> ile karıştırılır.</summary>

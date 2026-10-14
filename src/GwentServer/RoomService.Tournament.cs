@@ -11,6 +11,61 @@ public sealed partial class RoomService
 {
     private readonly Dictionary<string, Tournament> _tournaments = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Sürmekte olan bir turnuvanın durumu değişince tetiklenir (her hamle, sonuç, katılım): snapshot kayıt için; turnuva bitince/bekleme odasındayken null.
+    /// Sunucu kilidi altında çağrılır; işleyici hızlı olmalı.
+    /// </summary>
+    public event Action<string, TournamentSnapshot?>? TournamentPersisted;
+
+    private TournamentSnapshot? ExportTournament(Tournament t)
+    {
+        if (t.Phase != TournamentPhase.Running) return null;
+        return new TournamentSnapshot(t.Code, t.NextGen, t.MaxPlayers, t.EntryFee, t.Rules,
+            t.Players.Select(p => new TPlayerSnapshot(p.Nick, p.Token, p.Loadout, p.Avatar, p.Eliminated, p.Forfeit, p.Placement)).ToList(),
+            t.AllMatches.Select(m => new TMatchSnapshot(m.Round, m.Index, m.A, m.B, m.Winner, m.Done ? null : m.Room?.ExportSnapshot())).ToList(),
+            _clock.UtcNow);
+    }
+
+    /// <summary>
+    /// Kayıttan turnuvayı yeniden kurar (host uygulaması kapanıp açıldığında): bracket, elenenler ve oynanmakta olan maçlar (eylemler yeniden oynatılır).
+    /// Herkes bağlantısız beklemeye alınır; oyuncular anahtarlarıyla <see cref="RejoinTournament"/> eder. Hazırlıklar sıfırlanır.
+    /// </summary>
+    public Reply RestoreTournament(TournamentSnapshot snap)
+    {
+        lock (_gate)
+        {
+            if (_tournaments.ContainsKey(snap.Code) || _rooms.ContainsKey(snap.Code)) return Reply.Fail("Bu turnuva zaten açık.");
+            if (snap.Players.Count < 3 || snap.Matches.Count == 0) return Reply.Fail("Kayıt eksik.");
+            var now = _clock.UtcNow;
+            var t = new Tournament(snap.Code, snap.NextGen, snap.MaxPlayers, snap.EntryFee, now) { Phase = TournamentPhase.Running, Rules = snap.Rules };
+            foreach (var p in snap.Players)
+                t.Players.Add(new TPlayer
+                {
+                    Nick = p.Nick, Token = p.Token, Loadout = p.Loadout, Avatar = p.Avatar, Eliminated = p.Eliminated, Forfeit = p.Forfeit, Placement = p.Placement,
+                    Connected = false, DisconnectedAt = now
+                });
+            t.RestoreRounds(snap.Matches);
+            var rooms = new List<Room>();
+            foreach (var ms in snap.Matches.Where(m => m.Room != null))
+            {
+                var match = t.Rounds[ms.Round][ms.Index];
+                var room = Room.Restore(ms.Room!, _clock, _seed);
+                if (room == null) return Reply.Fail("Kayıtlı bir maç yeniden oynatılamadı (bozuk kayıt).");
+                room.Tournament = t;
+                room.TMatch = match;
+                room.Finished = OnTournamentRoomFinished;
+                room.Changed = _ => BroadcastTournament(t);
+                match.Room = room;
+                rooms.Add(room);
+            }
+            for (var i = 0; i < t.Players.Count; i++)
+                t.Players[i].Current = t.Players[i].Eliminated ? null : t.AllMatches.FirstOrDefault(m => !m.Done && (m.A == i || m.B == i));
+            foreach (var r in rooms) _rooms[r.Code] = r;
+            _tournaments[t.Code] = t;
+            return Reply.Success(t.Code);
+        }
+    }
+
     public int TournamentCount { get { lock (_gate) return _tournaments.Count; } }
 
     public Tournament? FindTournament(string code)
@@ -354,6 +409,7 @@ public sealed partial class RoomService
             var state = t.Snapshot(idx, t.Phase != TournamentPhase.Lobby);
             SendTournament(t, idx, c => c.OnTournamentState(state));
         }
+        TournamentPersisted?.Invoke(t.Code, ExportTournament(t));
     }
 
     // ---------- Ayrılma / kopma (Leave ve Disconnect bunları çağırır; kilit altında) ----------

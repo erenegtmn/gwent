@@ -63,7 +63,19 @@ public sealed class OnlineController : IAsyncDisposable
 
     /// <summary>Turnuva kurar: oda yerine turnuva açılır (aynı bağlantı yolları: tünel/yerel ağ/UPnP ve davet kodu).</summary>
     public static Task<(OnlineController? Controller, string? Error)> HostTournamentAsync(string nick, HostOptions opts, int maxPlayers, int entryFee, IProgress<string>? progress) =>
-        HostCoreAsync(nick, opts, progress, null, link => link.CreateTournamentAsync(nick, opts.NextGen, maxPlayers, entryFee));
+        HostCoreAsync(nick, opts, progress, null, (link, _) => link.CreateTournamentAsync(nick, opts.NextGen, maxPlayers, entryFee), tournament: true);
+
+    /// <summary>
+    /// Yarım kalan turnuvayı kayıttan sürdürür: bracket, elenenler ve oynanmakta olan maçlar aynı kod ve anahtarlarla yeniden kurulur; host kendi koltuğuna döner.
+    /// Yeni davet kodu çıkar (tünel adresi değişir); oyuncular onu yapıştırınca kendi anahtarlarıyla geri dönerler.
+    /// </summary>
+    public static Task<(OnlineController? Controller, string? Error)> ResumeTournamentAsync(TournamentSnapshot snapshot, HostOptions opts, IProgress<string>? progress) =>
+        HostCoreAsync(snapshot.Players[0].Nick, opts with { NextGen = snapshot.NextGen }, progress, null,
+            async (link, rooms) =>
+            {
+                var restored = rooms.RestoreTournament(snapshot);
+                return restored.Ok ? await link.RejoinTournamentAsync(snapshot.Code, snapshot.Players[0].Token).ConfigureAwait(false) : restored;
+            }, tournament: true);
 
     /// <summary>
     /// Yarım kalan maçı kayıttan sürdürür: oda aynı kod ve koltuk anahtarlarıyla yeniden kurulur, host kendi koltuğuna döner.
@@ -72,7 +84,7 @@ public sealed class OnlineController : IAsyncDisposable
     public static Task<(OnlineController? Controller, string? Error)> ResumeHostAsync(RoomSnapshot snapshot, HostOptions opts, IProgress<string>? progress) =>
         HostCoreAsync(snapshot.Setup.Nick0, opts with { NextGen = snapshot.NextGen }, progress, snapshot);
 
-    private static async Task<(OnlineController? Controller, string? Error)> HostCoreAsync(string nick, HostOptions opts, IProgress<string>? progress, RoomSnapshot? resume, Func<NetLink, Task<Reply>>? create = null)
+    private static async Task<(OnlineController? Controller, string? Error)> HostCoreAsync(string nick, HostOptions opts, IProgress<string>? progress, RoomSnapshot? resume, Func<NetLink, GwentServer.RoomService, Task<Reply>>? create = null, bool tournament = false)
     {
         LocalServer? server = null;
         NetLink? link = null;
@@ -84,8 +96,9 @@ public sealed class OnlineController : IAsyncDisposable
             server = await LocalServer.StartAsync(0, opts.Lan || opts.Upnp).ConfigureAwait(false);
             link = await NetLink.ConnectAsync(server.LocalUrl).ConfigureAwait(false);
             server.Rooms.RoomPersisted += ResumeStore.OnHostRoomChanged;   // devam eden maç diske yazılır (uygulama kapanırsa sürdürülebilsin)
+            server.Rooms.TournamentPersisted += ResumeStore.OnHostTournamentChanged;   // sürmekte olan turnuva da
             Reply r;
-            if (create != null) r = await create(link).ConfigureAwait(false);
+            if (create != null) r = await create(link, server.Rooms).ConfigureAwait(false);
             else if (resume == null) r = await link.CreateRoomAsync(nick, opts.NextGen).ConfigureAwait(false);
             else
             {
@@ -138,7 +151,7 @@ public sealed class OnlineController : IAsyncDisposable
                 }
             }
 
-            return (new OnlineController(link, server, server.LocalUrl, tunnel, mapping) { Nick = nick, Invites = invites, Warnings = warnings, IsTournament = create != null }, null);
+            return (new OnlineController(link, server, server.LocalUrl, tunnel, mapping) { Nick = nick, Invites = invites, Warnings = warnings, IsTournament = tournament }, null);
         }
         catch (Exception ex)
         {
@@ -178,8 +191,9 @@ public sealed class OnlineController : IAsyncDisposable
                 var saved = ResumeStore.LoadGuest();
                 var resuming = saved != null && string.Equals(saved.RoomCode, roomCode, StringComparison.OrdinalIgnoreCase);
                 var asTournament = false;
+                if (resuming && saved!.IsTournament) asTournament = true;
                 var r = resuming
-                    ? await link.RejoinAsync(roomCode, saved!.Token).ConfigureAwait(false)
+                    ? await (saved!.IsTournament ? link.RejoinTournamentAsync(roomCode, saved.Token) : link.RejoinAsync(roomCode, saved.Token)).ConfigureAwait(false)
                     : await link.JoinRoomAsync(roomCode, nick).ConfigureAwait(false);
                 if (!r.Ok && !resuming && r.Error == "Böyle bir oda yok.")
                 {

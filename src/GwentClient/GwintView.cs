@@ -304,6 +304,8 @@ public sealed class GwintView : Viewbox
         }
     }
 
+    public GameSession Session => _s;
+
     /// <summary>Host: yarım kalan maçta konuğa verilecek davet kodu (rakip dönmeyince çubukta "Davet kodunu kopyala" çıkar).</summary>
     public string? InviteText { get; set; }
 
@@ -1690,10 +1692,13 @@ public sealed class GwintView : Viewbox
         sp.Children.Add(Ornate.Rule(560, 14));
         foreach (var r in G.History)
             sp.Children.Add(Txt($"Raund {r.Round}:  {(_s.MySeat == 0 ? r.Score0 : r.Score1)} – {(_s.MySeat == 0 ? r.Score1 : r.Score0)}", 26, Theme.B("#e8dcc4"), false, TextAlignment.Center));
+        var auto = Txt("Birkaç saniye içinde kendiliğinden bracket'e dönülür.", 18, Theme.TextDim, false, TextAlignment.Center);
+        auto.Margin = new Thickness(0, 20, 0, 0);
+        sp.Children.Add(auto);
         var back = Ui.Button("Bracket'e dön", () => _toMenu(), primary: true);
         back.FontSize = 24;
         back.Padding = new Thickness(50, 12, 50, 12);
-        back.Margin = new Thickness(0, 28, 0, 0);
+        back.Margin = new Thickness(0, 14, 0, 0);
         back.HorizontalAlignment = HorizontalAlignment.Center;
         back.Tag = "spectate-quit";
         sp.Children.Add(back);
