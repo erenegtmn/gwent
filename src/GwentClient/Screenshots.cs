@@ -19,11 +19,11 @@ public static class Screenshots
         var rec = DeckValidator.RecommendedDeck("northern_realms");
         DeckStore.Save(new SavedDeck("Hızlı Saldırı", rec.Faction, rec.LeaderId, rec.CardIds.ToList()));
         DeckStore.Save(new SavedDeck("Yarım deste", "northern_realms", rec.LeaderId, rec.CardIds.Take(8).ToList()));
-        Save(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }, openGuide: () => { }, openCareer: () => { }), "menu.png");
+        Save(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }, openGuide: () => { }, openCareer: () => { }, openDraft: () => { }), "menu.png");
         UpdateCheck.SetResult(new ReleaseInfo("v0.7", new Version(0, 7, 0), UpdateCheck.ReleasesPage));
         Save(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }, openGuide: () => { }, openCareer: () => { }), "menu_update.png");
         UpdateCheck.SetResult(null);
-        Ui.RenderToPng(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }, openGuide: () => { }, openCareer: () => { }), 1440, 860, System.IO.Path.Combine(dir, "menu_small.png"));
+        Ui.RenderToPng(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }, openGuide: () => { }, openCareer: () => { }, openDraft: () => { }), 1440, 860, System.IO.Path.Combine(dir, "menu_small.png"));
         var setupMenu = new MenuView(_ => { }, (_, _) => { }, animate: false);
         typeof(MenuView).GetMethod("ToggleSetup", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(setupMenu, null);
         Save(setupMenu, "menu_setup.png");
@@ -51,6 +51,15 @@ public static class Screenshots
 
         // Kart değiştirme penceresi
         Save(new GwintView(new GameSession(cfg), () => { }, _ => { }, animate: false), "mulligan.png");
+        {
+            // Lanetli maç: Bitmeyen Kış + Kan Bedeli, birkaç hamle sonra
+            var ccfg = cfg with { Curses = new[] { GwentAI.Curses.EndlessWinter, GwentAI.Curses.BloodPrice } };
+            var cs = new GameSession(ccfg);
+            cs.AutoPlayFor(0, new GwentAI.HeuristicAgent(), 1);
+            cs.AiAutoMulligan();
+            for (var i = 0; i < 6 && !cs.IsOver; i++) { cs.AutoPlayFor(0, new GwentAI.HeuristicAgent(), 1); if (cs.AiToAct) cs.AiStep(); }
+            Save(new GwintView(cs, () => { }, _ => { }, animate: false), "cursed_game.png");
+        }
         {
             // Kart değiştirme: iki kart seçili (belirgin işaret)
             var ms = new GameSession(cfg);
@@ -164,6 +173,23 @@ public static class Screenshots
             Save(new ProfileView(() => { }, new List<MatchRecord>(), persist: false), "stats_empty.png");
         }
         for (var gi = 0; gi < 7; gi++) Save(new GuideView(() => { }, gi), $"guide_{gi + 1}.png");
+        {
+            // Draft: başlangıç, lider, kart seçimi (ortası), maçlar arası, koşu sonu
+            Save(new DraftView(new DraftSave { Best = 4, Runs = 3 }, () => { }, () => { }), "draft_start.png");
+            var dr = GwentAI.Draft.DraftLogic.Start("northern_realms", 12);
+            var ds = new DraftSave { Run = dr };
+            Save(new DraftView(ds, () => { }, () => { }), "draft_leader.png");
+            GwentAI.Draft.DraftLogic.PickLeader(dr, dr.LeaderOffer[0]);
+            for (var i = 0; i < 12; i++) GwentAI.Draft.DraftLogic.PickCard(dr, dr.Offer[i % dr.Offer.Count]);
+            Save(new DraftView(ds, () => { }, () => { }), "draft_pick.png");
+            while (dr.Phase == GwentAI.Draft.DraftPhase.Picking) GwentAI.Draft.DraftLogic.PickCard(dr, dr.Offer[0]);
+            GwentAI.Draft.DraftLogic.ApplyResult(dr, true);
+            GwentAI.Draft.DraftLogic.ApplyResult(dr, true);
+            GwentAI.Draft.DraftLogic.ApplyResult(dr, false);
+            Save(new DraftView(ds, () => { }, () => { }, "Kaybettin. 2 hakkın kaldı"), "draft_hub.png");
+            while (dr.Phase == GwentAI.Draft.DraftPhase.Playing) GwentAI.Draft.DraftLogic.ApplyResult(dr, dr.Wins < 5);
+            Save(new DraftView(new DraftSave { Run = dr, Best = 5, Runs = 4 }, () => { }, () => { }), "draft_over.png");
+        }
         {
             // Kariyer: başlangıç, rakip kartı, ilerlemiş kayıt (Velen, Novigrad turnuvası), ödül, tüccar, kariyer destesi, tüm bölgeler
             var nav = new CareerNav(_ => { }, () => { }, _ => { }, () => { }, () => { });

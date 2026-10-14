@@ -62,7 +62,7 @@ public sealed partial class Game
             var ps = _players[p];
             foreach (var id in decks[p].CardIds) ps.Deck.Add(NewCard(id, p));
             _rng.Shuffle(ps.Deck);
-            for (var i = 0; i < StartingHand && ps.Deck.Count > 0; i++) DrawOne(ps);
+            for (var i = 0; i < Options.StartingHand && ps.Deck.Count > 0; i++) DrawOne(ps);
             // Daisy of the Valley: oyun başında fazladan 1 kart (rakipte White Flame varsa iptal).
             if (LeaderPassive(p, "francesca_findabair_daisy_of_the_valley") && ps.Deck.Count > 0) DrawOne(ps);
         }

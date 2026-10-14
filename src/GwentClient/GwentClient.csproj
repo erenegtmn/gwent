@@ -10,7 +10,7 @@
     <RootNamespace>GwentClient</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <!-- Sürüm: GitHub release etiketi "v" + bu sayı olmalı (UpdateCheck) -->
-    <Version>0.6.1</Version>
+    <Version>0.7.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

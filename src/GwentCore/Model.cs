@@ -17,6 +17,15 @@ public sealed class GameOptions
 {
     /// <summary>Yalnız yeni nesil (next-gen) güncellemesindeki içerik: Roach ve Geralt/Ciri'nin Muster'ı.</summary>
     public bool NextGen { get; init; }
+
+    // ---------- Lanetler (Gaunter O'Dimm meydan okumaları; varsayılanlar orijinal kuraldır) ----------
+
+    /// <summary>Başlangıç eli (orijinal 10; "Kısa Mum" 8).</summary>
+    public int StartingHand { get; init; } = Game.StartingHand;
+    /// <summary>"Bitmeyen Kış": her raund rastgele bir hava kartıyla (Don/Sis/Yağmur) açılır; Açık hava kaldırabilir.</summary>
+    public bool RoundWeather { get; init; }
+    /// <summary>"Kan Bedeli": raundu kazanan elinden rastgele bir kart kaybeder (mezarlığa).</summary>
+    public bool BloodPrice { get; init; }
 }
 
 public sealed class CardInstance

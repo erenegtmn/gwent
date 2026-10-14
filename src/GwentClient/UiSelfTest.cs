@@ -18,7 +18,7 @@ public static partial class UiSelfTest
 
     public static int Run(int games)
     {
-        var failures = RunDeckBuilder() + RunGuide() + RunUpdateCheck();
+        var failures = RunDeckBuilder() + RunGuide() + RunUpdateCheck() + RunCurseCheck();
         var sfxProblems = Sfx.Diagnose();
         foreach (var p in sfxProblems) Console.WriteLine("[HATA] ses: " + p);
         Console.WriteLine($"Ses: {Sfx.AllNames.Length} yer tutucu denetlendi, {sfxProblems.Count} sorun.");
@@ -880,6 +880,41 @@ public static partial class UiSelfTest
             try { System.IO.File.Delete(tmp); } catch { }
         }
         Console.WriteLine($"Deste kurucu: {saved} kayıt denendi, {failures} hata.");
+        return failures;
+    }
+
+    /// <summary>Lanetler: tüm lanetler açıkken arayüzden maç oynanır (etiket görünür); menüden "Günün Laneti" bugünün lanetleriyle başlar.</summary>
+    public static int RunCurseCheck()
+    {
+        var failures = 0;
+        void Check(bool ok, string what) { if (!ok) { failures++; Console.WriteLine("[HATA] lanet: " + what); } }
+        try
+        {
+            var rng = new Random(9);
+            var all = GwentAI.Curses.All.Select(c => c.Id).ToList();
+            for (var i = 0; i < 2; i++)
+            {
+                var f = Factions[i];
+                var cfg = new MatchConfig(f, CardCatalog.Default.Leaders(f).First().Id, f, CardCatalog.Default.Leaders(f).First().Id, false, 40 + i, null, GwentAI.Difficulty.Normal, null, all);
+                var view = PlayOne(cfg, rng, new Dictionary<string, int>());
+                Check(FindAll<TextBlock>(view, t => (t.Tag as string) == "curse-label").Any(), "lanet etiketi yok");
+                Check(view.Session.Game.Players[0].Leader.Id == view.Session.Game.Players[1].Leader.Id, "Ayna: rakip aynı liderle oynamadı");
+            }
+            MatchConfig? started = null;
+            var menu = new MenuView(c => started = c, (_, _) => { }, animate: false);
+            Layout(menu);
+            typeof(MenuView).GetMethod("ToggleSetup", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(menu, null);
+            Layout(menu);
+            Click(FindAll<Button>(menu, b => (b.Tag as string) == "daily-curse").First());
+            var today = GwentAI.Curses.Daily(DateOnly.FromDateTime(DateTime.Now));
+            Check(started is { Daily: not null } && started.Curses!.SequenceEqual(today.Curses) && started.Seed == today.Seed, "günün laneti başlamadı");
+        }
+        catch (Exception ex)
+        {
+            failures++;
+            Console.WriteLine("[HATA] lanet: " + ex.Message);
+        }
+        Console.WriteLine($"Lanetler: {failures} hata.");
         return failures;
     }
 

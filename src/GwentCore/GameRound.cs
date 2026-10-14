@@ -10,6 +10,7 @@ public sealed partial class Game
         Current = first;
         foreach (var c in BoardCards()) c.NoRemove = false;
         Emit("round_start", first, 0, Round.ToString());
+        if (Options.RoundWeather) CurseWeather(first);
 
         for (var p = 0; p < 2; p++)
         {
@@ -24,6 +25,16 @@ public sealed partial class Game
                 _work.Enqueue(() => SkelligeRevive(player));
             }
         }
+    }
+
+    /// <summary>"Bitmeyen Kış" laneti: raund rastgele bir hava kartıyla açılır. Kart kimsenin değildir (mezarlığa girmez).</summary>
+    private void CurseWeather(int first)
+    {
+        var id = _rng.Pick(new List<string> { "biting_frost", "impenetrable_fog", "torrential_rain" });
+        var card = NewCard(id, first);
+        card.Ephemeral = true;
+        Emit("curse_weather", -1, card.Uid, id);
+        PlayWeather(card, first);
     }
 
     private void SkelligeRevive(int player)
@@ -51,6 +62,15 @@ public sealed partial class Game
 
         History.Add(new RoundResult(Round, s0, s1, winner));
         Emit("round_end", winner ?? -1, 0, $"{s0}:{s1}");
+
+        // "Kan Bedeli" laneti: raundu kazanan elinden rastgele bir kart kaybeder
+        if (Options.BloodPrice && winner is { } w && _players[w].Hand.Count > 0)
+        {
+            var lost = _rng.Pick(_players[w].Hand.ToList());
+            _players[w].Hand.Remove(lost);
+            SendToGrave(lost);
+            Emit("curse_discard", w, lost.Uid, lost.Def.Id);
+        }
 
         if (winner == null) { _players[0].Gems--; _players[1].Gems--; }
         else _players[1 - winner.Value].Gems--;

@@ -41,7 +41,7 @@ public partial class MainWindow : Window
     private string? _lastFaction;
     private bool _lastNextGen;
 
-    private void ShowMenu() => Host.Content = new MenuView(StartGame, ShowBuilder, _lastFaction, _lastNextGen, openSettings: ShowSettings, openStats: ShowStats, openOnline: ShowOnlineMenu, openGuide: ShowGuide, openCareer: ShowCareer);
+    private void ShowMenu() => Host.Content = new MenuView(StartGame, ShowBuilder, _lastFaction, _lastNextGen, openSettings: ShowSettings, openStats: ShowStats, openOnline: ShowOnlineMenu, openGuide: ShowGuide, openCareer: ShowCareer, openDraft: ShowDraft);
 
     private void ShowGuide() => Host.Content = new GuideView(ShowMenu);
 
@@ -60,10 +60,26 @@ public partial class MainWindow : Window
     {
         _lastFaction = cfg.MyFaction;
         _lastNextGen = cfg.NextGen;
-        var view = new GwintView(new GameSession(cfg), ShowMenu, StartGame);
+        var session = cfg.Daily is { } day
+            ? new GameSession(cfg)
+            {
+                OppNameOverride = "Gaunter O'Dimm", OppAvatarOverride = "gaunter_odimm", ModeLabel = "Günün Laneti",
+                Settle = won => DailySummary(day, won)
+            }
+            : new GameSession(cfg);
+        var view = new GwintView(session, ShowMenu, StartGame);
         Music.Start();
         Host.Content = view;
         view.Focus();
+    }
+
+    /// <summary>Günün laneti bitti: sonucu (galibiyet + raund puan farkı) bugüne kaydeder, özet döner.</summary>
+    private string DailySummary(DateOnly day, bool? won)
+    {
+        var margin = Host.Content is GwintView gv ? gv.Session.Game.History.Sum(r => r.Score0 - r.Score1) : 0;
+        var better = DailyStore.Record(day, new DailyResult(won == true, margin, DateTime.Now));
+        var head = won == true ? "Günün lanetini yendin!" : won == null ? "Günün laneti berabere bitti." : "Gaunter O'Dimm bu sefer kazandı.";
+        return $"{head} Puan farkı {(margin > 0 ? "+" : "")}{margin}" + (better ? " · bugünün en iyi sonucu" : "") + " — arkadaşlarınla karşılaştır.";
     }
 
     // ---------- Online ----------

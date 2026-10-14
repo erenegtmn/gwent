@@ -5,7 +5,7 @@ using GwentNet;
 namespace GwentClient;
 
 /// <summary>MyDeck boşsa fraksiyonun tüm kartları kullanılır. Rakip her zaman "önerilen" deste ile oynar (dengeli olsun).</summary>
-public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal, Deck? OppDeck = null);
+public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal, Deck? OppDeck = null, IReadOnlyList<string>? Curses = null, DateOnly? Daily = null);
 
 /// <summary>Online maçta sunucuyla konuşan taraf: eylemi gönderir. Sunucudan gelenler <see cref="GameSession.EnqueueRemote"/> ile oturuma verilir.</summary>
 public interface IMatchLink
@@ -56,6 +56,9 @@ public sealed class GameSession
 
     /// <summary>Oyun sonu ekranındaki çıkış düğmesinin yazısı (ör. "Haritaya dön").</summary>
     public string? ExitLabel { get; init; }
+
+    /// <summary>İstatistikteki kip adı ("Collect 'Em All", "Draft"); rakip adının önüne yazılır.</summary>
+    public string? ModeLabel { get; init; }
     public bool IsRemote => _link != null;
 
     /// <summary>Turnuva maçı: oyun sonunda "Bracket'e dön" gösterilir (rövanş yalnız berabere kalınca).</summary>
@@ -110,7 +113,7 @@ public sealed class GameSession
         {
             MyFaction = cfg.MyFaction, MyLeaderId = cfg.MyDeck?.LeaderId ?? cfg.MyLeaderId, OppFaction = cfg.OppFaction, OppLeaderId = cfg.OppLeaderId,
             NextGen = cfg.NextGen, Seed = cfg.Seed, MyDeckCards = cfg.MyDeck?.CardIds.ToList(), Difficulty = (int)cfg.Difficulty,
-            OppDeckCards = cfg.OppDeck?.CardIds.ToList(), OppDeckUnchecked = cfg.OppDeck != null
+            OppDeckCards = cfg.OppDeck?.CardIds.ToList(), OppDeckUnchecked = cfg.OppDeck != null, Curses = cfg.Curses?.ToList()
         };
         Game = Replay.CreateGame();
     }
@@ -315,6 +318,8 @@ public sealed class GameSession
             case "peek": return e.Visible == MySeat ? $"Rakibin elinden: {string.Join(", ", e.Detail.Split(',').Select(CardName))}." : null;
             case "monsters_keep": return $"Canavarlar: {NameOf(e.CardUid)} bir sonraki raunda kalıyor.";
             case "skellige_revive": return $"Skellige: {CardName(e.Detail)} mezarlıktan döndü.";
+            case "curse_weather": return $"Bitmeyen Kış: raund {CardName(e.Detail)} ile açıldı.";
+            case "curse_discard": return $"Kan Bedeli: {W(e.Player)} elinden {CardName(e.Detail)} kartını kaybetti.";
             case "round_end":
             {
                 var parts = e.Detail.Split(':');

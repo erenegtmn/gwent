@@ -49,6 +49,7 @@ public sealed class MenuView : Grid
     private readonly Action? _openStats;
     private readonly Action? _openGuide;
     private readonly Action? _openCareer;
+    private readonly Action? _openDraft;
     private readonly Action? _openOnline;
     private readonly Grid _panoLayer = new();
     private bool _starting;
@@ -57,8 +58,9 @@ public sealed class MenuView : Grid
     private Border _setup = null!;
     private bool _setupOpen;
 
-    public MenuView(Action<MatchConfig> start, Action<string, bool> openBuilder, string? initialFaction = null, bool nextGen = false, bool animate = true, Action? openSettings = null, Action? openOnline = null, Action? openStats = null, Action? openGuide = null, Action? openCareer = null)
+    public MenuView(Action<MatchConfig> start, Action<string, bool> openBuilder, string? initialFaction = null, bool nextGen = false, bool animate = true, Action? openSettings = null, Action? openOnline = null, Action? openStats = null, Action? openGuide = null, Action? openCareer = null, Action? openDraft = null)
     {
+        _openDraft = openDraft;
         _openGuide = openGuide;
         _openCareer = openCareer;
         _openSettings = openSettings;
@@ -243,6 +245,7 @@ public sealed class MenuView : Grid
         // Ana öğeler: oyun kipleri ve sık kullanılanlar. Profil (sol üstteki portre de açar) ve kılavuz altta küçük bağlantılardır.
         list.Children.Add(MenuItem("Oyna", ToggleSetup));
         if (_openCareer != null) list.Children.Add(MenuItem("Collect 'Em All", () => _openCareer()));
+        if (_openDraft != null) list.Children.Add(MenuItem("Draft", () => _openDraft()));
         if (_openOnline != null) list.Children.Add(MenuItem("Online", () => _openOnline()));
         list.Children.Add(MenuItem("Deste Kurucu", () => _openBuilder(_myFaction, NextGen)));
         list.Children.Add(MenuItem("Ayarlar", () => _openSettings?.Invoke()));
@@ -452,10 +455,13 @@ public sealed class MenuView : Grid
 
         root.Children.Add(Ornate.Caption("Rakip zorluğu"));
         root.Children.Add(DifficultyRow());
+        root.Children.Add(Ornate.Caption("Gaunter O'Dimm'in lanetleri (isteğe bağlı)"));
+        root.Children.Add(CurseRow());
+        root.Children.Add(DailyRow());
         _nextGen.Margin = new Thickness(0, 14, 0, 0);
         root.Children.Add(_nextGen);
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 22, 0, 0) };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 16, 0, 0) };
         var back = Ui.Button("Geri", ToggleSetup);
         back.FontSize = 18;
         back.Padding = new Thickness(30, 12, 30, 12);
@@ -465,10 +471,15 @@ public sealed class MenuView : Grid
         go.FontSize = 18;
         go.Padding = new Thickness(40, 12, 40, 12);
         buttons.Children.Add(go);
-        root.Children.Add(buttons);
+        // Düğmeler kaydırılan alanın dışında: panel uzasa da "Oyuna başla" hep görünür
+        var body = new Grid();
+        body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        body.Children.Add(new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 10, 0) });
+        Grid.SetRow(buttons, 1);
+        body.Children.Add(buttons);
 
-        var framed = Ornate.Panel(new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 10, 0) },
-            new Thickness(40, 30, 32, 34), 20, 54);
+        var framed = Ornate.Panel(body, new Thickness(40, 30, 32, 30), 20, 54);
         framed.VerticalAlignment = VerticalAlignment.Center;
         framed.MaxHeight = 980;
         return new Border { Child = framed, VerticalAlignment = VerticalAlignment.Center };
@@ -512,15 +523,61 @@ public sealed class MenuView : Grid
     }
 
     private readonly List<ToggleButton> _diffButtons = new();
+    private readonly HashSet<string> _curses = new();
+
+    /// <summary>Gaunter O'Dimm'in lanetleri: maçın kuralını büken isteğe bağlı seçenekler (birden çok seçilebilir).</summary>
+    private UIElement CurseRow()
+    {
+        var wrap = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+        foreach (var c in GwentAI.Curses.All)
+        {
+            var curse = c;
+            var sp = new StackPanel { Width = 196 };
+            sp.Children.Add(Ui.Text(c.Name, 15, Theme.B("#e0c8f0"), true));
+            sp.Children.Add(Ui.Text(c.Text, 11, Theme.TextDim, false, TextAlignment.Left, true));
+            var tb = new ToggleButton
+            {
+                Style = (Style)Application.Current.FindResource("GToggle"), Content = sp, Margin = new Thickness(3), Padding = new Thickness(10, 6, 10, 7),
+                HorizontalContentAlignment = HorizontalAlignment.Left, Tag = "curse:" + c.Id, IsChecked = _curses.Contains(c.Id)
+            };
+            tb.Click += (_, _) => { if (tb.IsChecked == true) _curses.Add(curse.Id); else _curses.Remove(curse.Id); };
+            wrap.Children.Add(tb);
+        }
+        return wrap;
+    }
+
+    /// <summary>Günün laneti: bugünün lanetleri ve rakibi; herkes aynı gün aynı maçı oynar. Senin destenle, Zor rakibe karşı.</summary>
+    private UIElement DailyRow()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var d = GwentAI.Curses.Daily(today);
+        var names = string.Join(" + ", d.Curses.Select(id => GwentAI.Curses.Get(id).Name));
+        var g = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        info.Children.Add(Ui.Text($"Günün Laneti: {names}", 16, Theme.B("#e0c8f0"), true));
+        var best = DailyStore.Today(today);
+        info.Children.Add(Ui.Text($"Rakip: Gaunter O'Dimm ({Texts.FactionShort(d.OppFaction)}, Zor) · " +
+            (best == null ? "bugün henüz oynamadın" : best.Won ? $"bugün yendin (fark +{best.Margin})" : $"bugün kaybettin (fark {best.Margin})"), 12, Theme.TextDim, false, TextAlignment.Left, true));
+        g.Children.Add(info);
+        var play = Ui.Button("Günün Laneti", StartDaily);
+        play.Padding = new Thickness(16, 7, 16, 7);
+        play.FontSize = 15;
+        play.Tag = "daily-curse";
+        Grid.SetColumn(play, 1);
+        g.Children.Add(play);
+        return g;
+    }
 
     private UIElement DifficultyRow()
     {
         var grid = new UniformGrid { Rows = 1, Margin = new Thickness(0, 4, 0, 0) };
         foreach (var (d, label, sub) in new[]
                  {
-                     (GwentAI.Difficulty.Easy, "Kolay", "sık hata yapar"),
-                     (GwentAI.Difficulty.Normal, "Normal", "arada hata yapar"),
-                     (GwentAI.Difficulty.Hard, "Zor", "ayarlı rakip")
+                     (GwentAI.Difficulty.Easy, "Kolay", "acemi destesi"),
+                     (GwentAI.Difficulty.Normal, "Normal", "az kahraman"),
+                     (GwentAI.Difficulty.Hard, "Zor", "tam deste, usta")
                  })
         {
             var diff = d;
@@ -732,13 +789,18 @@ public sealed class MenuView : Grid
         UpdateLeaderVisibility();
     }
 
-    private void Start()
+    private void Start() => Start(null);
+
+    private void StartDaily() => Start(GwentAI.Curses.Daily(DateOnly.FromDateTime(DateTime.Now)));
+
+    private void Start(GwentAI.DailyCurse? daily)
     {
         var rng = new Random();
-        var opp = _oppFaction ?? Factions[rng.Next(Factions.Length)];
+        var opp = daily?.OppFaction ?? _oppFaction ?? Factions[rng.Next(Factions.Length)];
         var oppLeaders = CardCatalog.Default.Leaders(opp).Where(l => l.Edition != "nextgen").ToList();
-        var oppLeader = oppLeaders[rng.Next(oppLeaders.Count)].Id;
+        var oppLeader = daily?.OppLeaderId ?? oppLeaders[rng.Next(oppLeaders.Count)].Id;
         var opts = new GameOptions { NextGen = NextGen };
+        var curses = daily != null ? daily.Curses.ToList() : _curses.ToList();
 
         Deck? myDeck = null;
         var leader = _myLeader;
@@ -750,7 +812,9 @@ public sealed class MenuView : Grid
             if (saved != null) { myDeck = saved.ToDeck(); leader = saved.LeaderId; }
         }
 
-        var cfg = new MatchConfig(_myFaction, leader, opp, oppLeader, NextGen, rng.Next(1, int.MaxValue), myDeck, Settings.Difficulty);
+        if (curses.Contains(GwentAI.Curses.Mirror)) { opp = _myFaction; oppLeader = myDeck?.LeaderId ?? leader; }   // Ayna: rakip senin destenle
+        var cfg = new MatchConfig(_myFaction, leader, opp, oppLeader, NextGen, daily?.Seed ?? rng.Next(1, int.MaxValue), myDeck,
+            daily != null ? GwentAI.Difficulty.Hard : Settings.Difficulty, null, curses.Count > 0 ? curses : null, daily?.Date);
         if (_animate) ShowVs(cfg);
         else _start(cfg);
     }
@@ -761,7 +825,7 @@ public sealed class MenuView : Grid
     {
         if (_starting) return;
         _starting = true;
-        Children.Add(new VsScreen(new VsSideInfo(string.IsNullOrWhiteSpace(Settings.Nick) ? "Sen" : Settings.Nick, cfg.MyFaction, cfg.MyLeaderId, true, Settings.Portrait), new VsSideInfo("Rakip", cfg.OppFaction, cfg.OppLeaderId, false, cfg.OppLeaderId),
+        Children.Add(new VsScreen(new VsSideInfo(string.IsNullOrWhiteSpace(Settings.Nick) ? "Sen" : Settings.Nick, cfg.MyFaction, cfg.MyLeaderId, true, Settings.Portrait), new VsSideInfo(cfg.Daily != null ? "Gaunter O'Dimm" : "Rakip", cfg.OppFaction, cfg.OppLeaderId, false, cfg.Daily != null ? "gaunter_odimm" : cfg.OppLeaderId),
             () => { if (_animate) _start(cfg); }, _animate));
     }
 }

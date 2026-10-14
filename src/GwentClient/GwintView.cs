@@ -800,6 +800,16 @@ public sealed class GwintView : Viewbox
         ((TextBlock)tab.Child).VerticalAlignment = VerticalAlignment.Center;
         tab.MouseLeftButtonUp += (_, _) => { _showLog = !_showLog; Refresh(); };
         Put(layer, tab, 190, 0);
+        // Etkin lanetler (Gaunter O'Dimm): elin altındaki şeritte, üzerine gelince açıklamaları
+        if (_s.Config.Curses is { Count: > 0 } curses)
+        {
+            var cs = curses.Select(GwentAI.Curses.Get).ToList();
+            var label = Txt("☠ Lanet: " + string.Join(" · ", cs.Select(c => c.Name)), 17, Theme.B("#d8b8f0"), true, TextAlignment.Left, 680);
+            label.IsHitTestVisible = true;
+            label.Tag = "curse-label";
+            label.ToolTip = string.Join(Environment.NewLine, cs.Select(c => c.Name + ": " + c.Text));
+            Put(_board, label, 590, 1030);
+        }
 
         if (_showLog)
         {
@@ -1394,6 +1404,15 @@ public sealed class GwintView : Viewbox
                 case "spawn": landing.Add("cow_death"); break;
                 case "decoy": landing.Add("dummy"); break;
                 case "skellige_revive": landing.Add("resurrect"); break;
+                case "curse_weather":
+                    if (title == null || G.Round > 1) { title = "Bitmeyen Kış"; sub = G.Catalog.Get(e.Detail).Name + " raundu açtı"; color = Theme.B("#b8c8f0"); hold = 1100; }
+                    break;
+                case "curse_discard":
+                    title = "Kan Bedeli";
+                    sub = (e.Player == Me ? "Raundu kazandın ve kaybettin: " : "Rakip raundu kazandı ve kaybetti: ") + G.Catalog.Get(e.Detail).Name;
+                    color = Theme.B("#e07060");
+                    hold = 1500;
+                    break;
                 case "coin_toss":
                 case "first_chosen": sounds.Add("coin_toss"); break;
                 case "pass":
@@ -1721,7 +1740,7 @@ public sealed class GwintView : Viewbox
         var win = _s.WinnerSeat;
         var online = _s.OnlineSetup;
         var opp = online != null ? (_s.MySeat == 0 ? online.Nick1 : online.Nick0)
-            : _s.OppNameOverride != null ? "Collect 'Em All: " + _s.OppNameOverride
+            : _s.OppNameOverride != null ? (_s.ModeLabel ?? "Collect 'Em All") + ": " + _s.OppNameOverride
             : "Yapay zekâ (" + _s.Config.Difficulty switch { GwentAI.Difficulty.Easy => "Kolay", GwentAI.Difficulty.Hard => "Zor", _ => "Normal" } + ")";
         Stats.Record(new MatchRecord(DateTime.Now, online != null, opp, _s.Config.MyFaction, _s.Config.OppFaction, win == null ? 0 : win == Me ? 1 : -1));
         if (_s.Settle != null && !_s.IsSpectator) _careerText = _s.Settle(win == null ? null : win == _s.MySeat);

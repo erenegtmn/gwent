@@ -32,6 +32,8 @@ public sealed class ReplayData
     public List<string>? OppDeckCards { get; set; }
     /// <summary>Rakip destesi oyuncu kurallarına bakılmadan kullanılır (kariyerde orijinal oyunun NPC desteleri). Oyuncunun destesi yine doğrulanır.</summary>
     public bool OppDeckUnchecked { get; set; }
+    /// <summary>Etkin lanetler (<see cref="Curses"/>): motor seçenekleri ve deste dönüşümleri bunlardan kurulur.</summary>
+    public List<string>? Curses { get; set; }
     public int Difficulty { get; set; }
     public List<ReplayAction> Actions { get; set; } = new();
     /// <summary>Oyuncunun gördüğü Türkçe olay günlüğü (hata bildirirken neyin olduğunu gösterir).</summary>
@@ -40,13 +42,14 @@ public sealed class ReplayData
     /// <summary>Oyunu kurar. Rakip destesi verilmemişse yapay zekânın zorluğuna göre kurulur (<see cref="AiDecks"/>).</summary>
     public Game CreateGame()
     {
-        var opts = new GameOptions { NextGen = NextGen };
+        var opts = GwentAI.Curses.Options(Curses, NextGen);
         var mine = MyDeckCards != null
             ? new Deck(MyFaction, MyLeaderId, MyDeckCards)
             : DeckValidator.DefaultDeck(MyFaction, opts) with { LeaderId = MyLeaderId };
         var theirs = OppDeckCards != null
             ? new Deck(OppFaction, OppLeaderId, OppDeckCards)
             : AiDecks.For(OppFaction, opts, OppLeaderId, (Difficulty)Difficulty);   // yerel oyun: yapay zekânın destesi zorluğa göre
+        (mine, theirs) = GwentAI.Curses.ApplyDecks(Curses, mine, theirs, opts);
         if (!OppDeckUnchecked) return new Game(mine, theirs, Seed, opts);
         var errs = DeckValidator.Validate(mine, opts);
         if (errs.Count > 0) throw new ArgumentException("Oyuncu 0 destesi geçersiz: " + string.Join(" ", errs));
