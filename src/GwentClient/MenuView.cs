@@ -127,6 +127,7 @@ public sealed class MenuView : Grid
         layout.Children.Add(strip);
         Children.Add(layout);
         if (_openStats != null) Children.Add(ProfileChip());
+        AddVersionInfo();
 
         BuildDecks();
         BuildLeaders();
@@ -144,6 +145,46 @@ public sealed class MenuView : Grid
             Slide(stage, 0, 30, 900, 800);
             Slide(strip, 40, 0, 900, 1000);
         }
+    }
+
+    /// <summary>Sağ altta sürüm; GitHub'da daha yenisi varsa üstte "Yeni sürüm" bildirimi (İndir: release sayfası tarayıcıda açılır).</summary>
+    private void AddVersionInfo()
+    {
+        var ver = Ui.Text(UpdateCheck.CurrentText, 14, Theme.B("#7a705e"));
+        ver.HorizontalAlignment = HorizontalAlignment.Right;
+        ver.VerticalAlignment = VerticalAlignment.Bottom;
+        ver.Margin = new Thickness(0, 0, 26, 14);
+        ver.IsHitTestVisible = false;
+        Children.Add(ver);
+
+        var host = new ContentControl { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 26, 0, 0) };
+        Children.Add(host);
+        void Show(ReleaseInfo? r)
+        {
+            if (r == null) return;
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var text = Ui.Text($"◆  Yeni sürüm çıktı: {r.Tag}  (sende {UpdateCheck.CurrentText})", 19, Theme.B("#f0d890"), true);
+            text.VerticalAlignment = VerticalAlignment.Center;
+            row.Children.Add(text);
+            var get = Ui.Button("İndir", () => UpdateCheck.OpenPage(r.Url), primary: true);
+            get.Margin = new Thickness(18, 0, 0, 0);
+            get.Padding = new Thickness(22, 6, 22, 6);
+            get.Tag = "update-download";
+            row.Children.Add(get);
+            var later = Ui.Button("Sonra", () => host.Content = null);
+            later.Margin = new Thickness(8, 0, 0, 0);
+            later.Padding = new Thickness(14, 6, 14, 6);
+            row.Children.Add(later);
+            var g = new Grid { Tag = "update-banner" };
+            g.Children.Add(new ChamferFrame { Fill = Theme.B("#ee1c140a"), Edge = Ornate.GoldEdge, Inner = Ornate.GoldThin, Cut = 10, Inset = 4 });
+            row.Margin = new Thickness(22, 10, 14, 10);
+            g.Children.Add(row);
+            g.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 20, ShadowDepth = 0, Opacity = 0.9 };
+            host.Content = g;
+        }
+        if (UpdateCheck.Pending is not { } pending) return;
+        if (pending.IsCompleted) Show(pending.Result);
+        else pending.ContinueWith(t => Dispatcher.BeginInvoke(() => Show(t.Result)), TaskScheduler.Default);
     }
 
     /// <summary>Sol üst köşede portre + takma ad: tıklayınca profil açılır.</summary>

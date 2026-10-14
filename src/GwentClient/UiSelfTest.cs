@@ -18,7 +18,7 @@ public static partial class UiSelfTest
 
     public static int Run(int games)
     {
-        var failures = RunDeckBuilder() + RunGuide();
+        var failures = RunDeckBuilder() + RunGuide() + RunUpdateCheck();
         var sfxProblems = Sfx.Diagnose();
         foreach (var p in sfxProblems) Console.WriteLine("[HATA] ses: " + p);
         Console.WriteLine($"Ses: {Sfx.AllNames.Length} yer tutucu denetlendi, {sfxProblems.Count} sorun.");
@@ -858,6 +858,27 @@ public static partial class UiSelfTest
             try { System.IO.File.Delete(tmp); } catch { }
         }
         Console.WriteLine($"Deste kurucu: {saved} kayıt denendi, {failures} hata.");
+        return failures;
+    }
+
+    /// <summary>Sürüm denetimi: GitHub yanıtından yeni sürüm doğru seçilir; menü bildirimi çıkar.</summary>
+    public static int RunUpdateCheck()
+    {
+        var failures = 0;
+        void Check(bool ok, string what) { if (!ok) { failures++; Console.WriteLine("[HATA] sürüm denetimi: " + what); } }
+        var cur = new Version(0, 6, 0);
+        Check(UpdateCheck.Newer("{\"tag_name\":\"v0.7\",\"html_url\":\"u\"}", cur)?.Tag == "v0.7", "v0.7 > v0.6 görülmedi");
+        Check(UpdateCheck.Newer("{\"tag_name\":\"v0.6\"}", cur) == null, "aynı sürüm yeni sayıldı");
+        Check(UpdateCheck.Newer("{\"tag_name\":\"v0.5\"}", cur) == null, "eski sürüm yeni sayıldı");
+        Check(UpdateCheck.Newer("{\"tag_name\":\"v0.10\"}", cur) != null, "v0.10 > v0.6 görülmedi");
+        Check(UpdateCheck.Newer("{\"tag_name\":\"deneme\"}", cur) == null, "geçersiz etiket");
+        Check(UpdateCheck.Current >= new Version(0, 6, 0), "uygulama sürümü okunamadı: " + UpdateCheck.Current);
+        UpdateCheck.SetResult(new ReleaseInfo("v9.9", new Version(9, 9, 0), UpdateCheck.ReleasesPage));
+        var menu = new MenuView(_ => { }, (_, _) => { }, animate: false);
+        Layout(menu);
+        Check(FindAll<FrameworkElement>(menu, x => (x.Tag as string) == "update-banner").Any(), "menüde yeni sürüm bildirimi yok");
+        UpdateCheck.SetResult(null);
+        Console.WriteLine($"Sürüm denetimi ({UpdateCheck.CurrentText}): {failures} hata.");
         return failures;
     }
 

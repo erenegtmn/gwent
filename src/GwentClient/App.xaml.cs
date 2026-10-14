@@ -138,6 +138,7 @@ public partial class App : Application
         TournamentEconomy.ApplyFloor();
         Stats.Enabled = true;
         ResumeStore.Enabled = true;
+        UpdateCheck.Start();   // GitHub'da yeni sürüm var mı (arka planda; ana menü bildirir)
         new MainWindow().Show();
         Music.Start();   // müzik gerçek uygulama açılır açılmaz başlar (ekran görüntüsü/sınama süreçleri müzik çalmaz)
     }

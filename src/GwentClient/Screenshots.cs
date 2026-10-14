@@ -20,6 +20,9 @@ public static class Screenshots
         DeckStore.Save(new SavedDeck("Hızlı Saldırı", rec.Faction, rec.LeaderId, rec.CardIds.ToList()));
         DeckStore.Save(new SavedDeck("Yarım deste", "northern_realms", rec.LeaderId, rec.CardIds.Take(8).ToList()));
         Save(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }, openGuide: () => { }, openCareer: () => { }), "menu.png");
+        UpdateCheck.SetResult(new ReleaseInfo("v0.7", new Version(0, 7, 0), UpdateCheck.ReleasesPage));
+        Save(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }, openGuide: () => { }, openCareer: () => { }), "menu_update.png");
+        UpdateCheck.SetResult(null);
         Ui.RenderToPng(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }, openGuide: () => { }, openCareer: () => { }), 1440, 860, System.IO.Path.Combine(dir, "menu_small.png"));
         var setupMenu = new MenuView(_ => { }, (_, _) => { }, animate: false);
         typeof(MenuView).GetMethod("ToggleSetup", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(setupMenu, null);
