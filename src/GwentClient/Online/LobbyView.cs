@@ -241,35 +241,16 @@ public sealed class LobbyView : Grid
         var invites = _c.Invites;
         if (invites.Count == 0)
         {
-            code.Children.Add(Ui.Text("Bağlantı yöntemi seçilmedi: arkadaşın bu bilgisayara bağlanamaz.", 14, Theme.Bad, false, TextAlignment.Right));
+            code.Children.Add(Ui.Text("Bağlantı yöntemi yok: arkadaşın bağlanamaz.", 14, Theme.Bad, false, TextAlignment.Right));
+            return;
         }
-        else
-        {
-            var best = invites[0];
-            var title = Ui.Text("Davet kodu (arkadaşın Online → katıl alanına yapıştırır) — " + best.Label, 14, Theme.B("#c9c0aa"), true, TextAlignment.Right);
-            title.Margin = new Thickness(0, 10, 0, 3);
-            code.Children.Add(title);
-            var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            var box = new TextBox { Text = best.Invite, IsReadOnly = true, Width = 640, TextWrapping = TextWrapping.Wrap, Tag = "lobby-invite", FontFamily = Theme.Serif, FontSize = 14 };
-            box.Style = (Style)Application.Current.FindResource("GText");
-            row.Children.Add(box);
-            CopyButton(best.Invite, row);
-            code.Children.Add(row);
-            foreach (var other in invites.Skip(1))
-            {
-                var r = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 6, 0, 0) };
-                r.Children.Add(Ui.Text(other.Label, 13, Theme.TextDim));
-                CopyButton(other.Invite, r);
-                code.Children.Add(r);
-            }
-        }
-        foreach (var w in _c.Warnings)
-        {
-            var t = Ui.Text(w, 12, Theme.B("#a8837a"), false, TextAlignment.Right, true);
-            t.MaxWidth = 640;
-            t.Margin = new Thickness(0, 4, 0, 0);
-            code.Children.Add(t);
-        }
+        var best = invites[0];
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+        var box = new TextBox { Text = best.Invite, IsReadOnly = true, Width = 640, TextWrapping = TextWrapping.Wrap, Tag = "lobby-invite", FontFamily = Theme.Serif, FontSize = 14 };
+        box.Style = (Style)Application.Current.FindResource("GText");
+        row.Children.Add(box);
+        CopyButton(best.Invite, row);
+        code.Children.Add(row);
     }
 
     private string FootMessage()
@@ -316,31 +297,28 @@ public sealed class LobbyView : Grid
         rule.HorizontalAlignment = HorizontalAlignment.Left;
         root.Children.Add(rule);
 
-        var cols = new Grid();
-        cols.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        // Fraksiyon: tavandan sarkan flamalar (seçili olan aşağı iner ve parlar)
-        var rack = new Grid { Margin = new Thickness(0, 0, 38, 0), VerticalAlignment = VerticalAlignment.Top };
-        rack.Children.Add(new Rectangle { Height = 5, VerticalAlignment = VerticalAlignment.Top, Fill = Ornate.GoldEdge, Margin = new Thickness(-8, 0, -8, 0), RadiusX = 2, RadiusY = 2 });
-        var pennants = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 5, 0, 0) };
+        // Fraksiyon: kalkan rozetleri (seçili olan altın çerçeveli ve parlar)
+        root.Children.Add(Label("FRAKSİYON"));
+        var badges = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
         foreach (var f in Factions)
         {
             var key = f;
             var sel = f == _faction;
-            var inner = new StackPanel { IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Top };
-            var img = Assets.Ui(BannerFor(f));
-            if (img != null) inner.Children.Add(new System.Windows.Controls.Image { Source = img, Width = 56, Height = 330, Stretch = Stretch.Fill, Opacity = sel ? 1 : 0.55 });
-            else inner.Children.Add(new Rectangle { Width = 56, Height = 330, Fill = Theme.FactionColor(f), Opacity = sel ? 1 : 0.55 });
-            var tn = Ui.Text(Texts.FactionShort(f), 14, sel ? Theme.B("#f0d890") : Theme.B("#8f8670"), true, TextAlignment.Center);
-            tn.Margin = new Thickness(0, 6, 0, 0);
-            inner.Children.Add(tn);
-            if (sel) inner.Effect = new DropShadowEffect { Color = Color.FromRgb(255, 200, 90), BlurRadius = 22, ShadowDepth = 0, Opacity = 0.7 };
-            var b = new Border
+            var cell = new Grid { Width = 112, Margin = new Thickness(0, 0, 10, 0) };
+            cell.Children.Add(new ChamferFrame
             {
-                Child = inner, Margin = new Thickness(5, sel ? 14 : 0, 5, 0), Padding = new Thickness(4, 0, 4, 4), Cursor = Cursors.Hand, Background = Brushes.Transparent,
-                Tag = "lobby-faction:" + f, ToolTip = Texts.Faction(f)
-            };
+                Fill = sel ? Theme.B("#3a2c14") : Theme.B("#1a130b"), Edge = sel ? Ornate.GoldEdge : Theme.B("#4a3b28"), Inner = sel ? Theme.B("#88e0bf6a") : null, Cut = 10, Inset = 4
+            });
+            var inner = new StackPanel { IsHitTestVisible = false, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 10) };
+            var shield = Assets.Ui("shield_" + f);
+            if (shield != null) inner.Children.Add(new System.Windows.Controls.Image { Source = shield, Width = 66, Height = 66, Opacity = sel ? 1 : 0.7 });
+            else inner.Children.Add(new Ellipse { Width = 60, Height = 60, Fill = Theme.FactionColor(f), Opacity = sel ? 1 : 0.7 });
+            var tn = Ui.Text(Texts.FactionShort(f), 14, sel ? Theme.B("#f0d890") : Theme.B("#9c927a"), true, TextAlignment.Center);
+            tn.Margin = new Thickness(0, 5, 0, 0);
+            inner.Children.Add(tn);
+            cell.Children.Add(inner);
+            if (sel) cell.Effect = new DropShadowEffect { Color = Color.FromRgb(255, 200, 90), BlurRadius = 18, ShadowDepth = 0, Opacity = 0.55 };
+            var b = new Border { Child = cell, Cursor = Cursors.Hand, Background = Brushes.Transparent, Tag = "lobby-faction:" + f, ToolTip = Texts.Faction(f) };
             b.MouseLeftButtonUp += (_, e) =>
             {
                 e.Handled = true;
@@ -351,14 +329,11 @@ public sealed class LobbyView : Grid
                 _deckName = null;
                 SendLoadout();
             };
-            pennants.Children.Add(b);
+            badges.Children.Add(b);
         }
-        rack.Children.Add(pennants);
-        cols.Children.Add(rack);
+        root.Children.Add(badges);
 
-        var right = new StackPanel();
-        Grid.SetColumn(right, 1);
-        cols.Children.Add(right);
+        var right = root;
 
         // Deste
         right.Children.Add(Label("DESTE"));
@@ -395,8 +370,8 @@ public sealed class LobbyView : Grid
                 var leader = l;
                 var sel = leader.Id == _leaderId;
                 if (sel) chosen = leader;
-                var c = new StackPanel { Width = 100 };
-                c.Children.Add(new GwintCard(leader, 100, null, null, height: 100 * GwintCard.Aspect) { IsHitTestVisible = false, Opacity = sel ? 1 : 0.7 });
+                var c = new StackPanel { Width = 118 };
+                c.Children.Add(new GwintCard(leader, 118, null, null, height: 118 * GwintCard.Aspect) { IsHitTestVisible = false, Opacity = sel ? 1 : 0.7 });
                 var nm = Ui.Text(leader.Name.Contains(':') ? leader.Name[(leader.Name.IndexOf(':') + 1)..].Trim() : leader.Name, 12, sel ? Theme.B("#f0d890") : Theme.TextDim, true, TextAlignment.Center, true);
                 nm.Margin = new Thickness(0, 5, 0, 0);
                 c.Children.Add(nm);
@@ -417,14 +392,13 @@ public sealed class LobbyView : Grid
                 right.Children.Add(d);
             }
         }
-        root.Children.Add(cols);
         return new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 8, 0) };
     }
 
     private static TextBlock Label(string t)
     {
         var l = Ui.Text(Ornate.Spaced(t), 13, Theme.B("#a8905a"), true);
-        l.Margin = new Thickness(0, 4, 0, 8);
+        l.Margin = new Thickness(0, 14, 0, 8);
         return l;
     }
 

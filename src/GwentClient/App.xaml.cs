@@ -85,5 +85,6 @@ public partial class App : Application
         GameSession.ReplayPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Gwent", "last_match.json");
         Stats.Enabled = true;
         new MainWindow().Show();
+        Music.Start();   // müzik gerçek uygulama açılır açılmaz başlar (ekran görüntüsü/sınama süreçleri müzik çalmaz)
     }
 }

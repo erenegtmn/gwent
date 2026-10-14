@@ -19,7 +19,6 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) => { var c = _online; _online = null; if (c != null) _ = c.DisposeAsync(); };
         ShowMenu();
-        Music.Start();   // müzik uygulama açılır açılmaz başlar (yalnız maçta değil)
     }
 
     private string? _lastFaction;
