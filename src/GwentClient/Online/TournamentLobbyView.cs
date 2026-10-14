@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using System.Windows.Controls.Primitives;
+using GwentCore;
 using GwentNet;
 
 namespace GwentClient;
@@ -19,6 +21,12 @@ public sealed class TournamentLobbyView : Grid
     private bool _revealed, _leaving, _feeChecked;
     private bool _meReadyShown;
     private string _error = "";
+    private readonly LoadoutPicker _rulePicker;                  // host: sabit deste için seçilen deste
+    private TournamentRuleKind _ruleKind = TournamentRuleKind.Free;
+    private string _ruleFaction = "northern_realms";
+    private bool _specHands = true;
+    private bool _rulesSynced;
+    private TournamentRules? _lastRules;
 
     public TournamentLobbyView(OnlineController controller, Func<Task> leave)
     {
@@ -27,14 +35,52 @@ public sealed class TournamentLobbyView : Grid
         Children.Add(Ornate.Stage(_host));
         _picker = new LoadoutPicker(() => St?.NextGen == true);
         _picker.Changed += SendLoadout;
+        _rulePicker = new LoadoutPicker(() => St?.NextGen == true);
+        _rulePicker.Changed += SendRules;
         _c.Link.TournamentChanged += OnState;
         Unloaded += (_, _) => _c.Link.TournamentChanged -= OnState;
+        SyncRules();
         Rebuild();
         SendLoadout();   // varsayılan seçimle hemen hazır olunabilsin
     }
 
     private TournamentState? St => _c.Link.TState;
-    private void OnState() { EnsureFee(); Rebuild(); }
+    private void OnState()
+    {
+        EnsureFee();
+        SyncRules();
+        Rebuild();
+    }
+
+    /// <summary>Sunucudaki kurallar değişince yerel seçimi uyarlar; fraksiyon kuralında seçimi silinen yeniden gönderir.</summary>
+    private void SyncRules()
+    {
+        if (St?.Rules is not { } r) return;
+        if (!_rulesSynced || !_c.IsHost)
+        {
+            _ruleKind = r.Kind;
+            if (r.Faction != null) _ruleFaction = r.Faction;
+            _specHands = r.SpectatorHands;
+            _rulesSynced = true;
+        }
+        var changed = _lastRules == null || _lastRules.Kind != r.Kind || _lastRules.Faction != r.Faction;
+        _lastRules = r;
+        _picker.LockedFaction = r.Kind == TournamentRuleKind.Faction ? r.Faction : null;
+        if (changed && r.Kind == TournamentRuleKind.Faction && Me?.Loadout == null) { _picker.Build(); SendLoadout(); }   // seçimi silinen oyuncu kilitli fraksiyonla yeniden gönderir
+    }
+
+    private async void SendRules()
+    {
+        var rules = _ruleKind switch
+        {
+            TournamentRuleKind.Faction => new TournamentRules(TournamentRuleKind.Faction, _ruleFaction, null, _specHands),
+            TournamentRuleKind.FixedDeck => new TournamentRules(TournamentRuleKind.FixedDeck, null, _rulePicker.ToLoadout(), _specHands),
+            _ => new TournamentRules(TournamentRuleKind.Free, null, null, _specHands)
+        };
+        var r = await _c.Link.SetTournamentRulesAsync(rules);
+        _error = r.Ok ? "" : r.Error ?? "Kurallar gönderilemedi.";
+        Rebuild();
+    }
 
     /// <summary>Katılım ücreti bir kez düşer; bakiye yetmezse eldeki kadar (turnuvaya girişi engellemez).</summary>
     private void EnsureFee()
@@ -70,6 +116,13 @@ public sealed class TournamentLobbyView : Grid
         await _leave();
     }
 
+    private static string RuleTitle(TournamentRules? r) => r?.Kind switch
+    {
+        TournamentRuleKind.Faction => "Tek fraksiyon: " + Texts.FactionShort(r.Faction ?? ""),
+        TournamentRuleKind.FixedDeck => "Sabit deste: " + Texts.FactionShort(r.Deck?.Faction ?? ""),
+        _ => "Kuralsız"
+    };
+
     private TPlayerInfo? Me => St is { } s && s.YourIndex >= 0 && s.YourIndex < s.Players.Count ? s.Players[s.YourIndex] : null;
 
     private void Rebuild()
@@ -85,7 +138,7 @@ public sealed class TournamentLobbyView : Grid
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var fee = st?.EntryFee ?? 0;
-        var sub = st == null ? "" : $"{st.MaxPlayers} kişilik tek eleme · " + (fee > 0 ? $"katılım {fee} taç · ödül havuzu {fee * st.Players.Count} taç" : "ücretsiz");
+        var sub = st == null ? "" : $"{st.MaxPlayers} kişilik tek eleme · " + (fee > 0 ? $"katılım {fee} taç · ödül havuzu {fee * st.Players.Count} taç" : "ücretsiz") + " · " + RuleTitle(st.Rules);
         head.Children.Add(Ornate.Heading("Turnuva", sub, 46));
         var code = LobbyParts.CodePanel(st?.Code, _c, "TURNUVA KODU");
         Grid.SetColumn(code, 1);
@@ -163,10 +216,109 @@ public sealed class TournamentLobbyView : Grid
         var rule = Ornate.Rule(560, 10);
         rule.HorizontalAlignment = HorizontalAlignment.Left;
         root.Children.Add(rule);
-        (_picker.Parent as Panel)?.Children.Remove(_picker);
-        _picker.Build();
-        root.Children.Add(_picker);
+        if (_c.IsHost) root.Children.Add(RulesPanel());
+        else if (St?.Rules is { Kind: not TournamentRuleKind.Free } rr) root.Children.Add(RuleNote(rr));
+        if (St?.Rules is { Kind: TournamentRuleKind.FixedDeck } fixedRules) root.Children.Add(FixedDeckCard(fixedRules));
+        else
+        {
+            (_picker.Parent as Panel)?.Children.Remove(_picker);
+            _picker.Build();
+            root.Children.Add(_picker);
+        }
         return new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 8, 0) };
+    }
+
+    /// <summary>Host için kurallar bölümü: çeşit, fraksiyon/deste ve izleyici elleri.</summary>
+    private UIElement RulesPanel()
+    {
+        var sp = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+        sp.Children.Add(Ornate.Caption("Turnuva çeşidi", 6));
+        var row = new WrapPanel();
+        foreach (var (kind, title) in new[] { (TournamentRuleKind.Free, "Kuralsız"), (TournamentRuleKind.Faction, "Tek fraksiyon"), (TournamentRuleKind.FixedDeck, "Sabit deste") })
+        {
+            var k = kind;
+            var b = new ToggleButton
+            {
+                Style = (Style)Application.Current.FindResource("GToggle"), Content = Ui.Text(title, 17, Theme.Text, true, TextAlignment.Center), IsChecked = _ruleKind == k,
+                Margin = new Thickness(0, 0, 8, 8), Padding = new Thickness(18, 9, 18, 9), MinWidth = 140, Tag = "trule:" + k
+            };
+            b.Click += (_, _) =>
+            {
+                if (_ruleKind == k) { b.IsChecked = true; return; }
+                _ruleKind = k;
+                SendRules();
+            };
+            row.Children.Add(b);
+        }
+        sp.Children.Add(row);
+        var desc = _ruleKind switch
+        {
+            TournamentRuleKind.Faction => "Herkes aynı fraksiyonu oynar; deste ve lider serbest.",
+            TournamentRuleKind.FixedDeck => "Herkes senin seçtiğin aynı desteyle oynar; değiştiremez.",
+            _ => "Herkes istediği fraksiyon ve desteyle oynar."
+        };
+        var d = Ui.Text(desc, 14, Theme.TextDim, false, TextAlignment.Left, true);
+        d.Margin = new Thickness(2, 0, 0, 6);
+        sp.Children.Add(d);
+        if (_ruleKind == TournamentRuleKind.Faction)
+        {
+            var fr = new WrapPanel();
+            foreach (var f in new[] { "northern_realms", "nilfgaard", "scoiatael", "monsters", "skellige" })
+            {
+                var key = f;
+                var b = new ToggleButton
+                {
+                    Style = (Style)Application.Current.FindResource("GToggle"), Content = Ui.Text(Texts.FactionShort(f), 15, Theme.Text, true, TextAlignment.Center), IsChecked = _ruleFaction == f,
+                    Margin = new Thickness(0, 0, 8, 8), Padding = new Thickness(14, 7, 14, 7), Tag = "trule-faction:" + f
+                };
+                b.Click += (_, _) => { _ruleFaction = key; SendRules(); };
+                fr.Children.Add(b);
+            }
+            sp.Children.Add(fr);
+        }
+        else if (_ruleKind == TournamentRuleKind.FixedDeck)
+        {
+            sp.Children.Add(Ui.Text("Herkesin oynayacağı deste:", 15, Theme.B("#e8c970"), true));
+            (_rulePicker.Parent as Panel)?.Children.Remove(_rulePicker);
+            _rulePicker.Build();
+            sp.Children.Add(_rulePicker);
+        }
+        var hands = Ornate.Option("İzleyiciler elleri görsün", _specHands ? "Açık: izleyen oyuncuların kartlarını da görür" : "Kapalı: izleyen yalnız masayı görür", _specHands);
+        hands.Tag = "trule-hands";
+        hands.Click += (_, _) => { _specHands = !_specHands; SendRules(); };
+        sp.Children.Add(hands);
+        var rule = Ornate.Rule(560, 8);
+        rule.HorizontalAlignment = HorizontalAlignment.Left;
+        sp.Children.Add(rule);
+        return sp;
+    }
+
+    /// <summary>Oyuncu için kural özeti.</summary>
+    private static UIElement RuleNote(TournamentRules r)
+    {
+        var text = r.Kind == TournamentRuleKind.Faction
+            ? $"Kural: bu turnuvada yalnız {Texts.Faction(r.Faction ?? "")} oynanır. Deste ve lideri sen seç."
+            : $"Kural: bu turnuvada herkes aynı desteyle oynar ({Texts.Faction(r.Deck?.Faction ?? "")}).";
+        var t = Ui.Text(text, 15, Theme.B("#e8c970"), false, TextAlignment.Left, true);
+        t.Margin = new Thickness(0, 4, 0, 8);
+        return t;
+    }
+
+    /// <summary>Sabit deste turnuvasında oyuncunun göreceği şey: lider kartı ve "deste kilitli" notu (seçim yok).</summary>
+    private static UIElement FixedDeckCard(TournamentRules r)
+    {
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+        if (r.Deck is { } d && CardCatalog.Default.TryGet(d.LeaderId, out var leader))
+            sp.Children.Add(new GwintCard(leader, 150, null, null, height: 150 * GwintCard.Aspect) { IsHitTestVisible = false, Margin = new Thickness(0, 0, 22, 0) });
+        var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 420 };
+        info.Children.Add(Ui.Text(Ornate.Spaced("SABİT DESTE"), 13, Theme.B("#a8905a"), true));
+        info.Children.Add(Ui.Text(Texts.Faction(r.Deck?.Faction ?? ""), 26, Theme.B("#f0d890"), true));
+        info.Children.Add(Ui.Text(r.Deck?.CardIds is { } ids ? $"{ids.Count} kart" : "", 16, Theme.TextDim));
+        var note = Ui.Text("Bu turnuvada herkes bu desteyle oynar; değiştirilemez. Hazır olman yeterli.", 16, Theme.B("#c9c0aa"), false, TextAlignment.Left, true);
+        note.Margin = new Thickness(0, 10, 0, 0);
+        info.Children.Add(note);
+        sp.Children.Add(info);
+        return sp;
     }
 
     /// <summary>Katılanlar ve boş yerler: portre, ad, kurucu işareti, hazır durumu.</summary>

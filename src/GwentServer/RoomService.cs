@@ -160,8 +160,9 @@ public sealed partial class RoomService
             if (room.Phase == RoomPhase.Playing) return Reply.Fail("Maç sürerken deste değiştirilemez.");
             if (room.ValidateLoadout(loadout) is { } err) return Reply.Fail(err);
             var seat = room.Seats[s.Seat]!;
+            var unchanged = Room.SameLoadout(seat.Loadout, loadout);
             seat.Loadout = loadout;
-            seat.Ready = false;
+            if (!unchanged) seat.Ready = false;
             room.Touch();
             room.BroadcastState();
             return Reply.Success();
@@ -239,6 +240,7 @@ public sealed partial class RoomService
     {
         lock (_gate)
         {
+            StopWatchingInternal(s);
             if (s.Room is { } room)
             {
                 if (room.Phase == RoomPhase.Playing) room.Finish(1 - s.Seat, "resigned");
@@ -253,6 +255,7 @@ public sealed partial class RoomService
     {
         lock (_gate)
         {
+            StopWatchingInternal(s);
             TournamentDisconnected(s);
             if (s.Room is not { } room) return;
             var seat = room.Seats[s.Seat];

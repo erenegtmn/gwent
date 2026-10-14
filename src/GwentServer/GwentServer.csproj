@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GwentNet\GwentNet.csproj" />
+    <InternalsVisibleTo Include="GwentServer.Tests" />
   </ItemGroup>
 
 </Project>

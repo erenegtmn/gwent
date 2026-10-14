@@ -24,6 +24,7 @@ public sealed class ServerSession
     internal int Seat { get; set; } = -1;
     internal Tournament? Tournament { get; set; }
     internal int TIndex { get; set; } = -1;
+    internal Room? Watching { get; set; }
 }
 
 internal sealed class Seat
@@ -75,6 +76,32 @@ public sealed class Room
     /// <summary>Turnuva maçıysa bağlı olduğu turnuva ve eşleşme (normal odalarda null).</summary>
     internal Tournament? Tournament { get; set; }
     internal TMatch? TMatch { get; set; }
+    /// <summary>Maçı canlı izleyenler (turnuvada elenenler ve sırası bekleyenler). Oyunculara giden akışın aynısını alırlar.</summary>
+    internal readonly List<ServerSession> Spectators = new();
+    internal int SpectatorCount => Spectators.Count;
+    private bool ShowHands => Tournament?.Rules.SpectatorHands ?? true;
+
+    private void SendSpectators(Action<IGwentClient> send)
+    {
+        foreach (var sp in Spectators.ToList()) send(sp.Client);
+    }
+
+    internal void AddSpectator(ServerSession s)
+    {
+        Spectators.Add(s);
+        s.Watching = this;
+        if (Setup == null) return;
+        var info = new SpectateSetup(Setup with { YourSeat = 0 }, ShowHands, TMatch?.Round ?? 0, TMatch?.Index ?? 0);
+        s.Client.OnSpectateStarted(info);
+        foreach (var m in _log) s.Client.OnSpectateAction(m);
+        if (Phase == RoomPhase.Finished && Result != null) s.Client.OnSpectateEnded(Result);
+    }
+
+    internal void RemoveSpectator(ServerSession s)
+    {
+        Spectators.Remove(s);
+        if (s.Watching == this) s.Watching = null;
+    }
 
     /// <summary>Maç bitince (sonuçla) çağrılır; turnuva bracket'i ilerletmek için kullanır.</summary>
     internal Action<Room, MatchResult>? Finished { get; set; }
@@ -163,9 +190,16 @@ public sealed class Room
     }
 
     /// <summary>Açık desteli hâli: CardIds boşsa fraksiyonun önerilen destesi.</summary>
-    private LoadoutDto Resolve(LoadoutDto l)
+    private LoadoutDto Resolve(LoadoutDto l) => Resolved(l, NextGen);
+
+    /// <summary>İki seçim aynı mı (fraksiyon, lider, portre ve kart listesi)? Kayıt eşitliği liste referansına baktığından elle karşılaştırılır.</summary>
+    internal static bool SameLoadout(LoadoutDto? a, LoadoutDto? b) =>
+        a != null && b != null && a.Faction == b.Faction && a.LeaderId == b.LeaderId && a.Avatar == b.Avatar
+        && (a.CardIds == null ? b.CardIds == null : b.CardIds != null && a.CardIds.SequenceEqual(b.CardIds));
+
+    internal static LoadoutDto Resolved(LoadoutDto l, bool nextGen)
     {
-        var opts = new GameOptions { NextGen = NextGen };
+        var opts = new GameOptions { NextGen = nextGen };
         var ids = l.CardIds ?? DeckValidator.RecommendedDeck(l.Faction, opts, null, l.LeaderId).CardIds.ToList();
         return l with { CardIds = ids };
     }
@@ -191,6 +225,11 @@ public sealed class Room
             Send(seat, c => c.OnMatchStarted(Setup! with { YourSeat = seat }));
         }
         BroadcastState();
+        if (Spectators.Count > 0)
+        {
+            var info = new SpectateSetup(Setup! with { YourSeat = 0 }, ShowHands, TMatch?.Round ?? 0, TMatch?.Index ?? 0);
+            SendSpectators(c => c.OnSpectateStarted(info));
+        }
         Changed?.Invoke(this);
     }
 
@@ -211,6 +250,7 @@ public sealed class Room
         _log.Add(msg);
         Touch();
         for (var i = 0; i < 2; i++) Send(i, c => c.OnActionApplied(msg));
+        SendSpectators(c => c.OnSpectateAction(msg));
         if (Game.Phase == GwentCore.Phase.GameOver) Finish(Game.Outcome?.Winner, "normal");
         else Changed?.Invoke(this);
         return Reply.Success();
@@ -229,6 +269,7 @@ public sealed class Room
         Result = new MatchResult(winner, reason);
         Touch();
         for (var i = 0; i < 2; i++) Send(i, c => c.OnMatchEnded(Result));
+        SendSpectators(c => c.OnSpectateEnded(Result!));
         BroadcastState();
         Changed?.Invoke(this);
         Finished?.Invoke(this, Result);

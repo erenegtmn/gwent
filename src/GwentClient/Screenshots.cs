@@ -195,6 +195,51 @@ public static class Screenshots
             Save(tb, "tourney_bracket.png");
             UiSelfTest.CloseAll(eight);
 
+            // Kurallar paneli (host): tek fraksiyon
+            var rp = UiSelfTest.OpenTournament(4, 4, 0, ready: false);
+            UiSelfTest.Await(() => rp[0].Link.SetTournamentRulesAsync(new GwentNet.TournamentRules(GwentNet.TournamentRuleKind.Faction, "skellige", null, false)));
+            UiSelfTest.PumpUntil(() => rp[0].Link.TState!.Rules!.Kind == GwentNet.TournamentRuleKind.Faction, "kural", rp.Select(c => c.Link).ToArray());
+            var rv = new TournamentLobbyView(rp[0], () => Task.CompletedTask);
+            UiSelfTest.Layout(rv);
+            Save(rv, "tourney_rules.png");
+            var rv2 = new TournamentLobbyView(rp[1], () => Task.CompletedTask);
+            UiSelfTest.Layout(rv2);
+            Save(rv2, "tourney_rules_player.png");
+            UiSelfTest.CloseAll(rp);
+
+            // Canlı özet ve izleme: iki oyuncu maçta, üçüncüsü izler
+            foreach (var hands in new[] { true, false })
+            {
+                var lp = UiSelfTest.OpenTournament(4, 4, 0, ready: false);
+                var llinks = lp.Select(c => c.Link).ToArray();
+                UiSelfTest.Await(() => lp[0].Link.SetTournamentRulesAsync(new GwentNet.TournamentRules(SpectatorHands: hands)));
+                foreach (var c in lp) UiSelfTest.Await(() => c.Link.TournamentReadyAsync(true));
+                UiSelfTest.PumpUntil(() => lp.All(c => c.Link.TState!.Players.All(p => p.Ready)), "hazır", llinks);
+                UiSelfTest.Await(() => lp[0].Link.StartTournamentAsync());
+                UiSelfTest.PumpUntil(() => lp.All(c => c.Link.TState!.Phase == GwentNet.TournamentPhase.Running), "başladı", llinks);
+                var lm = lp[0].Link.TState!.Matches.First(x => x.Round == 0 && x.Index == 0);
+                var pa = lp[lm.A!.Value]; var pb = lp[lm.B!.Value];
+                var lm2 = lp[0].Link.TState!.Matches.First(x => x.Round == 0 && x.Index == 1);
+                UiSelfTest.Await(() => pa.Link.TournamentReadyAsync(true));
+                UiSelfTest.Await(() => pb.Link.TournamentReadyAsync(true));
+                UiSelfTest.PumpUntil(() => pa.Link.Match != null && pb.Link.Match != null, "maç", llinks);
+                UiSelfTest.StepDuel(pa, pb, 14);
+                var watcher = lp.First(c => c != pa && c != pb);
+                var liveView = new BracketView(watcher, () => Task.CompletedTask, () => { });
+                UiSelfTest.Layout(liveView);
+                if (hands) Save(liveView, "tourney_live.png");
+                UiSelfTest.Await(() => watcher.Link.WatchMatchAsync(0, 0));
+                UiSelfTest.PumpUntil(() => watcher.Link.Spectate != null, "izleme", llinks);
+                System.Threading.Thread.Sleep(200);
+                watcher.Link.Pump();
+                var sp = watcher.Link.Spectate!;
+                sp.FastForward();
+                var sview = new GwintView(sp, () => { }, _ => { }, animate: false);
+                UiSelfTest.Layout(sview);
+                Save(sview, hands ? "spectate.png" : "spectate_hidden.png");
+                UiSelfTest.CloseAll(lp);
+            }
+
             var four = UiSelfTest.OpenTournament(4, 4, 100, ready: true);
             UiSelfTest.Await(() => four[0].Link.StartTournamentAsync());
             UiSelfTest.PlayTournament(four);

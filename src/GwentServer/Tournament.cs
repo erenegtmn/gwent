@@ -9,6 +9,7 @@ internal sealed class TPlayer
     public string Nick = "";
     public string Token = "";
     public LoadoutDto? Loadout;
+    public string? Avatar;             // portre kimliği (kural değişse de korunur)
     public bool Ready;                 // bekleme odasında: deste seçti ve hazır; turnuvada: sıradaki maça hazır
     public bool Connected;
     public DateTime? DisconnectedAt;
@@ -52,6 +53,7 @@ public sealed class Tournament
     public int MaxPlayers { get; }
     public int EntryFee { get; }
     public TournamentPhase Phase { get; internal set; } = TournamentPhase.Lobby;
+    public TournamentRules Rules { get; internal set; } = new();
     public DateTime LastActivity { get; internal set; }
     internal readonly List<TPlayer> Players = new();
     internal List<List<TMatch>> Rounds { get; private set; } = new();
@@ -117,15 +119,28 @@ public sealed class Tournament
     {
         var players = Players.Select((p, i) => new TPlayerInfo(
             p.Nick, p.Connected, p.Ready, p.Eliminated,
-            revealLoadouts || i == viewer ? p.Loadout : null, p.Placement, p.Loadout?.Avatar)).ToList();
+            revealLoadouts || i == viewer ? p.Loadout : null, p.Placement, p.Avatar)).ToList();
         var matches = AllMatches.Select(m =>
         {
-            var status = m.Done ? "done" : m.Room is { Phase: RoomPhase.Playing } ? "playing" : m.A != null && m.B != null ? "ready" : "waiting";
+            var status = m.Done ? "done" : m.Room is { Phase: RoomPhase.Playing } ? "playing" : m.Room is { Phase: RoomPhase.Finished } ? "draw" : m.A != null && m.B != null ? "ready" : "waiting";
             return new TMatchInfo(m.Round, m.Index, m.A, m.B, m.Winner, status,
-                m.A is { } a && Players[a].Ready && !m.Done, m.B is { } b && Players[b].Ready && !m.Done);
+                m.A is { } a && Players[a].Ready && !m.Done, m.B is { } b && Players[b].Ready && !m.Done, LiveOf(m));
         }).ToList();
         var mine = viewer >= 0 ? Players[viewer].Current : null;
         return new TournamentState(Code, Phase, MaxPlayers, NextGen, EntryFee, players, matches, viewer,
-            viewer >= 0 ? Players[viewer].Token : "", mine?.Round, mine?.Index);
+            viewer >= 0 ? Players[viewer].Token : "", mine?.Round, mine?.Index, Rules);
+    }
+
+    /// <summary>Oynanan ya da biten maçın herkese açık özeti (eller ve desteler yok). Henüz başlamadıysa null.</summary>
+    private static MatchLive? LiveOf(TMatch m)
+    {
+        if (m.Room?.Game is not { } g || m.Room.Setup == null) return null;
+        var wins0 = g.History.Count(r => r.Winner == 0);
+        var wins1 = g.History.Count(r => r.Winner == 1);
+        var scores = g.History.Select(r => $"{r.Score0}–{r.Score1}").ToList();
+        var over = g.Phase == GwentCore.Phase.GameOver;
+        // Koltuk 0 = A, koltuk 1 = B (StartTournamentMatch bu sırayla oturtur)
+        return new MatchLive(g.Round, wins0, wins1, over ? 0 : g.PlayerTotal(0), over ? 0 : g.PlayerTotal(1),
+            !over && g.Players[0].Passed, !over && g.Players[1].Passed, m.Room.SpectatorCount, scores);
     }
 }

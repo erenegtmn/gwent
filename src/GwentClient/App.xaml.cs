@@ -41,6 +41,18 @@ public partial class App : Application
             Shutdown(UiSelfTest.RunOnlineLobby(rounds) == 0 ? 0 : 1);
             return;
         }
+        if (e.Args.Contains("--selftest-tournament-rules"))
+        {
+            Sfx.Enabled = false;
+            Shutdown(UiSelfTest.RunTournamentRulesCheck());
+            return;
+        }
+        if (e.Args.Contains("--selftest-spectate"))
+        {
+            Sfx.Enabled = false;
+            Shutdown(UiSelfTest.RunSpectateCheck());
+            return;
+        }
         if (e.Args.Contains("--selftest-tournament-ui"))
         {
             Sfx.Enabled = false;

@@ -18,6 +18,7 @@ public abstract class RoomLinkBase : IMatchLink
     public MatchSetup? Setup { get; private set; }
     public GameSession? Match { get; private set; }
     public TournamentState? TState { get; private set; }
+    public GameSession? Spectate { get; private set; }
     public MatchResult? Result { get; private set; }
     public string? RoomCode => State?.Code;
     public int Seat => State?.YourSeat ?? -1;
@@ -30,6 +31,8 @@ public abstract class RoomLinkBase : IMatchLink
     public event Action<MatchResult>? MatchEnded;
     public event Action<string, string>? Notice;
     public event Action? TournamentChanged;
+    public event Action<GameSession>? SpectateStarted;
+    public event Action<MatchResult>? SpectateEnded;
 
     // ---------- Sunucudan gelenler (herhangi bir iş parçacığında olabilir: yalnız kuyruğa al) ----------
 
@@ -77,6 +80,14 @@ public abstract class RoomLinkBase : IMatchLink
 
     protected void ReceiveTournamentState(TournamentState s) => Enqueue(() => { TState = s; TournamentChanged?.Invoke(); });
 
+    protected void ReceiveSpectateStarted(SpectateSetup s) => Enqueue(() => { Spectate = GameSession.ForSpectator(s); SpectateStarted?.Invoke(Spectate); });
+    protected void ReceiveSpectateAction(ActionBroadcast a) => Enqueue(() => Spectate?.EnqueueRemote(a));
+    protected void ReceiveSpectateEnded(MatchResult r) => Enqueue(() =>
+    {
+        if (Spectate != null && r.Reason != "normal") Spectate.ExternalResult = r;   // kural dışı bitiş (teslim/terk) hemen gösterilir
+        SpectateEnded?.Invoke(r);
+    });
+
     protected void ReceiveNotice(string code, string text) => Enqueue(() => Notice?.Invoke(code, text));
 
     /// <summary>Kuyruktaki iletileri işler. Arayüz iş parçacığında çağrılmalı.</summary>
@@ -108,6 +119,9 @@ public abstract class RoomLinkBase : IMatchLink
     public abstract Task<Reply> SetTournamentLoadoutAsync(LoadoutDto loadout);
     public abstract Task<Reply> TournamentReadyAsync(bool ready);
     public abstract Task<Reply> StartTournamentAsync();
+    public abstract Task<Reply> SetTournamentRulesAsync(TournamentRules rules);
+    public abstract Task<Reply> WatchMatchAsync(int round, int index);
+    public abstract Task<Reply> StopWatchingAsync();
     public abstract Task<Reply> TournamentWalkoverAsync();
     public abstract void Submit(ReplayAction action);
     public abstract void Resign();
@@ -143,6 +157,9 @@ public sealed class RoomLink : RoomLinkBase, IGwentClient
     public void OnMatchEnded(MatchResult result) => ReceiveMatchEnded(result);
     public void OnNotice(string code, string text) => ReceiveNotice(code, text);
     public void OnTournamentState(TournamentState state) => ReceiveTournamentState(state);
+    public void OnSpectateStarted(SpectateSetup setup) => ReceiveSpectateStarted(setup);
+    public void OnSpectateAction(ActionBroadcast action) => ReceiveSpectateAction(action);
+    public void OnSpectateEnded(MatchResult result) => ReceiveSpectateEnded(result);
 
     public override Task<Reply> CreateRoomAsync(string nick, bool nextGen = false) => Task.FromResult(_svc.CreateRoom(Session, nick, ProtocolInfo.Version, nextGen));
     public override Task<Reply> JoinRoomAsync(string code, string nick) => Task.FromResult(_svc.JoinRoom(Session, code, nick, ProtocolInfo.Version));
@@ -154,6 +171,9 @@ public sealed class RoomLink : RoomLinkBase, IGwentClient
     public override Task<Reply> SetTournamentLoadoutAsync(LoadoutDto loadout) => Task.FromResult(_svc.SetTournamentLoadout(Session, loadout));
     public override Task<Reply> TournamentReadyAsync(bool ready) => Task.FromResult(_svc.TournamentSetReady(Session, ready));
     public override Task<Reply> StartTournamentAsync() => Task.FromResult(_svc.StartTournament(Session));
+    public override Task<Reply> SetTournamentRulesAsync(TournamentRules rules) => Task.FromResult(_svc.SetTournamentRules(Session, rules));
+    public override Task<Reply> WatchMatchAsync(int round, int index) => Task.FromResult(_svc.WatchMatch(Session, round, index));
+    public override Task<Reply> StopWatchingAsync() => Task.FromResult(_svc.StopWatching(Session));
     public override Task<Reply> TournamentWalkoverAsync() => Task.FromResult(_svc.TournamentClaimWalkover(Session));
     public override void Submit(ReplayAction action) => _svc.SubmitAction(Session, action);
     public override void Resign() => _svc.Resign(Session);

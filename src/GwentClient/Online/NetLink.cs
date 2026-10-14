@@ -40,6 +40,9 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
             _ttoken = s.YourToken;
             ReceiveTournamentState(s);
         });
+        _conn.On<SpectateSetup>(HubMethods.OnSpectateStarted, ReceiveSpectateStarted);
+        _conn.On<ActionBroadcast>(HubMethods.OnSpectateAction, ReceiveSpectateAction);
+        _conn.On<MatchResult>(HubMethods.OnSpectateEnded, ReceiveSpectateEnded);
         _conn.On<MatchSetup>(HubMethods.OnMatchStarted, ReceiveMatchStarted);
         _conn.On<ActionBroadcast>(HubMethods.OnActionApplied, ReceiveActionApplied);
         _conn.On<string, int>(HubMethods.OnActionRejected, (reason, _) => ReceiveActionRejected(reason));
@@ -112,6 +115,9 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
     public override Task<Reply> SetTournamentLoadoutAsync(LoadoutDto loadout) => InvokeAsync("SetTournamentLoadout", loadout);
     public override Task<Reply> TournamentReadyAsync(bool ready) => InvokeAsync("TournamentSetReady", ready);
     public override Task<Reply> StartTournamentAsync() => InvokeAsync("StartTournament");
+    public override Task<Reply> SetTournamentRulesAsync(TournamentRules rules) => InvokeAsync("SetTournamentRules", rules);
+    public override Task<Reply> WatchMatchAsync(int round, int index) => InvokeAsync("WatchMatch", round, index);
+    public override Task<Reply> StopWatchingAsync() => InvokeAsync("StopWatching");
     public override Task<Reply> TournamentWalkoverAsync() => InvokeAsync("TournamentClaimWalkover");
 
     public override Task<Reply> SetLoadoutAsync(LoadoutDto loadout) => InvokeAsync("SetLoadout", loadout);

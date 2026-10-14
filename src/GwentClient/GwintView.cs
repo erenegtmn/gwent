@@ -168,7 +168,7 @@ public sealed class GwintView : Viewbox
     // ---------- Yardımcılar ----------
 
     private bool MyTurn => G.Phase == Phase.Playing && G.Pending == null && G.Current == Me
-                           && !G.Players[Me].Passed && !_aiRunning && !_s.IsOver && !_cinema && !_s.AwaitingEcho;
+                           && !G.Players[Me].Passed && !_aiRunning && !_s.IsOver && !_cinema && !_s.AwaitingEcho && !_s.IsSpectator;
 
     private CardInstance? FindCard(int uid)
     {
@@ -240,7 +240,7 @@ public sealed class GwintView : Viewbox
 
     private void OnMenuClicked()
     {
-        if (_s.IsRemote && !_s.IsOver) { _confirm = "leave"; Refresh(); }
+        if (_s.IsRemote && !_s.IsOver && !_s.IsSpectator) { _confirm = "leave"; Refresh(); }
         else _toMenu();
     }
 
@@ -721,6 +721,11 @@ public sealed class GwintView : Viewbox
     {
         var frame = Pic("hand_frame", 946, 134, 0.95, Stretch.Fill);
         if (frame.Source != null) Put(_board, frame, 574, 838);
+        if (_s.IsSpectator && !_s.ShowHands)
+        {
+            Put(_board, Txt("Eller gizli (turnuva kuralı): yalnız masa görünüyor", 20, Theme.B("#8a7a60"), false, TextAlignment.Center, 940, italic: true), 574, 890);
+            return;
+        }
         var hand = G.Players[Me].Hand;
         var n = hand.Count;
         const double cw = 92, ch = 123, left = 590, right = 1503;
@@ -839,6 +844,7 @@ public sealed class GwintView : Viewbox
 
     private void BuildControls()
     {
+        if (_s.IsSpectator) { BuildSpectatorControls(); return; }
         // Pas düğmesi (oyundaki [BOŞLUK] Pas etiketi)
         var passEnabled = MyTurn;
         var label = new Border
@@ -882,8 +888,31 @@ public sealed class GwintView : Viewbox
         Put(_board, quit, 1380, 1030);
     }
 
+    /// <summary>İzleyici arayüzü: bakış değiştirme, durum ve çıkış. Hamle düğmeleri yoktur.</summary>
+    private void BuildSpectatorControls()
+    {
+        var flip = Ui.Button($"Bakış: {_s.MyName}  ⇄", () => { _s.FlipView(); _selected = null; Refresh(); });
+        flip.FontSize = 16;
+        flip.Tag = "spectate-flip";
+        flip.Width = 300;
+        Put(_board, flip, 125, 612);
+        Put(_board, Txt(StatusText(), 17, Theme.B("#e8dcc4"), false, TextAlignment.Left, 320), 125, 238);
+        var quit = Ui.Button("İzlemeyi bırak", () => _toMenu(), primary: true);
+        quit.FontSize = 15;
+        quit.Padding = new Thickness(14, 4, 14, 4);
+        quit.Tag = "spectate-quit";
+        Put(_board, quit, 1330, 1026);
+    }
+
     private string StatusText()
     {
+        if (_s.IsSpectator)
+        {
+            if (_s.IsOver) return "👁 Maç bitti.";
+            if (G.Phase == Phase.Mulligan) return "👁 Kart değiştirme sürüyor…";
+            var who = G.Phase == Phase.Playing ? (G.Current == Me ? _s.MyName : _s.OppName) : "";
+            return who == "" ? $"👁 İzliyorsun · Raund {G.Round}" : $"👁 İzliyorsun · Raund {G.Round} · sıra: {who}";
+        }
         if (_s.IsOver) return "Oyun bitti.";
         if (G.Phase == Phase.Mulligan) return G.PlayersToAct().Contains(Me) ? "Kartlarını değiştir." : "Rakibin kart değiştirmesi bekleniyor…";
         if (G.Pending is { } p) return p.Player == Me ? "Bir seçim yapman gerekiyor." : "Rakip seçim yapıyor…";
@@ -1110,7 +1139,7 @@ public sealed class GwintView : Viewbox
             while (!_s.IsOver && _s.OpponentBusy)
             {
                 // Kendi hamlemin sunucu yankısı beklemeden işlenir; rakip hamleleri (yapay zekâ ya da uzaktaki oyuncu) kısa bir soluklanmayla
-                var mine = _s.IsRemote && _s.PeekRemotePlayer() == Me;
+                var mine = _s.IsRemote && !_s.IsSpectator && _s.PeekRemotePlayer() == Me;
                 if (_animate)
                 {
                     if (!mine) await Task.Delay(_s.IsRemote ? (G.Phase == Phase.Playing ? 450 : 150) : (G.Phase == Phase.Playing ? 850 : 350));
@@ -1458,9 +1487,9 @@ public sealed class GwintView : Viewbox
         }
         if (_s.IsOver) { RecordStats(); content = GameOverPanel(); }
         else if (_confirm != null) content = ConfirmPanel();
-        else if (G.Phase == Phase.Mulligan && G.PlayersToAct().Contains(Me)) content = MulliganPanel();
-        else if (G.Phase == Phase.ChooseFirst && G.Current == Me) content = ChooseFirstPanel();
-        else if (G.Pending is { } pc && pc.Player == Me && !_aiRunning) content = ChoicePanel(pc);
+        else if (G.Phase == Phase.Mulligan && G.PlayersToAct().Contains(Me) && !_s.IsSpectator) content = MulliganPanel();
+        else if (G.Phase == Phase.ChooseFirst && G.Current == Me && !_s.IsSpectator) content = ChooseFirstPanel();
+        else if (G.Pending is { } pc && pc.Player == Me && !_aiRunning && !_s.IsSpectator) content = ChoicePanel(pc);
         else if (_zoom is { } z) { _lastPending = null; content = ZoomPanel(z.Player, z.Def); }
         else if (_graveView is { } gv) { _lastPending = null; content = GravePanel(gv); }
         else _lastPending = null;
@@ -1651,8 +1680,29 @@ public sealed class GwintView : Viewbox
         Stats.Record(new MatchRecord(DateTime.Now, online != null, opp, _s.Config.MyFaction, _s.Config.OppFaction, win == null ? 0 : win == Me ? 1 : -1));
     }
 
+    /// <summary>İzleyici için maç sonu: kazanan, raund skorları ve bracket'e dönüş.</summary>
+    private UIElement SpectatorOverPanel()
+    {
+        var sp = new StackPanel { MinWidth = 800, HorizontalAlignment = HorizontalAlignment.Center };
+        var winner = _s.WinnerSeat;
+        var title = Txt(winner == null ? "Maç berabere bitti" : $"Kazanan: {(winner == _s.MySeat ? _s.MyName : _s.OppName)}", 52, Theme.B("#f0d890"), true, TextAlignment.Center);
+        sp.Children.Add(title);
+        sp.Children.Add(Ornate.Rule(560, 14));
+        foreach (var r in G.History)
+            sp.Children.Add(Txt($"Raund {r.Round}:  {(_s.MySeat == 0 ? r.Score0 : r.Score1)} – {(_s.MySeat == 0 ? r.Score1 : r.Score0)}", 26, Theme.B("#e8dcc4"), false, TextAlignment.Center));
+        var back = Ui.Button("Bracket'e dön", () => _toMenu(), primary: true);
+        back.FontSize = 24;
+        back.Padding = new Thickness(50, 12, 50, 12);
+        back.Margin = new Thickness(0, 28, 0, 0);
+        back.HorizontalAlignment = HorizontalAlignment.Center;
+        back.Tag = "spectate-quit";
+        sp.Children.Add(back);
+        return sp;
+    }
+
     private UIElement GameOverPanel()
     {
+        if (_s.IsSpectator) return SpectatorOverPanel();
         var sp = new StackPanel { MinWidth = 900, HorizontalAlignment = HorizontalAlignment.Center };
         var winner = _s.WinnerSeat;
         // Sönük, antik bir palet: kazanınca eski altın, kaybedince paslı kızıl, beraberlikte gri

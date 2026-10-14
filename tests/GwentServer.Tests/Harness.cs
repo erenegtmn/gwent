@@ -65,6 +65,21 @@ public sealed class FakeClient : IGwentClient
     public TournamentState? TState { get; private set; }
     public void OnTournamentState(TournamentState s) => _inbox.Enqueue(() => TState = s);
 
+    // İzleme: kendi oyun kopyasını kurar, gelen eylemleri sırayla uygular
+    public SpectateSetup? Spectating { get; private set; }
+    public Game? SpecGame { get; private set; }
+    public int SpecSeq { get; private set; }
+    public MatchResult? SpecResult { get; private set; }
+    public int SpecStarts { get; private set; }
+    public void OnSpectateStarted(SpectateSetup s) => _inbox.Enqueue(() => { Spectating = s; SpecGame = s.Setup.ToReplay().CreateGame(); SpecSeq = 0; SpecResult = null; SpecStarts++; });
+    public void OnSpectateAction(ActionBroadcast a) => _inbox.Enqueue(() =>
+    {
+        Assert.Equal(SpecSeq, a.Seq);
+        Assert.True(SpecGame!.Apply(ReplayData.Decode(a.Action)).Ok, $"izleyici kopyası eylemi reddetti: seq {a.Seq}");
+        SpecSeq++;
+    });
+    public void OnSpectateEnded(MatchResult r) => _inbox.Enqueue(() => SpecResult = r);
+
     // ---------- Sürücü ----------
 
     public void Pump()
@@ -105,6 +120,9 @@ public sealed class FakeClient : IGwentClient
     }
 
     public void Disconnect() => _svc.Disconnect(Session);
+
+    /// <summary>Gelen iletileri işleyip son turnuva durumunu döner.</summary>
+    public static TournamentState Peek(FakeClient c) { c.Pump(); return c.TState!; }
 
     public static void Pump(params FakeClient[] clients)
     {

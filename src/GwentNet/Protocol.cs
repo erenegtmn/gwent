@@ -64,19 +64,31 @@ public sealed record RoomSnapshot(string Code, bool NextGen, MatchSetup Setup, L
 
 public sealed record MatchResult(int? WinnerSeat, string Reason);
 
+/// <summary>İzleyiciye giden maç kurulumu: iki açık deste + tohum, izleyici ellerin görünüp görünmeyeceği (turnuva kuralı) ve eşleşme konumu.</summary>
+public sealed record SpectateSetup(MatchSetup Setup, bool ShowHands, int TournamentRound, int TournamentIndex);
+
 // ---------- Turnuva ----------
 
 public enum TournamentPhase { Lobby, Running, Finished }
+
+/// <summary>Turnuva çeşidi: Free = kuralsız; Faction = herkes aynı fraksiyonu oynar (deste/lider serbest); FixedDeck = herkes host'un seçtiği aynı desteyi oynar.</summary>
+public enum TournamentRuleKind { Free, Faction, FixedDeck }
+
+/// <summary>Turnuva kuralları (host bekleme odasında seçer; başlayınca kilitlenir). SpectatorHands: izleyiciler oyuncuların ellerini görür.</summary>
+public sealed record TournamentRules(TournamentRuleKind Kind = TournamentRuleKind.Free, string? Faction = null, LoadoutDto? Deck = null, bool SpectatorHands = true);
+
+/// <summary>Maçın canlı özeti (herkese açık bilgi: raund, galibiyet sayıları, anlık toplamlar, pas durumu). A/B = eşleşmedeki oyuncular.</summary>
+public sealed record MatchLive(int Round, int WinsA, int WinsB, int TotalA, int TotalB, bool PassedA, bool PassedB, int Spectators, List<string> RoundScores);
 
 /// <summary>Turnuva oyuncusu. Loadout turnuva başlayana dek yalnız kendine görünür; başlayınca herkese açılır. Placement: 1 şampiyon, 2 finalist, 3 yarı final...; 0 = henüz belli değil.</summary>
 public sealed record TPlayerInfo(string Nick, bool Connected, bool Ready, bool Eliminated, LoadoutDto? Loadout, int Placement, string? Avatar = null);
 
 /// <summary>Bracket'teki bir eşleşme. A/B oyuncu numaraları (null = henüz belli değil ya da bye); Status: waiting | ready | playing | done.</summary>
-public sealed record TMatchInfo(int Round, int Index, int? A, int? B, int? Winner, string Status, bool ReadyA, bool ReadyB);
+public sealed record TMatchInfo(int Round, int Index, int? A, int? B, int? Winner, string Status, bool ReadyA, bool ReadyB, MatchLive? Live = null);
 
 /// <summary>Turnuvanın herkese görünen durumu. YourIndex/YourToken her oyuncuya özel doldurulur (token yeniden bağlanma anahtarıdır).</summary>
 public sealed record TournamentState(string Code, TournamentPhase Phase, int MaxPlayers, bool NextGen, int EntryFee,
-    List<TPlayerInfo> Players, List<TMatchInfo> Matches, int YourIndex, string YourToken, int? YourMatchRound, int? YourMatchIndex); // Reason: normal | resigned | abandoned
+    List<TPlayerInfo> Players, List<TMatchInfo> Matches, int YourIndex, string YourToken, int? YourMatchRound, int? YourMatchIndex, TournamentRules? Rules = null); // Reason: normal | resigned | abandoned
 
 /// <summary>Sunucudan istemciye giden olaylar. SignalR'da istemci yöntemlerine karşılık gelir.</summary>
 public interface IGwentClient
@@ -89,6 +101,10 @@ public interface IGwentClient
     /// <summary>code: opponent_disconnected | opponent_returned | rematch_requested | room_closed</summary>
     void OnNotice(string code, string text);
     void OnTournamentState(TournamentState state);
+    /// <summary>İzleme: kurulum (her yeni maçta, rövanşta da), ardından geçmiş + canlı eylemler, sonunda sonuç.</summary>
+    void OnSpectateStarted(SpectateSetup setup);
+    void OnSpectateAction(ActionBroadcast action);
+    void OnSpectateEnded(MatchResult result);
 }
 
 /// <summary>İstemci isteklerinin sonucu.</summary>
@@ -109,4 +125,7 @@ public static class HubMethods
     public const string OnMatchEnded = nameof(OnMatchEnded);
     public const string OnNotice = nameof(OnNotice);
     public const string OnTournamentState = nameof(OnTournamentState);
+    public const string OnSpectateStarted = nameof(OnSpectateStarted);
+    public const string OnSpectateAction = nameof(OnSpectateAction);
+    public const string OnSpectateEnded = nameof(OnSpectateEnded);
 }

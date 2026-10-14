@@ -64,6 +64,7 @@ public partial class MainWindow : Window
         c.Link.Notice += OnOnlineNotice;
         c.Link.MatchEnded += OnOnlineMatchEnded;
         c.Link.TournamentChanged += OnTournamentChanged;
+        c.Link.SpectateStarted += OnSpectateStarted;
         c.Link.Pump();   // bağlanırken kuyrukta kalan iletiler (ör. yarım kalan maçın kurulumu) hemen işlensin
         if (c.IsTournament) Host.Content = new TournamentLobbyView(c, LeaveOnlineAsync);
         else if (c.Link.Match == null) Host.Content = new LobbyView(c, LeaveOnlineAsync);
@@ -78,6 +79,7 @@ public partial class MainWindow : Window
         if (c != null)
         {
             c.Link.TournamentChanged -= OnTournamentChanged;
+            c.Link.SpectateStarted -= OnSpectateStarted;
             c.Link.MatchStarted -= OnOnlineMatchStarted;
             c.Link.Notice -= OnOnlineNotice;
             c.Link.MatchEnded -= OnOnlineMatchEnded;
@@ -114,6 +116,23 @@ public partial class MainWindow : Window
     {
         if (Host.Content is TournamentLobbyView && _online?.Link.TState is { Phase: GwentNet.TournamentPhase.Running })
             ShowBracket();
+    }
+
+    /// <summary>Canlı izleme başladı (ya da izlenen maç rövanşla yeniden başladı): geçmiş animasyonsuz uygulanır, sonra masa gösterilir.</summary>
+    private async void OnSpectateStarted(GameSession session)
+    {
+        await Task.Delay(300);   // sunucu geçmiş eylemleri kurulumun hemen ardından yollar; hepsi gelsin
+        if (_online?.Link.Spectate != session) return;
+        session.FastForward();
+        var view = new GwintView(session, StopSpectating, _ => { });
+        Host.Content = view;
+        view.Focus();
+    }
+
+    private void StopSpectating()
+    {
+        _ = _online?.Link.StopWatchingAsync();
+        ShowBracket();
     }
 
     private void ShowBracket()

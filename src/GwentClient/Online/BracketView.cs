@@ -13,7 +13,7 @@ namespace GwentClient;
 /// </summary>
 public sealed class BracketView : Grid
 {
-    private const double CardW = 360, CardH = 118, ColGap = 96, Unit = 150;
+    private const double CardW = 360, CardH = 140, ColGap = 96, Unit = 172;
     private static readonly TimeSpan ClaimAfter = TimeSpan.FromMinutes(2);
 
     private readonly OnlineController _c;
@@ -52,6 +52,13 @@ public sealed class BracketView : Grid
         var r = await _c.Link.TournamentReadyAsync(ready);
         _msg = r.Ok ? "" : r.Error ?? "";
         Rebuild();
+    }
+
+    private async void WatchClicked(int round, int index)
+    {
+        var r = await _c.Link.WatchMatchAsync(round, index);
+        _msg = r.Ok ? "" : r.Error ?? "";
+        if (!r.Ok) Rebuild();
     }
 
     private async void WalkoverClicked()
@@ -103,7 +110,7 @@ public sealed class BracketView : Grid
                 Canvas.SetTop(title, -6);
                 canvas.Children.Add(title);
             }
-            var card = MatchCard(st, m, mine != null && mine.Round == m.Round && mine.Index == m.Index);
+            var card = MatchCard(st, m, mine != null && mine.Round == m.Round && mine.Index == m.Index, mine == null || mine.Status != "playing");
             Canvas.SetLeft(card, x);
             Canvas.SetTop(card, cy - CardH / 2);
             canvas.Children.Add(card);
@@ -131,16 +138,41 @@ public sealed class BracketView : Grid
         _host.Child = root;
     }
 
-    private UIElement MatchCard(TournamentState st, TMatchInfo m, bool isMine)
+    private UIElement MatchCard(TournamentState st, TMatchInfo m, bool isMine, bool canWatch)
     {
         var g = new Grid { Width = CardW, Height = CardH };
         var edge = isMine ? Ornate.GoldEdge : m.Status == "playing" ? Theme.B("#c98a3a") : Theme.B("#4a3b28");
         g.Children.Add(new ChamferFrame { Fill = Theme.B("#1c140c"), Edge = edge, Inner = isMine ? Ornate.GoldThin : null, Cut = 12, Inset = 4 });
         if (isMine) g.Effect = new DropShadowEffect { Color = Color.FromRgb(255, 200, 90), BlurRadius = 22, ShadowDepth = 0, Opacity = 0.6 };
-        var rows = new StackPanel { Margin = new Thickness(12, 8, 12, 8), VerticalAlignment = VerticalAlignment.Center };
+        var rows = new StackPanel { Margin = new Thickness(12, 6, 12, 28), VerticalAlignment = VerticalAlignment.Top };
         rows.Children.Add(PlayerRow(st, m, m.A, m.ReadyA));
         rows.Children.Add(new Border { Height = 1, Background = Theme.B("#3a2e1a"), Margin = new Thickness(0, 3, 0, 3) });
         rows.Children.Add(PlayerRow(st, m, m.B, m.ReadyB));
+        // Canlı özet: raund, galibiyetler, anlık toplamlar (oynanırken) ya da raund skorları (bitince); izleyici sayısı
+        if (m.Live is { } info)
+        {
+            var passA = info.PassedA ? " (pas)" : "";
+            var passB = info.PassedB ? " (pas)" : "";
+            var line = m.Status == "done"
+                ? $"{info.WinsA}–{info.WinsB}   " + string.Join("  ", info.RoundScores)
+                : $"Raund {info.Round} · {info.WinsA}–{info.WinsB} · güç {info.TotalA}{passA} – {info.TotalB}{passB}" + (info.Spectators > 0 ? $" · 👁 {info.Spectators}" : "");
+            var t = Ui.Text(line, 13, m.Status == "done" ? Theme.TextDim : Theme.B("#d8c88e"), false, TextAlignment.Left);
+            t.VerticalAlignment = VerticalAlignment.Bottom;
+            t.Margin = new Thickness(16, 0, 90, 9);
+            t.Tag = "bracket-live";
+            g.Children.Add(t);
+        }
+        if (m.Status == "playing" && canWatch && m.A != st.YourIndex && m.B != st.YourIndex)
+        {
+            var watch = Ui.Button("İzle", () => WatchClicked(m.Round, m.Index));
+            watch.FontSize = 13;
+            watch.Padding = new Thickness(14, 2, 14, 2);
+            watch.HorizontalAlignment = HorizontalAlignment.Right;
+            watch.VerticalAlignment = VerticalAlignment.Bottom;
+            watch.Margin = new Thickness(0, 0, 12, 6);
+            watch.Tag = $"bracket-watch:{m.Round}:{m.Index}";
+            g.Children.Add(watch);
+        }
         g.Children.Add(rows);
         if (m.Status == "playing")
         {
@@ -235,6 +267,15 @@ public sealed class BracketView : Grid
             {
                 text = $"Maçın sürüyor: {opp.Nick}";
             }
+            else if (mine.Status == "draw")
+            {
+                text = $"Maç berabere bitti. {opp.Nick} ile ikiniz de rövanş isteyince yeniden oynanır.";
+                var rematch = Ui.Button("Rövanş iste", () => { _c.Link.RequestRematch(); _msg = "Rövanş isteği gönderildi."; Rebuild(); }, primary: true);
+                rematch.FontSize = 24;
+                rematch.Padding = new Thickness(50, 12, 50, 12);
+                rematch.Tag = "bracket-rematch";
+                buttons.Children.Add(rematch);
+            }
             else if (!myReady)
             {
                 text = $"Sıradaki maçın: {opp.Nick}. Hazır olunca düğmeye bas.";
@@ -251,7 +292,7 @@ public sealed class BracketView : Grid
                 wait.FontSize = 18;
                 buttons.Children.Add(wait);
             }
-            if (!opp.Connected && mine.Status != "playing")
+            if (!opp.Connected && mine.Status != "playing" && mine.Status != "draw")
             {
                 _oppGoneSince ??= DateTime.UtcNow;
                 var left = ClaimAfter - (DateTime.UtcNow - _oppGoneSince.Value);
@@ -266,7 +307,7 @@ public sealed class BracketView : Grid
                 _timer.Start();
             }
             else { _oppGoneSince = null; _timer?.Stop(); }
-            if (mine.Status != "playing") buttons.Children.Add(LeaveButton());
+            if (mine.Status != "playing" && mine.Status != "draw") buttons.Children.Add(LeaveButton());
         }
 
         var t = Ui.Text(text, 24, color, true, TextAlignment.Center, true);

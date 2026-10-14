@@ -26,6 +26,9 @@ public sealed class LoadoutPicker : StackPanel
 
     public event Action? Changed;
 
+    /// <summary>Doluysa yalnız bu fraksiyon seçilebilir (turnuva kuralı); diğer rozetler soluk ve tıklanamaz.</summary>
+    public string? LockedFaction { get; set; }
+
     public LoadoutPicker(Func<bool> nextGen)
     {
         _nextGen = nextGen;
@@ -60,6 +63,12 @@ public sealed class LoadoutPicker : StackPanel
     public void Build()
     {
         Children.Clear();
+        if (LockedFaction != null && Faction != LockedFaction)
+        {
+            Faction = LockedFaction;
+            LeaderId = DefaultLeader(Faction);
+            DeckName = null;
+        }
 
         // Fraksiyon: kalkan rozetleri (seçili olan altın çerçeveli ve parlar)
         Children.Add(Label("FRAKSİYON"));
@@ -68,7 +77,8 @@ public sealed class LoadoutPicker : StackPanel
         {
             var key = f;
             var sel = f == Faction;
-            var cell = new Grid { Width = 112, Margin = new Thickness(0, 0, 10, 0) };
+            var blocked = LockedFaction != null && f != LockedFaction;
+            var cell = new Grid { Width = 112, Margin = new Thickness(0, 0, 10, 0), Opacity = blocked ? 0.25 : 1 };
             cell.Children.Add(new ChamferFrame
             {
                 Fill = sel ? Theme.B("#3a2c14") : Theme.B("#1a130b"), Edge = sel ? Ornate.GoldEdge : Theme.B("#4a3b28"), Inner = sel ? Theme.B("#88e0bf6a") : null, Cut = 10, Inset = 4
@@ -86,7 +96,7 @@ public sealed class LoadoutPicker : StackPanel
             b.MouseLeftButtonUp += (_, e) =>
             {
                 e.Handled = true;
-                if (key == Faction) return;
+                if (key == Faction || blocked) return;
                 Sfx.Play("cursor_movement");
                 Faction = key;
                 LeaderId = DefaultLeader(key);

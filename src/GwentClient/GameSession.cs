@@ -31,7 +31,14 @@ public sealed class GameSession
     public MatchConfig Config { get; }
 
     /// <summary>Bu oturumdaki oyuncunun koltuğu (yerelde hep 0; online'da host 0, konuk 1).</summary>
-    public int MySeat { get; }
+    public int MySeat { get; private set; }
+
+    /// <summary>İzleyici oturumu: hamle yapamaz; bakış koltuğu değiştirilebilir (<see cref="FlipView"/>). ShowHands: eller görünür (turnuva kuralı).</summary>
+    public bool IsSpectator { get; private set; }
+    public bool ShowHands { get; private set; } = true;
+
+    /// <summary>İzleyici bakışını öbür oyuncuya çevirir (o oyuncunun eli altta görünür).</summary>
+    public void FlipView() { if (IsSpectator) MySeat = 1 - MySeat; }
     public int OppSeat => 1 - MySeat;
 
     /// <summary>Ekranda gösterilen ad ve portreler: online'da kurulumdan, yerelde profilden (rakip yapay zekâ lider yüzüyle).</summary>
@@ -60,6 +67,18 @@ public sealed class GameSession
     private readonly HashSet<int> _announced = new();
 
     /// <summary>Online maç: kurulum sunucudan gelir; iki taraf da aynı koltuk sırasıyla aynı <see cref="Game"/>'i kurar.</summary>
+    /// <summary>İzleme: kurulum + sonradan gelen eylemlerle oyunun bir kopyasını kurar; hamle göndermez.</summary>
+    public static GameSession ForSpectator(SpectateSetup s) =>
+        new(s.Setup with { YourSeat = 0 }, new NullLink()) { IsSpectator = true, ShowHands = s.ShowHands, TournamentMode = true };
+
+    private sealed class NullLink : IMatchLink
+    {
+        public void Submit(ReplayAction action) { }
+        public void Resign() { }
+        public void RequestRematch() { }
+        public void ClaimWin() { }
+    }
+
     public GameSession(MatchSetup setup, IMatchLink link)
     {
         _link = link;
@@ -120,6 +139,7 @@ public sealed class GameSession
 
     public ActionResult Apply(GameAction a)
     {
+        if (IsSpectator) return ActionResult.Fail("İzleyici hamle yapamaz.");
         if (IsRemote)
         {
             if (_awaitingEcho) return ActionResult.Fail("Önceki hamlenin onayı bekleniyor.");

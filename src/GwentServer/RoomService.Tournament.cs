@@ -57,7 +57,9 @@ public sealed partial class RoomService
 
     private void AddPlayer(Tournament t, ServerSession s, string nick)
     {
-        t.Players.Add(new TPlayer { Session = s, Nick = nick, Token = NewToken(), Connected = true });
+        var p = new TPlayer { Session = s, Nick = nick, Token = NewToken(), Connected = true };
+        if (t.Rules.Kind == TournamentRuleKind.FixedDeck) p.Loadout = t.Rules.Deck;   // sabit deste: herkes aynı desteyle girer
+        t.Players.Add(p);
         s.Tournament = t;
         s.TIndex = t.Players.Count - 1;
     }
@@ -70,10 +72,64 @@ public sealed partial class RoomService
         {
             if (s.Tournament is not { } t) return Reply.Fail("Bir turnuvada değilsin.");
             if (t.Phase != TournamentPhase.Lobby) return Reply.Fail("Deste yalnız turnuva başlamadan seçilir (turnuva boyunca kilitlidir).");
+            var rules = t.Rules;
+            if (rules.Kind == TournamentRuleKind.FixedDeck)
+            {
+                // Sabit deste: istemcinin gönderdiği seçim yok sayılır; yalnız portre alınır
+                var fixedDeck = rules.Deck! with { Avatar = loadout.Avatar };
+                if (Room.ValidateLoadout(fixedDeck, t.NextGen) is { } ferr) return Reply.Fail(ferr);
+                var pf = t.Players[s.TIndex];
+                pf.Loadout = fixedDeck;
+                pf.Avatar = loadout.Avatar;
+                Touch(t);
+                BroadcastTournament(t);
+                return Reply.Success();
+            }
             if (Room.ValidateLoadout(loadout, t.NextGen) is { } err) return Reply.Fail(err);
+            if (rules.Kind == TournamentRuleKind.Faction && loadout.Faction != rules.Faction) return Reply.Fail($"Bu turnuvada yalnız {rules.Faction} oynanır.");
             var p = t.Players[s.TIndex];
+            var unchanged = Room.SameLoadout(p.Loadout, loadout);
             p.Loadout = loadout;
-            p.Ready = false;
+            p.Avatar = loadout.Avatar;
+            if (!unchanged) p.Ready = false;   // aynı seçimin yeniden gönderilmesi hazırlığı bozmaz (arayüz açılışta seçimi tekrar yollar)
+            Touch(t);
+            BroadcastTournament(t);
+            return Reply.Success();
+        }
+    }
+
+    /// <summary>Host kuralları seçer (kuralsız / tek fraksiyon / sabit deste, izleyici elleri). Bekleme odasında geçerlidir; değişince herkesin hazırlığı sıfırlanır.</summary>
+    public Reply SetTournamentRules(ServerSession s, TournamentRules rules)
+    {
+        lock (_gate)
+        {
+            if (s.Tournament is not { } t || s.TIndex != 0) return Reply.Fail("Kuralları yalnız turnuvayı kuran seçer.");
+            if (t.Phase != TournamentPhase.Lobby) return Reply.Fail("Kurallar turnuva başlayınca değişmez.");
+            TournamentRules norm;
+            switch (rules.Kind)
+            {
+                case TournamentRuleKind.Free:
+                    norm = new TournamentRules(TournamentRuleKind.Free, null, null, rules.SpectatorHands);
+                    break;
+                case TournamentRuleKind.Faction:
+                    if (rules.Faction == null || !Room.Factions.Contains(rules.Faction)) return Reply.Fail("Geçersiz fraksiyon.");
+                    norm = new TournamentRules(TournamentRuleKind.Faction, rules.Faction, null, rules.SpectatorHands);
+                    break;
+                case TournamentRuleKind.FixedDeck:
+                    if (rules.Deck == null) return Reply.Fail("Sabit deste için bir deste seç.");
+                    if (Room.ValidateLoadout(rules.Deck, t.NextGen) is { } err) return Reply.Fail(err);
+                    norm = new TournamentRules(TournamentRuleKind.FixedDeck, rules.Deck.Faction, Room.Resolved(rules.Deck with { Avatar = null }, t.NextGen), rules.SpectatorHands);
+                    break;
+                default:
+                    return Reply.Fail("Bilinmeyen turnuva çeşidi.");
+            }
+            t.Rules = norm;
+            foreach (var p in t.Players)
+            {
+                p.Ready = false;
+                if (norm.Kind == TournamentRuleKind.FixedDeck) p.Loadout = norm.Deck! with { Avatar = p.Avatar };
+                else if (norm.Kind == TournamentRuleKind.Faction && p.Loadout?.Faction != norm.Faction) p.Loadout = null;   // uymayan seçim silinir; oyuncu yeniden seçer
+            }
             Touch(t);
             BroadcastTournament(t);
             return Reply.Success();
@@ -96,6 +152,7 @@ public sealed partial class RoomService
             {
                 if (p.Eliminated || p.Current == null || p.Current.Done) return Reply.Fail("Sıradaki bir maçın yok.");
                 if (s.Room is { Phase: RoomPhase.Playing }) return Reply.Fail("Maçın sürüyor.");
+                if (p.Current.Room is { Phase: RoomPhase.Finished }) return Reply.Fail("Maç berabere bitti: ikiniz de rövanş istemelisiniz.");
                 if (s.Room is { Phase: RoomPhase.Finished }) { s.Room = null; s.Seat = -1; }   // önceki maçın sonuç ekranından ayrıl
                 p.Ready = ready;
             }
@@ -181,6 +238,39 @@ public sealed partial class RoomService
         BroadcastTournament(t);
     }
 
+    // ---------- İzleme ----------
+
+    /// <summary>Turnuvada sürmekte olan bir eşleşmeyi canlı izler (kendi maçı sürmeyen herkes). Kurulum + geçmiş + canlı eylemler gelir.</summary>
+    public Reply WatchMatch(ServerSession s, int round, int index)
+    {
+        lock (_gate)
+        {
+            if (s.Tournament is not { Phase: TournamentPhase.Running } t) return Reply.Fail("Devam eden bir turnuvada değilsin.");
+            if (round < 0 || round >= t.Rounds.Count || index < 0 || index >= t.Rounds[round].Count) return Reply.Fail("Böyle bir eşleşme yok.");
+            var m = t.Rounds[round][index];
+            if (m.Room is not { Phase: RoomPhase.Playing } room) return Reply.Fail("Bu maç şu an oynanmıyor.");
+            if (s.Room is { Phase: RoomPhase.Playing }) return Reply.Fail("Kendi maçın sürerken izleyemezsin.");
+            if (m.A == s.TIndex || m.B == s.TIndex) return Reply.Fail("Kendi maçını izleyemezsin.");
+            StopWatchingInternal(s);
+            room.AddSpectator(s);
+            BroadcastTournament(t);
+            return Reply.Success();
+        }
+    }
+
+    public Reply StopWatching(ServerSession s)
+    {
+        lock (_gate)
+        {
+            if (s.Watching == null) return Reply.Success();
+            StopWatchingInternal(s);
+            if (s.Tournament is { } t) BroadcastTournament(t);
+            return Reply.Success();
+        }
+    }
+
+    private void StopWatchingInternal(ServerSession s) => s.Watching?.RemoveSpectator(s);
+
     // ---------- Maç kurma ve bitiş ----------
 
     private void TryStartMatches(Tournament t)
@@ -199,6 +289,7 @@ public sealed partial class RoomService
     {
         var room = new Room($"{t.Code}-{m.Round + 1}{m.Index + 1}", t.NextGen, _clock, _seed) { Tournament = t, TMatch = m };
         room.Finished = OnTournamentRoomFinished;
+        room.Changed = _ => BroadcastTournament(t);   // her hamlede canlı özet (raund, skor, pas) herkese gider
         _rooms[room.Code] = room;
         m.Room = room;
         var players = new[] { a, b };

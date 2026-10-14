@@ -38,7 +38,7 @@ public static partial class UiSelfTest
             if (!r.Ok) throw new InvalidOperationException("Deste seçilemedi: " + r.Error);
             if (ready && !Await(() => link.TournamentReadyAsync(true)).Ok) throw new InvalidOperationException("Hazır olunamadı.");
         }
-        PumpUntil(() => all.All(c => c.Link.TState!.Players.All(p => !ready || p.Ready)), "hazır durumları", all.Select(c => c.Link).ToArray());
+        PumpUntil(() => all.All(c => c.Link.TState!.Players[c.Link.TState.YourIndex].Loadout != null && c.Link.TState.Players.All(p => !ready || p.Ready)), "seçimler ve hazır durumları", all.Select(c => c.Link).ToArray());
         return all;
     }
 
@@ -87,12 +87,13 @@ public static partial class UiSelfTest
     }
 
     /// <summary>Turnuva bitene dek: hazır olunur, her oturum kendi oyununu oynar (arayüz yok; oturum seviyesinde), beraberlikte rövanş istenir.</summary>
-    internal static void PlayTournament(List<OnlineController> all, int timeoutSeconds = 120, Action<int>? readyHook = null)
+    internal static void PlayTournament(List<OnlineController> all, int timeoutSeconds = 120, Action<int>? readyHook = null, Action<MatchSetup>? onSetup = null)
     {
         var links = all.Select(c => c.Link).ToArray();
         var agents = all.Select((_, i) => AgentFactory.Create(Difficulty.Hard, 300 + i)).ToList();
         var until = DateTime.UtcNow.AddSeconds(timeoutSeconds);
         var rematchAsked = new HashSet<GameSession>();
+        var seenSetups = new HashSet<GameSession>();
         while (!all.All(c => c.Link.TState?.Phase == TournamentPhase.Finished))
         {
             if (DateTime.UtcNow > until) throw new TimeoutException("Turnuva beklenen sürede bitmedi.");
@@ -113,6 +114,7 @@ public static partial class UiSelfTest
                 }
                 var s = link.Match;
                 if (s == null) continue;
+                if (onSetup != null && s.OnlineSetup != null && seenSetups.Add(s)) onSetup(s.OnlineSetup);
                 if (s.RemoteQueued > 0) { s.ApplyNextRemote(); continue; }
                 if (s.IsOver)
                 {
@@ -138,13 +140,19 @@ public static partial class UiSelfTest
             all = OpenTournament(4, 4, 0, ready: false);
             var links = all.Select(c => c.Link).ToArray();
             var lobbies = all.Select(c => new TournamentLobbyView(c, () => Task.CompletedTask)).ToList();
+            var clickInfo = new List<string>();
             foreach (var v in lobbies)
             {
                 Layout(v);
                 var ready = FindAll<System.Windows.Controls.Button>(v, b => (string?)b.Tag == "tlobby-ready").First();
+                clickInfo.Add($"{ready.Content}/{(ready.IsEnabled ? "açık" : "PASİF")}");
                 Click(ready);
             }
-            PumpUntil(() => all.All(c => c.Link.TState!.Players.All(p => p.Ready)), "herkes hazır", links);
+            try { PumpUntil(() => all.All(c => c.Link.TState!.Players.All(p => p.Ready)), "herkes hazır", links); }
+            catch (TimeoutException)
+            {
+                throw new InvalidOperationException("Herkes hazır olmadı. Düğmeler: " + string.Join(", ", clickInfo) + " | durum: " + string.Join(", ", all.Select(c => string.Join("", c.Link.TState!.Players.Select(p => p.Ready ? "H" : "-")))));
+            }
             Layout(lobbies[0]);
             var start = FindAll<System.Windows.Controls.Button>(lobbies[0], b => (string?)b.Tag == "tlobby-start").First();
             if (!start.IsEnabled) throw new InvalidOperationException("Herkes hazırken 'Turnuvayı başlat' pasif.");
