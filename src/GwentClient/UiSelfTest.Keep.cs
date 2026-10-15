@@ -29,13 +29,17 @@ public static partial class UiSelfTest
             var view = new KeepView(s, new KeepNav((c, d, r, p) => started = (c, d, r, p), () => back = true));
             Layout(view);
             Button Tagged(string tag) => FindAll<Button>(view, b => (b.Tag as string) == tag).First();
+            // Bina seçimi: listedeki satıra gerçek tıklama (isabet denetimiyle) → ayrıntı paneli
+            void Open(string id) { ClickAt(view, FindAll<Border>(view, x => (x.Tag as string) == "keep-building:" + id).First()); Layout(view); }
 
             // Binalar: demirci ve atölye onarılır; planlanmış binada düğme yok
-            Click(Tagged("keep-upgrade:" + Keep.Forge)); Layout(view);
-            Click(Tagged("keep-upgrade:" + Keep.Workshop)); Layout(view);
+            Open(Keep.Forge); Click(Tagged("keep-upgrade:" + Keep.Forge)); Layout(view);
+            Open(Keep.Workshop); Click(Tagged("keep-upgrade:" + Keep.Workshop)); Layout(view);
             Check(s.Level(Keep.Forge) == 1 && s.Level(Keep.Workshop) == 1, "binalar onarılmadı");
             Check(s.Crowns == 1000 - 80 - 100, $"bedel düşmedi ({s.Crowns})");
+            Open(Keep.Alchemy);
             Check(FindAll<Button>(view, b => (b.Tag as string) == "keep-upgrade:" + Keep.Alchemy).Any(), "simya odasında düğme yok");
+            Open(Keep.Forge);
             Check(!Tagged("keep-upgrade:" + Keep.Forge).IsEnabled, "mutajensiz yükseltme açık");
             Check(KeepStore.Load()?.Level(Keep.Forge) == 1, "kale kaydedilmedi");
 
@@ -75,10 +79,11 @@ public static partial class UiSelfTest
             s.Crowns += 1000; s.Blue += 10;
             view = new KeepView(s, new KeepNav((c, d, r, p) => started = (c, d, r, p), () => back = true));
             Layout(view);
-            Click(Tagged("keep-upgrade:" + Keep.AlliesHall)); Layout(view);
-            Click(Tagged("keep-upgrade:" + Keep.Alchemy)); Layout(view);
-            Click(Tagged("keep-upgrade:" + Keep.Barracks)); Layout(view);
+            Open(Keep.AlliesHall); Click(Tagged("keep-upgrade:" + Keep.AlliesHall)); Layout(view);
+            Open(Keep.Alchemy); Click(Tagged("keep-upgrade:" + Keep.Alchemy)); Layout(view);
+            Open(Keep.Barracks); Click(Tagged("keep-upgrade:" + Keep.Barracks)); Layout(view);
             Check(s.Level(Keep.Alchemy) == 1 && s.Level(Keep.Barracks) == 1, "simya/kışla onarılmadı");
+            Open(Keep.AlliesHall);
             Click(Tagged("keep-allies")); Layout(view);
             Click(Tagged("ally-recruit:dandelion")); Layout(view);
             Check(FindAll<ToggleButton>(view, t => (t.Tag as string) == "ally-active:dandelion").Any(t => t.IsChecked == true), "çağrılan müttefik maça katılmıyor");

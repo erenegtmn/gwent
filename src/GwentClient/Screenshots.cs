@@ -99,6 +99,9 @@ public static class Screenshots
             ks.Potions.AddRange(new[] { PotionIds.Cat, PotionIds.Thunderbolt });
             var kv = new KaerMorhen.KeepView(ks, new KaerMorhen.KeepNav((_, _, _, _) => { }, () => { }), "Sözleşme tamam: White Orchard Griffin. +40 Crown, +1 kırmızı mutajen.");
             Save(kv, "keep.png");
+            typeof(KaerMorhen.KeepView).GetMethod("Select", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(kv, new object?[] { global::KaerMorhen.Core.Keep.Forge });
+            Save(kv, "keep_selected.png");
+            typeof(KaerMorhen.KeepView).GetMethod("Select", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(kv, new object?[] { null });
             typeof(KaerMorhen.KeepView).GetMethod("OpenPrep", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(kv, new object[] { ks.Board[0] });
             Save(kv, "keep_prep.png");
             ks.Buildings[global::KaerMorhen.Core.Keep.AlliesHall] = 2;

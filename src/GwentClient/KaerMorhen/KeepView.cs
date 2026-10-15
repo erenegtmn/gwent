@@ -22,17 +22,32 @@ public sealed class KeepView : Grid
     private readonly Grid _content = new() { Width = 1920, Height = 1080 };
     private readonly Grid _overlay = new() { Width = 1920, Height = 1080, Visibility = Visibility.Collapsed };
     private string? _message;
+    private readonly Grid _sceneHost = new() { Width = 1920, Height = 1080 };
+    private KeepDiorama? _diorama;
+    /// <summary>Seçili bina: kamera ona yaklaşır, solda ayrıntı paneli açılır.</summary>
+    private string? _selected;
 
     public KeepView(KeepSave save, KeepNav nav, string? message = null)
     {
         _s = save;
         _nav = nav;
         _message = message;
-        var stack = new Grid();
+        var stack = new Grid { Width = 1920, Height = 1080 };
+        stack.Children.Add(_sceneHost);
         stack.Children.Add(_content);
         stack.Children.Add(_overlay);
-        Children.Add(Ornate.Stage(new Viewbox { Stretch = Stretch.Uniform, Child = stack }, "pano_kaer_morhen", 0.7));
+        Background = Theme.Bg;
+        Children.Add(new Viewbox { Stretch = Stretch.Uniform, Child = stack });
+        Children.Add(Ornate.Embers(18));
         Build();
+    }
+
+    /// <summary>Bina seçer (maketten ya da listeden): kamera yaklaşır, ayrıntı paneli açılır; null = genel görünüm.</summary>
+    private void Select(string? id)
+    {
+        _selected = id;
+        _diorama?.Focus(id);
+        BuildContent();
     }
 
     private static Brush MutColor(Mutagen m) => Theme.B(m switch { Mutagen.Red => "#e05a4a", Mutagen.Green => "#7ac85a", _ => "#5a9ae0" });
@@ -41,14 +56,31 @@ public sealed class KeepView : Grid
 
     // ---------- Ana ekran ----------
 
+    /// <summary>Maketi (seviyeler değişince) ve arayüzü yeniden kurar.</summary>
     private void Build()
+    {
+        _sceneHost.Children.Clear();
+        _diorama = new KeepDiorama(_s);
+        _diorama.BuildingClicked += id => Select(id == _selected ? null : id);
+        _sceneHost.Children.Add(_diorama);
+        if (_selected != null) _diorama.Focus(_selected);
+        BuildContent();
+    }
+
+    private static Border Glass(UIElement child, double width) => new()
+    {
+        Width = width, Padding = new Thickness(18, 14, 18, 14), CornerRadius = new CornerRadius(6),
+        Background = Theme.B("#d80e0a07"), BorderBrush = Theme.B("#806a4a28"), BorderThickness = new Thickness(1), Child = child
+    };
+
+    private void BuildContent()
     {
         _content.Children.Clear();
         var canvas = new Canvas();
         _content.Children.Add(canvas);
 
-        var head = Ornate.Heading("Kaer Morhen", "Kaleni onar, sözleşmeleri al, Wild Hunt'a hazırlan.", 46);
-        Canvas.SetLeft(head, 70); Canvas.SetTop(head, 50);
+        var head = Ornate.Heading("Kaer Morhen", "Kaleni onar, sözleşmeleri al, Wild Hunt'a hazırlan.", 40);
+        Canvas.SetLeft(head, 50); Canvas.SetTop(head, 36);
         canvas.Children.Add(head);
 
         // Kaynaklar
@@ -77,34 +109,69 @@ public sealed class KeepView : Grid
                 Background = Theme.B(fallen ? "#cc2a0a08" : "#cc140e08"), BorderBrush = fallen ? Theme.Bad : Theme.Gold, BorderThickness = new Thickness(0, 1, 0, 1), Padding = new Thickness(20, 8, 20, 8), Width = 1780,
                 Child = Ui.Text(_message, 19, Theme.B("#f0d890"), true, TextAlignment.Center), Tag = "keep-message"
             };
-            Canvas.SetLeft(msg, 70); Canvas.SetTop(msg, 150);
+            Canvas.SetLeft(msg, 50); Canvas.SetTop(msg, 128);
+            msg.Width = 1820;
             canvas.Children.Add(msg);
         }
 
-        // Binalar (sol): 2 sütun
-        var cap1 = Ornate.Caption("Kale", 0);
-        Canvas.SetLeft(cap1, 70); Canvas.SetTop(cap1, 214);
-        canvas.Children.Add(cap1);
-        var grid = new UniformGrid { Columns = 2, Width = 1010 };
-        foreach (var b in Keep.Buildings) grid.Children.Add(BuildingCard(b));
-        Canvas.SetLeft(grid, 60); Canvas.SetTop(grid, 244);
-        canvas.Children.Add(grid);
+        // Binalar (sol): kısa liste; tıkla (ya da maketteki binaya) → kamera yaklaşır, ayrıntı paneli
+        var list = new StackPanel();
+        list.Children.Add(Ornate.Caption("Kale — bir binaya tıkla", 0));
+        foreach (var b in Keep.Buildings)
+        {
+            var lvl = _s.Level(b.Id);
+            var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.Children.Add(Ui.Text(b.Name, 17, lvl == 0 ? Theme.TextDim : Theme.B("#e8c970"), true));
+            var ready = Keep.UpgradeBlocked(_s, b.Id) == null;
+            var pips = Ui.Text((ready ? "▲ " : "") + string.Concat(Enumerable.Range(0, b.MaxLevel).Select(i => i < lvl ? "●" : "○")), 16, MutColor(b.Color), true);
+            if (ready) pips.ToolTip = "Yükseltilebilir";
+            Grid.SetColumn(pips, 1);
+            row.Children.Add(pips);
+            var id = b.Id;
+            var item = new Border
+            {
+                Child = row, Padding = new Thickness(10, 5, 10, 5), CornerRadius = new CornerRadius(4), Cursor = System.Windows.Input.Cursors.Hand, Tag = "keep-building:" + b.Id,
+                Background = Theme.B(_selected == b.Id ? "#55c9a24a" : "#01000000")
+            };
+            item.MouseLeftButtonUp += (_, _) => Select(_selected == id ? null : id);
+            list.Children.Add(item);
+        }
+        var listPanel = Glass(list, 400);
+        Canvas.SetLeft(listPanel, 40); Canvas.SetTop(listPanel, 196);
+        canvas.Children.Add(listPanel);
+
+        if (_selected != null)
+        {
+            var detail = new Grid();
+            detail.Children.Add(BuildingCard(Keep.Get(_selected)));
+            var close = Ui.Button("✕", () => Select(null));
+            close.Tag = "keep-detail-close";
+            close.HorizontalAlignment = HorizontalAlignment.Right;
+            close.VerticalAlignment = VerticalAlignment.Top;
+            close.Padding = new Thickness(10, 2, 10, 2);
+            close.Margin = new Thickness(0, 14, 14, 0);
+            detail.Children.Add(close);
+            detail.Width = 420;
+            Canvas.SetLeft(detail, 30); Canvas.SetTop(detail, 520);
+            canvas.Children.Add(detail);
+        }
 
         // Sözleşme panosu (sağ)
-        var cap2 = Ornate.Caption("Sözleşme panosu", 0);
-        Canvas.SetLeft(cap2, 1120); Canvas.SetTop(cap2, 214);
-        canvas.Children.Add(cap2);
-        var board = new StackPanel { Width = 740 };
+        var board = new StackPanel();
+        board.Children.Add(Ornate.Caption("Sözleşme panosu", 0));
         board.Children.Add(SiegeCard());
         foreach (var c in _s.Board) board.Children.Add(ContractCard(c));
-        Canvas.SetLeft(board, 1110); Canvas.SetTop(board, 244);
-        canvas.Children.Add(board);
+        var boardPanel = Glass(board, 600);
+        Canvas.SetLeft(boardPanel, 1290); Canvas.SetTop(boardPanel, 196);
+        canvas.Children.Add(boardPanel);
 
         var back = Ui.Button("Menüye dön", () => { Save(); _nav.Back(); });
         back.Tag = "keep-back";
         back.Padding = new Thickness(28, 10, 28, 10);
         back.FontSize = 17;
-        Canvas.SetLeft(back, 70); Canvas.SetTop(back, 990);
+        Canvas.SetLeft(back, 50); Canvas.SetTop(back, 1000);
         canvas.Children.Add(back);
     }
 
@@ -160,7 +227,6 @@ public sealed class KeepView : Grid
         }
         var panel = Ornate.Panel(sp, new Thickness(22, 16, 22, 16), 12, 0);
         panel.Margin = new Thickness(8);
-        panel.Height = 228;
         panel.Opacity = b.Planned ? 0.55 : 1;
         return panel;
     }
@@ -200,7 +266,7 @@ public sealed class KeepView : Grid
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var shield = c.Faction == "mirror" ? null : Assets.Ui("shield_" + c.Faction);
-        if (shield != null) g.Children.Add(new Image { Source = shield, Width = 70, Height = 70, Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Top });
+        if (shield != null) g.Children.Add(new Image { Source = shield, Width = 54, Height = 54, Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Top });
         var sp = new StackPanel();
         Grid.SetColumn(sp, 1);
         sp.Children.Add(Ui.Text(c.Title, 21, Theme.B(siege ? "#9ac4f0" : "#e8c970"), true));
@@ -211,7 +277,7 @@ public sealed class KeepView : Grid
         var info = $"{who} · {diff} · ⚑ {map}" + (c.Curses is { Count: > 0 } cs ? " · ☠ " + string.Join(", ", cs.Select(x => Curses.Get(x).Name)) : "")
                    + (c.OppPerks is { } op ? $" · rakip {Game.StartingHand + op.ExtraHand} kartla başlar" + (op.Potions is { Count: > 0 } ps ? " + iksir" : "") : "");
         sp.Children.Add(Ui.Text(info, 14, Theme.Text, false, TextAlignment.Left, true));
-        var reward = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+        var reward = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
         reward.Children.Add(Ui.Text($"Ödül: ◆ {c.RewardCrowns} Crown  ", 15, Theme.B("#f0d890"), true));
         reward.Children.Add(new System.Windows.Shapes.Ellipse { Width = 14, Height = 14, Fill = MutColor(c.RewardColor), Margin = new Thickness(4, 3, 6, 0) });
         reward.Children.Add(Ui.Text($"{c.RewardMutagens} {Keep.MutagenName(c.RewardColor)} mutajen", 15, Theme.Text, true));
@@ -221,7 +287,7 @@ public sealed class KeepView : Grid
         if (locked) { ToolTipService.SetShowOnDisabled(take, true); take.ToolTip = "Düşman kapıda: önce kuşatmayı karşıla."; }
         take.FontSize = 14;
         take.Padding = new Thickness(16, 6, 16, 6);
-        take.Margin = new Thickness(24, 0, 0, 0);
+        take.Margin = new Thickness(16, 0, 0, 0);
         reward.Children.Add(take);
         sp.Children.Add(reward);
         g.Children.Add(sp);
@@ -283,7 +349,7 @@ public sealed class KeepView : Grid
             wrap.Children.Add(cell);
         }
         root.Children.Add(wrap);
-        var done = Ui.Button("Tamam", () => { _overlay.Visibility = Visibility.Collapsed; _overlay.Children.Clear(); Build(); }, primary: true);
+        var done = Ui.Button("Tamam", () => { _overlay.Visibility = Visibility.Collapsed; _overlay.Children.Clear(); BuildContent(); }, primary: true);
         done.Tag = "allies-done";
         done.HorizontalAlignment = HorizontalAlignment.Center;
         done.Padding = new Thickness(40, 10, 40, 10);
