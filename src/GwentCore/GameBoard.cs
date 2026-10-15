@@ -15,7 +15,7 @@ public sealed partial class Game
         Enumerable.Range(0, 2).Any(p => LeaderPassive(p, "eredin_breacc_glas_the_treacherous"));
 
     /// <summary>
-    /// Bir kartın nihai gücü. Sıra: taban → hava (1'e ya da King Bran ile yarıya; komutanın satırı korunur) → arazi → casus çarpanı
+    /// Bir kartın nihai gücü. Sıra: taban (+Svarog) → hava (Perun muaf) (1'e ya da King Bran ile yarıya; komutanın satırı korunur) → arazi → casus çarpanı
     /// → Tight Bond (çarpar) → Morale (+1) → Boynuz (×2). Kahraman kartlar hiçbirinden etkilenmez.
     /// </summary>
     public int CardScore(CardInstance card)
@@ -23,18 +23,20 @@ public sealed partial class Game
         if (!card.Def.IsUnit) return 0; // Decoy gibi sahada duran özel kartlar puan vermez
         var total = card.Def.Strength;
         if (card.Def.Hero) return total;
+        if (card.Rune == RuneIds.Svarog) total += 1;
 
         var loc = Locate(card) ?? throw new InvalidOperationException($"{card} sahada değil.");
         var (side, rowKind, _) = loc;
         var row = _players[side].Row(rowKind);
 
-        var weatherHit = WeatherActive(rowKind) && !CommanderShields(side, rowKind);
+        var weatherHit = WeatherActive(rowKind) && !CommanderShields(side, rowKind) && card.Rune != RuneIds.Perun;
         if (weatherHit)
         {
             var min = LeaderPassive(side, "king_bran") ? total / 2 : 1;
             total = Math.Min(min, total);
         }
         total = TerrainScore(total, side, rowKind, weatherHit);
+        if (card.Rune == RuneIds.Stribog && Options.Commanders && _players[side].Commander == rowKind) total += 2;
 
         if (DoubleSpy && card.Has("spy")) total *= 2;
 
@@ -111,11 +113,13 @@ public sealed partial class Game
         _players[card.Holder].Grave.Add(card);
     }
 
+    /// <summary>Yakma. Olay ayrıntısı "kimlik:güç" (günlük yakıldığı andaki gücü gösterir).</summary>
     private void Kill(CardInstance card)
     {
+        var power = Locate(card) != null ? CardScore(card) : card.Def.Strength;
         RemoveFromBoard(card);
-        SendToGrave(card);
-        Emit("kill", card.Holder, card.Uid, card.Def.Id);
+        Emit("kill", card.Holder, card.Uid, $"{card.Def.Id}:{power}");
+        if (!VelesSaves(card)) SendToGrave(card);
     }
 
     // ---------- Scorch ----------

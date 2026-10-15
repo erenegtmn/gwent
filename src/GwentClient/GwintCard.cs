@@ -122,6 +122,16 @@ public sealed class GwintCard : Border
             }
         }
 
+        // Kaer Morhen rünü: sağ üst köşede nişan
+        if (card?.Rune is { } rune)
+        {
+            var rb = KaerMorhen.ForgeView.RuneBadge(rune, Math.Max(18, w * 0.3));
+            rb.HorizontalAlignment = HorizontalAlignment.Right;
+            rb.VerticalAlignment = VerticalAlignment.Top;
+            rb.Margin = new Thickness(0, w * 0.03, w * 0.03, 0);
+            grid.Children.Add(rb);
+        }
+
         // Alt şerit: yetenekler (sol) ve sıra türü (sağ)
         var s = Math.Max(20, w * 0.31);
         var bottom = new Grid { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(w * 0.02, 0, w * 0.02, w * 0.02) };

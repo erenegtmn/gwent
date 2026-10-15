@@ -63,12 +63,31 @@ public static class Screenshots
         foreach (var field in new[] { "pontar_bridge", "crookback_bog" })
         {
             // Kaer Morhen: arazili savaş alanı + komutanlar, birkaç hamle sonra (rakip yağmur/don oynadıysa komutan korur)
-            var tcfg = cfg with { Battlefield = field, Commanders = true, Seed = 77 };
+            var tcfg = cfg with { Battlefield = field, Commanders = true, Seed = 77, Difficulty = GwentAI.Difficulty.Hard,
+                Runes = GwentAI.Forge.AutoRunes(DeckValidator.DefaultDeck(cfg.MyFaction), 3) };
             var ts = new GameSession(tcfg);
             ts.AutoPlayFor(0, new GwentAI.HeuristicAgent(), 1);
             ts.AiAutoMulligan();
             for (var i = 0; i < 7 && !ts.IsOver; i++) { ts.AutoPlayFor(0, new GwentAI.HeuristicAgent(), 1); if (ts.AiToAct) ts.AiStep(); }
             Save(new GwintView(ts, () => { }, _ => { }, animate: false), $"terrain_{field}.png");
+        }
+        {
+            // Demirci: önerilen desteye iki rün (geçici kayıt)
+            var ff = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gwent-shot-forge.json");
+            KaerMorhen.ForgeStore.PathOverride = ff;
+            var fdeck = DeckValidator.RecommendedDeck("northern_realms");
+            var fr = GwentAI.Forge.AutoRunes(fdeck, 3);
+            KaerMorhen.ForgeStore.Save("shot", new[] { fr[0], fr[1] with { Rune = RuneIds.Stribog } });
+            var forge = new KaerMorhen.ForgeView(fdeck, "shot", () => { });
+            Save(forge, "forge.png");
+            // Rünlü kart (elde/sahada görünen nişan)
+            var rg = new Game(fdeck with { Runes = fr }, DeckValidator.RecommendedDeck("monsters"), 5);
+            var row = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Background = Theme.B("#2a1c0e") };
+            foreach (var rc in rg.Players[0].Deck.Concat(rg.Players[0].Hand).Where(c => c.Rune != null))
+                row.Children.Add(new GwintCard(rc.Def, 180, null, rc) { Margin = new System.Windows.Thickness(10) });
+            Save(row, "rune_cards.png");
+            KaerMorhen.ForgeStore.PathOverride = null;
+            try { System.IO.File.Delete(ff); } catch { }
         }
         {
             // Kart değiştirme: iki kart seçili (belirgin işaret)

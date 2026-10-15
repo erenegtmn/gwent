@@ -45,7 +45,9 @@ public sealed class CardInstance
     public bool NoRemove { get; internal set; }
     /// <summary>Gerçek bir kart değil, bir etkinin işaretçisi (lider boynuzu). Mezarlığa girmez.</summary>
     public bool Ephemeral { get; internal set; }
-    public IReadOnlyList<string> Abilities { get; }
+    public IReadOnlyList<string> Abilities { get; private set; }
+    /// <summary>Kaer Morhen rünü (<see cref="RuneIds"/>); Veles ve Morana kullanılınca düşer.</summary>
+    public string? Rune { get; private set; }
 
     private CardInstance(CardInstance src)
     {
@@ -55,6 +57,14 @@ public sealed class CardInstance
         NoRemove = src.NoRemove;
         Ephemeral = src.Ephemeral;
         Abilities = src.Abilities; // değişmez liste, paylaşılabilir
+        Rune = src.Rune;
+    }
+
+    /// <summary>Rünü takar/çıkarır. Dazhbog moral yeteneği kazandırır (rün düşse de yetenek kalır: yalnız Veles/Morana düşer).</summary>
+    internal void SetRune(string? rune)
+    {
+        Rune = rune;
+        if (rune == RuneIds.Dazhbog && !Abilities.Contains("morale")) Abilities = Abilities.Append("morale").ToList();
     }
 
     internal CardInstance CloneInstance() => new(this);
@@ -147,7 +157,8 @@ public sealed record UseLeader(int Player) : GameAction(Player);
 public sealed record Choose(int Player, IReadOnlyList<int> Cards, RowKind? Row = null) : GameAction(Player);
 
 /// <summary>Seri hâle getirilebilir deste tanımı. Kartlar tekrarlı yazılır (3 kopya = 3 kez).</summary>
-public sealed record Deck(string Faction, string LeaderId, IReadOnlyList<string> CardIds);
+/// <summary>Runes: Kaer Morhen rünleri (<see cref="CardRune"/>); null = rünsüz (klasik).</summary>
+public sealed record Deck(string Faction, string LeaderId, IReadOnlyList<string> CardIds, IReadOnlyList<CardRune>? Runes = null);
 
 /// <summary>
 /// Tohumlu, kopyalanabilir rastgele sayı üreteci (SplitMix64). Kendi algoritmamız olduğu için

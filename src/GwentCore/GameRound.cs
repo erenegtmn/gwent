@@ -88,6 +88,7 @@ public sealed partial class Game
             }
         }
 
+        MoranaKeeps();
         ClearBoard();
 
         var g0 = _players[0].Gems;

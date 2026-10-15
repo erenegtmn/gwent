@@ -396,6 +396,7 @@ public sealed class MenuView : Grid
         _myFaction = f;
         _deckChoice = DeckAll;
         BuildDecks();
+        UpdateForgeSummary();
         BuildLeaders();
         SyncStrip();
         if (Assets.Available) ShowPano(Panos[f]);
@@ -468,6 +469,7 @@ public sealed class MenuView : Grid
         root.Children.Add(DailyRow());
         root.Children.Add(Ornate.Caption("Kaer Morhen: savaş alanı (deneme)"));
         root.Children.Add(BattlefieldRow());
+        root.Children.Add(ForgeRow());
         _nextGen.Margin = new Thickness(0, 14, 0, 0);
         root.Children.Add(_nextGen);
 
@@ -493,6 +495,14 @@ public sealed class MenuView : Grid
         framed.VerticalAlignment = VerticalAlignment.Center;
         framed.MaxHeight = 980;
         return new Border { Child = framed, VerticalAlignment = VerticalAlignment.Center };
+    }
+
+    /// <summary>Maça giden destenin demirci rünleri ("tüm kartlar" seçiliyse destenin kendisi oyun kurulurken oluşur; aynı kartlarla doğrulanır).</summary>
+    private List<CardRune>? ForgeRunes(Deck? myDeck, string leader)
+    {
+        var (deck, key) = ForgeDeck();
+        var runes = KaerMorhen.ForgeStore.For(key, myDeck ?? deck with { LeaderId = leader });
+        return runes.Count > 0 ? runes : null;
     }
 
     private void ToggleSetup()
@@ -534,6 +544,52 @@ public sealed class MenuView : Grid
 
     private readonly List<ToggleButton> _diffButtons = new();
     private readonly List<ToggleButton> _fieldButtons = new();
+    private readonly TextBlock _forgeSummary = Ui.Text("", 13, Theme.TextDim, false, TextAlignment.Left, true);
+
+    /// <summary>Seçili destenin kendisi ve demirci kaydı anahtarı (fraksiyon + deste seçimi).</summary>
+    private (Deck Deck, string Key) ForgeDeck()
+    {
+        var opts = new GameOptions { NextGen = NextGen };
+        Deck deck = DeckValidator.DefaultDeck(_myFaction, opts) with { LeaderId = _myLeader };
+        if (_deckChoice == DeckRecommended) deck = DeckValidator.RecommendedDeck(_myFaction, opts, null, _myLeader);
+        else if (_deckChoice.StartsWith("deck:") && DeckStore.For(_myFaction).FirstOrDefault(d => "deck:" + d.Name == _deckChoice) is { } saved) deck = saved.ToDeck();
+        return (deck, _myFaction + "|" + _deckChoice);
+    }
+
+    /// <summary>Demirci: rün özeti ve düğmesi (savaş alanı seçiliyken maça geçer).</summary>
+    private UIElement ForgeRow()
+    {
+        var g = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _forgeSummary.VerticalAlignment = VerticalAlignment.Center;
+        g.Children.Add(_forgeSummary);
+        var open = Ui.Button("Demirci…", OpenForge);
+        open.Padding = new Thickness(16, 7, 16, 7);
+        open.FontSize = 15;
+        open.Tag = "forge-open";
+        Grid.SetColumn(open, 1);
+        g.Children.Add(open);
+        UpdateForgeSummary();
+        return g;
+    }
+
+    private void UpdateForgeSummary()
+    {
+        var (deck, key) = ForgeDeck();
+        var runes = KaerMorhen.ForgeStore.For(key, deck);
+        _forgeSummary.Text = runes.Count == 0
+            ? "Bu destede rün yok. Demircide kartlarına rün takabilirsin (savaş alanı seçiliyken geçerli)."
+            : $"Rünler {runes.Count}/{RuneIds.MaxPerDeck}: " + string.Join(" · ", runes.Select(r => $"{CardCatalog.Default.Get(r.CardId).Name} ({GwentAI.Forge.Get(r.Rune).Name})"));
+    }
+
+    private void OpenForge()
+    {
+        var (deck, key) = ForgeDeck();
+        KaerMorhen.ForgeView? view = null;
+        view = new KaerMorhen.ForgeView(deck, key, () => { Children.Remove(view); UpdateForgeSummary(); });
+        Children.Add(view);
+    }
     /// <summary>Savaş alanı seçimi: null = kapalı (klasik), "random" ya da harita kimliği. Açıkken komutanlar da açıktır.</summary>
     private string? _battlefield;
 
@@ -772,6 +828,7 @@ public sealed class MenuView : Grid
                 _deckChoice = key;
                 foreach (var b in buttons) b.IsChecked = (string)b.Tag == _deckChoice;
                 UpdateLeaderVisibility();
+                UpdateForgeSummary();
             };
             buttons.Add(tb);
             _deckPanel.Children.Add(tb);
@@ -863,7 +920,8 @@ public sealed class MenuView : Grid
         var seed = daily?.Seed ?? rng.Next(1, int.MaxValue);
         var field = daily != null ? null : _battlefield == "random" ? GwentAI.Battlefields.ForSeed(seed).Id : _battlefield;
         var cfg = new MatchConfig(_myFaction, leader, opp, oppLeader, NextGen, seed, myDeck,
-            daily != null ? GwentAI.Difficulty.Hard : Settings.Difficulty, null, curses.Count > 0 ? curses : null, daily?.Date, field, field != null);
+            daily != null ? GwentAI.Difficulty.Hard : Settings.Difficulty, null, curses.Count > 0 ? curses : null, daily?.Date, field, field != null,
+            field != null ? ForgeRunes(myDeck, leader) : null);
         if (_animate) ShowVs(cfg);
         else _start(cfg);
     }

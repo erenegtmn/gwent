@@ -5,7 +5,7 @@ using GwentNet;
 namespace GwentClient;
 
 /// <summary>MyDeck boşsa fraksiyonun tüm kartları kullanılır. Rakip her zaman "önerilen" deste ile oynar (dengeli olsun).</summary>
-public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal, Deck? OppDeck = null, IReadOnlyList<string>? Curses = null, DateOnly? Daily = null, string? Battlefield = null, bool Commanders = false);
+public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal, Deck? OppDeck = null, IReadOnlyList<string>? Curses = null, DateOnly? Daily = null, string? Battlefield = null, bool Commanders = false, IReadOnlyList<CardRune>? Runes = null);
 
 /// <summary>Online maçta sunucuyla konuşan taraf: eylemi gönderir. Sunucudan gelenler <see cref="GameSession.EnqueueRemote"/> ile oturuma verilir.</summary>
 public interface IMatchLink
@@ -114,7 +114,9 @@ public sealed class GameSession
             MyFaction = cfg.MyFaction, MyLeaderId = cfg.MyDeck?.LeaderId ?? cfg.MyLeaderId, OppFaction = cfg.OppFaction, OppLeaderId = cfg.OppLeaderId,
             NextGen = cfg.NextGen, Seed = cfg.Seed, MyDeckCards = cfg.MyDeck?.CardIds.ToList(), Difficulty = (int)cfg.Difficulty,
             OppDeckCards = cfg.OppDeck?.CardIds.ToList(), OppDeckUnchecked = cfg.OppDeck != null, Curses = cfg.Curses?.ToList(),
-            Battlefield = cfg.Battlefield, Commanders = cfg.Commanders
+            Battlefield = cfg.Battlefield, Commanders = cfg.Commanders,
+            MyRunes = cfg.Runes is { Count: > 0 } ? cfg.Runes.ToList() : null,
+            OppAutoRunes = cfg.Battlefield != null ? Forge.AiRuneCount(cfg.Difficulty) : 0
         };
         Game = Replay.CreateGame();
     }
@@ -321,7 +323,13 @@ public sealed class GameSession
             case "draw": return $"{W(e.Player)} {e.Detail} kart çekti.";
             case "pass": return e.Detail == "auto" ? $"{W(e.Player)} elinde kart kalmadığı için pas geçti." : $"{W(e.Player)} pas geçti.";
             case "leader": return $"{W(e.Player)} lider yeteneğini kullandı: {CardName(e.Detail)}.";
-            case "kill": return $"{CardName(e.Detail)} yok oldu.";
+            case "kill":
+            {
+                var k = e.Detail.Split(':');
+                return k.Length > 1 ? $"{CardName(k[0])} ({k[1]}) yandı." : $"{CardName(e.Detail)} yandı.";
+            }
+            case "rune_return": return $"Veles rünü: {CardName(e.Detail)} yanmadı, ele döndü.";
+            case "rune_keep": return $"Morana rünü: {CardName(e.Detail)} bir sonraki raunda kalıyor.";
             case "spawn": return $"{CardName(e.Detail)} sahaya geldi.";
             case "transform": return $"{CardName(e.Detail)} oldu (dönüşüm).";
             case "decoy": return $"{W(e.Player)} Yem ile {CardName(e.Detail)} kartını geri aldı.";

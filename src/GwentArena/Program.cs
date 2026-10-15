@@ -73,6 +73,33 @@ if (args.Length > 0 && args[0] == "terrain")
     return;
 }
 
+if (args.Length > 0 && args[0] == "runes")
+{
+    // dotnet run --project src/GwentArena -c Release -- runes [oyun/eşleşme]
+    // Kaer Morhen: 3 rünlü deste, rünsüze karşı (aynı AI, rastgele harita, koltuk değişerek); rün başına etki ayrıca.
+    var per = args.Length > 1 ? int.Parse(args[1]) : 6;
+    string[] fs = { "northern_realms", "nilfgaard", "scoiatael", "monsters", "skellige" };
+    var variants = new List<(string Name, Func<Deck, IReadOnlyList<CardRune>> Runes)> { ("otomatik (Svarog/Perun/Veles)", d => Forge.AutoRunes(d, 3)) };
+    foreach (var r in RuneIds.All) variants.Add(($"3× {r}", d => Forge.AutoRunes(d, 3).Select(x => x with { Rune = r }).ToList()));
+    foreach (var (name, runes) in variants)
+    {
+        var w = 0; var tot = 0;
+        foreach (var a in fs) foreach (var b in fs)
+            for (var seed = 1; seed <= per; seed++)
+            {
+                var seat = seed % 2;
+                var opts = new GameOptions { Terrain = Battlefields.ForSeed(seed * 31 + a.Length), Commanders = true };
+                var mine = DeckValidator.DefaultDeck(a); mine = mine with { Runes = runes(mine) };
+                var theirs = DeckValidator.DefaultDeck(b);
+                var d0 = seat == 0 ? mine : theirs; var d1 = seat == 0 ? theirs : mine;
+                var r = GameRunner.Play(new HeuristicAgent(), new HeuristicAgent(seed: 2), d0, d1, seed * 977 + 13, opts);
+                tot++; if (r.Winner == seat) w++;
+            }
+        Console.WriteLine($"{name,-32} {100.0 * w / tot,5:F1}%  ({w}/{tot})");
+    }
+    return;
+}
+
 if (args.Length > 0 && args[0] == "sweep")
 {
     // dotnet run --project src/GwentArena -c Release -- sweep [oyun/eşleşme]

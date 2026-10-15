@@ -222,7 +222,7 @@ public sealed class GwintView : Viewbox
     private GwintCard MakeCard(CardInstance c, double width, bool onBoard, bool selected = false, bool highlight = false,
         bool dimmed = false, double? height = null)
     {
-        var current = c.Def.IsUnit ? (onBoard ? G.CardScore(c) : c.Def.Strength) : (int?)null;
+        var current = c.Def.IsUnit ? (onBoard ? G.CardScore(c) : c.Def.Strength + (c.Rune == RuneIds.Svarog && !c.Def.Hero ? 1 : 0)) : (int?)null;
         var gc = new GwintCard(c.Def, width, current, c, selected, highlight, dimmed, height);
         gc.MouseEnter += (_, _) => SetPreview(c.Def, current);
         return gc;

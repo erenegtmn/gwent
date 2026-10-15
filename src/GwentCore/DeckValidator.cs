@@ -52,6 +52,7 @@ public static class DeckValidator
 
         if (units < MinUnits) errors.Add($"Destede en az {MinUnits} birim kartı olmalı (şu an {units}).");
         if (specials > MaxSpecials) errors.Add($"Destede en fazla {MaxSpecials} özel kart olabilir (şu an {specials}).");
+        errors.AddRange(RuneIds.Validate(deck, catalog));
         return errors;
     }
 
