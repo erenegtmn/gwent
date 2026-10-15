@@ -110,6 +110,9 @@ public static class Screenshots
             Save(kv2, "keep_siege.png");
             typeof(KaerMorhen.KeepView).GetMethod("OpenAllies", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(kv2, null);
             Save(kv2, "keep_allies.png");
+            // Kaer Morhen maketi (3D deneme): yarı onarılmış kale ve harabe kale
+            Save(new KaerMorhen.KeepDiorama(ks), "keep3d.png");
+            Save(new KaerMorhen.KeepDiorama(global::KaerMorhen.Core.Keep.NewSave(1)), "keep3d_ruins.png");
             // Kale düştü: yeni sefer
             ks.Chapter = 2;
             var fall = global::KaerMorhen.Core.Keep.Complete(ks, -1, false);
