@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GwentCore\GwentCore.csproj" />
     <ProjectReference Include="..\..\src\GwentAI\GwentAI.csproj" />
+    <ProjectReference Include="..\..\src\KaerMorhen.Core\KaerMorhen.Core.csproj" />
   </ItemGroup>
 
 </Project>

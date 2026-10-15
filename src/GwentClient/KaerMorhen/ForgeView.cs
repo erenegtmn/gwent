@@ -17,13 +17,19 @@ public sealed class ForgeView : Grid
     private readonly List<CardRune> _runes;
     private readonly WrapPanel _cards = new() { HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock _status = Ui.Text("", 16, Theme.B("#e8c970"), true, TextAlignment.Center);
+    private readonly int _max;
+    private readonly IReadOnlyList<string> _allowed;
 
-    public ForgeView(Deck deck, string key, Action close)
+    /// <param name="maxRunes">Takılabilecek rün sayısı (kalede demirci seviyesi).</param>
+    /// <param name="allowed">Açık rünler (kalede demirci seviyesi); null = hepsi.</param>
+    public ForgeView(Deck deck, string key, Action close, int maxRunes = RuneIds.MaxPerDeck, IReadOnlyList<string>? allowed = null)
     {
         _deck = deck;
         _key = key;
         _close = close;
-        _runes = ForgeStore.For(key, deck);
+        _max = maxRunes;
+        _allowed = allowed ?? RuneIds.All;
+        _runes = ForgeStore.For(key, deck).Where(r => _allowed.Contains(r.Rune)).Take(_max).ToList();
         Background = Theme.B("#e8080503");
 
         var root = new StackPanel { Width = 1240 };
@@ -33,10 +39,11 @@ public sealed class ForgeView : Grid
         var legend = new WrapPanel { Margin = new Thickness(0, 10, 0, 6) };
         foreach (var r in GwentAI.Forge.All)
         {
-            var sp = new StackPanel { Orientation = Orientation.Horizontal, Width = 405, Margin = new Thickness(0, 3, 6, 3) };
+            var open = _allowed.Contains(r.Id);
+            var sp = new StackPanel { Orientation = Orientation.Horizontal, Width = 405, Margin = new Thickness(0, 3, 6, 3), Opacity = open ? 1 : 0.4 };
             sp.Children.Add(RuneBadge(r.Id, 34));
             var txt = new StackPanel { Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-            txt.Children.Add(Ui.Text(r.Name, 15, Theme.B(r.Color), true));
+            txt.Children.Add(Ui.Text(r.Name + (open ? "" : "  · kilitli (Demirciyi yükselt)"), 15, Theme.B(r.Color), true));
             txt.Children.Add(Ui.Text(r.Text, 12, Theme.TextDim));
             sp.Children.Add(txt);
             legend.Children.Add(sp);
@@ -112,7 +119,7 @@ public sealed class ForgeView : Grid
             }
         }
         var names = _runes.Select(r => $"{cat.Get(r.CardId).Name}: {GwentAI.Forge.Get(r.Rune).Name}");
-        _status.Text = $"Rünler {_runes.Count}/{RuneIds.MaxPerDeck}" + (_runes.Count > 0 ? " — " + string.Join(" · ", names) : "");
+        _status.Text = _max == 0 ? "Demirci henüz kurulmadı: kalede Demirciyi onarınca rün takabilirsin." : $"Rünler {_runes.Count}/{_max}" + (_runes.Count > 0 ? " — " + string.Join(" · ", names) : "");
     }
 
     /// <summary>Kartın (o kimliğin <paramref name="copy"/>. kopyası) rününü sıradakine geçirir; sınır doluysa yeni rün takılmaz.</summary>
@@ -121,19 +128,19 @@ public sealed class ForgeView : Grid
         var indices = _runes.Select((r, i) => (r, i)).Where(x => x.r.CardId == cardId).Select(x => x.i).ToList();
         if (copy >= indices.Count)
         {
-            if (_runes.Count >= RuneIds.MaxPerDeck)
+            if (_runes.Count >= _max)
             {
-                _status.Text = $"En fazla {RuneIds.MaxPerDeck} rün takabilirsin. Önce bir kartın rününü sök (rünsüze gelene dek tıkla).";
+                _status.Text = _max == 0 ? "Demirci henüz kurulmadı." : $"En fazla {_max} rün takabilirsin. Önce bir kartın rününü sök (rünsüze gelene dek tıkla).";
                 return;
             }
-            _runes.Add(new CardRune(cardId, RuneIds.All[0]));
+            _runes.Add(new CardRune(cardId, _allowed[0]));
         }
         else
         {
             var at = indices[copy];
-            var next = RuneIds.All.ToList().IndexOf(_runes[at].Rune) + 1;
-            if (next >= RuneIds.All.Count) _runes.RemoveAt(at);
-            else _runes[at] = _runes[at] with { Rune = RuneIds.All[next] };
+            var next = _allowed.ToList().IndexOf(_runes[at].Rune) + 1;
+            if (next >= _allowed.Count) _runes.RemoveAt(at);
+            else _runes[at] = _runes[at] with { Rune = _allowed[next] };
         }
         Changed();
     }

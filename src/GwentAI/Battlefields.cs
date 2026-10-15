@@ -3,6 +3,9 @@ using static GwentCore.Terrain;
 
 namespace GwentAI;
 
+/// <summary>Maç öncesi bir satıra konan arazi parçası (Mühendis Atölyesi: kule, barikat, hendek). Haritanın her raundunda o satırı ezer.</summary>
+public sealed record TerrainPiece(int Side, RowKind Row, Terrain Terrain);
+
 /// <summary>
 /// Kaer Morhen savaş alanları (TASARIM.md §5): Witcher 3'ün yerlerinden esinlenen hazır arazi haritaları.
 /// Her satır: oyuncu 0 (yakın, menzil, kuşatma) + oyuncu 1 (aynı sıra). Raund listesi kısaysa son raund sürer.
@@ -76,7 +79,21 @@ public static class Battlefields
         _ => "Kural yok."
     };
 
-    /// <summary>Klasik seçeneklere savaş alanı ve komutanları ekler.</summary>
-    public static GameOptions With(GameOptions options, string? battlefield, bool commanders) =>
-        options with { Terrain = Get(battlefield), Commanders = commanders };
+    /// <summary>Klasik seçeneklere savaş alanı, komutanlar ve (varsa) arazi parçalarını ekler.</summary>
+    public static GameOptions With(GameOptions options, string? battlefield, bool commanders, IReadOnlyList<TerrainPiece>? pieces = null) =>
+        options with { Terrain = WithPieces(Get(battlefield), pieces), Commanders = commanders };
+
+    /// <summary>Parçalar haritanın her raundunda kendi satırını ezer (harita yoksa düzlük üstüne kurulur).</summary>
+    public static TerrainMap? WithPieces(TerrainMap? map, IReadOnlyList<TerrainPiece>? pieces)
+    {
+        if (pieces is not { Count: > 0 }) return map;
+        map ??= TerrainMap.Symmetric("plain", "Düzlük", Plain, Plain, Plain);
+        var rounds = map.Rounds.Select(r =>
+        {
+            var arr = r.ToArray();
+            foreach (var p in pieces) arr[p.Side * 3 + (int)p.Row] = p.Terrain;
+            return (IReadOnlyList<Terrain>)arr;
+        }).ToList();
+        return map with { Rounds = rounds };
+    }
 }

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Kaer Morhen meta oyunu (TASARIM.md): kale, kaynaklar, binalar, sözleşmeler. Saf ve deterministik; arayüz/ağ/zaman bilmez. -->
+  <ItemGroup>
+    <ProjectReference Include="..\GwentCore\GwentCore.csproj" />
+    <ProjectReference Include="..\GwentAI\GwentAI.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

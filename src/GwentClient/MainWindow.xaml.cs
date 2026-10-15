@@ -42,7 +42,7 @@ public partial class MainWindow : Window
     private string? _lastFaction;
     private bool _lastNextGen;
 
-    private void ShowMenu() => Host.Content = new MenuView(StartGame, ShowBuilder, _lastFaction, _lastNextGen, openSettings: ShowSettings, openStats: ShowStats, openOnline: ShowOnlineMenu, openGuide: ShowGuide, openCareer: ShowCareer, openDraft: ShowDraft);
+    private void ShowMenu() => Host.Content = new MenuView(StartGame, ShowBuilder, _lastFaction, _lastNextGen, openSettings: ShowSettings, openStats: ShowStats, openOnline: ShowOnlineMenu, openGuide: ShowGuide, openCareer: ShowCareer, openDraft: ShowDraft, openKeep: ShowKeep);
 
     private void ShowGuide() => Host.Content = new GuideView(ShowMenu);
 

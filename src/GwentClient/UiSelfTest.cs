@@ -18,7 +18,7 @@ public static partial class UiSelfTest
 
     public static int Run(int games)
     {
-        var failures = RunDeckBuilder() + RunGuide() + RunUpdateCheck() + RunCurseCheck() + RunTerrainCheck();
+        var failures = RunDeckBuilder() + RunGuide() + RunUpdateCheck() + RunCurseCheck() + RunTerrainCheck() + RunKeepCheck();
         var sfxProblems = Sfx.Diagnose();
         foreach (var p in sfxProblems) Console.WriteLine("[HATA] ses: " + p);
         Console.WriteLine($"Ses: {Sfx.AllNames.Length} yer tutucu denetlendi, {sfxProblems.Count} sorun.");

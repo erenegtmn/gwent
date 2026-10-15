@@ -42,6 +42,8 @@ public sealed class ReplayData
     public List<CardRune>? MyRunes { get; set; }
     /// <summary>Rakibin (yapay zekâ) destesine kurulumda verilen rün sayısı (<see cref="Forge.AutoRunes"/>).</summary>
     public int OppAutoRunes { get; set; }
+    /// <summary>Kaer Morhen: maç öncesi konan arazi parçaları (Mühendis Atölyesi).</summary>
+    public List<TerrainPiece>? Pieces { get; set; }
     public int Difficulty { get; set; }
     public List<ReplayAction> Actions { get; set; } = new();
     /// <summary>Oyuncunun gördüğü Türkçe olay günlüğü (hata bildirirken neyin olduğunu gösterir).</summary>
@@ -50,7 +52,7 @@ public sealed class ReplayData
     /// <summary>Oyunu kurar. Rakip destesi verilmemişse yapay zekânın zorluğuna göre kurulur (<see cref="AiDecks"/>).</summary>
     public Game CreateGame()
     {
-        var opts = Battlefields.With(GwentAI.Curses.Options(Curses, NextGen), Battlefield, Commanders);
+        var opts = Battlefields.With(GwentAI.Curses.Options(Curses, NextGen), Battlefield, Commanders, Pieces);
         var mine = MyDeckCards != null
             ? new Deck(MyFaction, MyLeaderId, MyDeckCards)
             : DeckValidator.DefaultDeck(MyFaction, opts) with { LeaderId = MyLeaderId };

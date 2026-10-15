@@ -33,6 +33,7 @@
     <ProjectReference Include="..\GwentNet\GwentNet.csproj" />
     <ProjectReference Include="..\GwentServer\GwentServer.csproj" />
     <ProjectReference Include="..\GwentHost\GwentHost.csproj" />
+    <ProjectReference Include="..\KaerMorhen.Core\KaerMorhen.Core.csproj" />
   </ItemGroup>
 
 </Project>
