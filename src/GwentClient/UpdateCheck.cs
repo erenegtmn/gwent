@@ -35,7 +35,15 @@ public static class UpdateCheck
     internal static void SetResult(ReleaseInfo? r) => Pending = Task.FromResult(r);
 
     /// <summary>Uygulama açılınca bir kez başlatılır (sınama ve ekran görüntüsü süreçlerinde çağrılmaz).</summary>
-    public static void Start() => Pending ??= Task.Run(CheckAsync);
+    public static void Start()
+    {
+        if (Channel != "main") return;   // deneme kanalı: ana sürümün güncellemesi bu kopyanın üzerine yazılmasın
+        Pending ??= Task.Run(CheckAsync);
+    }
+
+    /// <summary>Derlemenin kanalı (GwentClient.csproj: GwentChannel). "main" dışındakiler güncelleme denetimi yapmaz.</summary>
+    public static string Channel { get; } = typeof(UpdateCheck).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
+        .OfType<System.Reflection.AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "GwentChannel")?.Value ?? "main";
 
     private static async Task<ReleaseInfo?> CheckAsync()
     {

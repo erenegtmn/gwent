@@ -152,7 +152,7 @@ public sealed class MenuView : Grid
     /// <summary>Sağ altta sürüm; GitHub'da daha yenisi varsa üstte "Yeni sürüm" bildirimi (İndir: release sayfası tarayıcıda açılır).</summary>
     private void AddVersionInfo()
     {
-        var ver = Ui.Text(UpdateCheck.CurrentText, 14, Theme.B("#7a705e"));
+        var ver = Ui.Text(UpdateCheck.CurrentText + (UpdateCheck.Channel == "kaermorhen" ? " · Kaer Morhen (deneme)" : ""), 14, Theme.B("#7a705e"));
         ver.HorizontalAlignment = HorizontalAlignment.Right;
         ver.VerticalAlignment = VerticalAlignment.Bottom;
         ver.Margin = new Thickness(0, 0, 26, 14);

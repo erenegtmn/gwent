@@ -11,7 +11,13 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
     <!-- Sürüm: GitHub release etiketi "v" + bu sayı olmalı (UpdateCheck) -->
     <Version>0.7.1</Version>
+    <!-- Dağıtım kanalı: "main" yayındaki oyun; başka kanal (ör. kaermorhen denemesi) güncelleme denetimi yapmaz, üzerine ana sürüm yazılmaz -->
+    <GwentChannel Condition="'$(GwentChannel)' == ''">main</GwentChannel>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="GwentChannel" Value="$(GwentChannel)" />
+  </ItemGroup>
 
   <ItemGroup>
     <Resource Include="app.ico" />

@@ -26,7 +26,7 @@
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="fr" Property="Fill" Value="#3b2c18" />
                                 <Setter TargetName="fr" Property="Edge" Value="#e8c970" />
-                                <Setter TargetName="root" Property="Effect" Value="{StaticResource GoldGlow}" />
+                                <Setter TargetName="fr" Property="Effect" Value="{StaticResource GoldGlow}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="root" Property="RenderTransform"><Setter.Value><TranslateTransform Y="1.5" /></Setter.Value></Setter>
@@ -61,7 +61,7 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="fr" Property="Edge" Value="#ffffff" />
-                                <Setter TargetName="root" Property="Effect" Value="{StaticResource GoldGlow}" />
+                                <Setter TargetName="fr" Property="Effect" Value="{StaticResource GoldGlow}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="root" Property="RenderTransform"><Setter.Value><TranslateTransform Y="1.5" /></Setter.Value></Setter>
@@ -97,7 +97,7 @@
                                 <Setter TargetName="fr" Property="Edge" Value="#f0d890" />
                                 <Setter TargetName="fr" Property="Fill" Value="#3d2e18" />
                                 <Setter TargetName="fr" Property="Inner" Value="#88e0bf6a" />
-                                <Setter TargetName="root" Property="Effect" Value="{StaticResource GoldGlow}" />
+                                <Setter TargetName="fr" Property="Effect" Value="{StaticResource GoldGlow}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

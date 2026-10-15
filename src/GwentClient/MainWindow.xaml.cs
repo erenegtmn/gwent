@@ -8,6 +8,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Settings.ApplyWindow(this);
+        if (UpdateCheck.Channel == "kaermorhen") Title = "Gwent — Kaer Morhen (deneme)";
         // F11: tam ekran / pencere
         PreviewKeyDown += (_, e) =>
         {
