@@ -175,4 +175,12 @@ public static class Music
         _player?.Stop();
         _started = false;
     }
+
+    /// <summary>Çalan dosyayı tamamen bırakır (güncelleme dosyaları değiştirirken kilit kalmasın). Sonra <see cref="Start"/> ile yeniden başlar.</summary>
+    public static void Release()
+    {
+        try { _player?.Stop(); _player?.Close(); } catch { }
+        _player = null;
+        _started = false;
+    }
 }

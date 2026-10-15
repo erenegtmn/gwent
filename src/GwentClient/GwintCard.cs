@@ -64,6 +64,9 @@ public sealed class GwintCard : Border
         {
             var img = new Image { Source = art, Stretch = Stretch.UniformToFill };
             RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+            // Köşeler yuvarlak kırpılır: dağıtım paketindeki JPEG kart resimlerinde saydam köşe yoktur
+            var radius = Math.Max(2, w * 0.04);
+            img.SizeChanged += (_, e) => img.Clip = new RectangleGeometry(new Rect(e.NewSize), radius, radius);
             grid.Children.Add(img);
         }
         else

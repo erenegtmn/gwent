@@ -25,11 +25,12 @@ public static class Assets
             if (!_searched)
             {
                 _searched = true;
-                // exe'nin yanında ya da üst klasörlerinde assets/ui/board.png ara (geliştirmede depo kökü)
+                // exe'nin yanında ya da üst klasörlerinde assets/ui/board.png|jpg ara (geliştirmede depo kökü; dağıtım paketinde jpg)
                 var d = new DirectoryInfo(AppContext.BaseDirectory);
                 while (d != null)
                 {
-                    if (File.Exists(Path.Combine(d.FullName, "assets", "ui", "board.png"))) { _dir = Path.Combine(d.FullName, "assets"); break; }
+                    var ui = Path.Combine(d.FullName, "assets", "ui");
+                    if (File.Exists(Path.Combine(ui, "board.png")) || File.Exists(Path.Combine(ui, "board.jpg"))) { _dir = Path.Combine(d.FullName, "assets"); break; }
                     d = d.Parent;
                 }
             }
@@ -69,7 +70,8 @@ public static class Assets
 
     /// <summary>Arayüz görseli (ui/&lt;ad&gt;.png; yoksa .jpg — büyük haritalar jpg'dir).</summary>
     public static ImageSource? Ui(string name) => Load(Path.Combine("ui", name + ".png")) ?? Load(Path.Combine("ui", name + ".jpg"));
-    public static ImageSource? Card(string cardId) => Load(Path.Combine("cards", cardId + ".png"));
+    /// <summary>Kart resmi (cards/&lt;kimlik&gt;.png; dağıtım paketinde boyut için .jpg — köşeleri <see cref="GwintCard"/> yuvarlak kırpar).</summary>
+    public static ImageSource? Card(string cardId) => Load(Path.Combine("cards", cardId + ".png")) ?? Load(Path.Combine("cards", cardId + ".jpg"));
 
     /// <summary>Müzik dosyaları (assets/music/*.mp3).</summary>
     public static IReadOnlyList<string> Music()

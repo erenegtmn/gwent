@@ -168,7 +168,15 @@ public sealed class MenuView : Grid
             var text = Ui.Text($"◆  Yeni sürüm çıktı: {r.Tag}  (sende {UpdateCheck.CurrentText})", 19, Theme.B("#f0d890"), true);
             text.VerticalAlignment = VerticalAlignment.Center;
             row.Children.Add(text);
-            var get = Ui.Button("İndir", () => UpdateCheck.OpenPage(r.Url), primary: true);
+            // Paketlenmiş kopyada oyun kendini günceller; geliştirme çıktısında ya da paket yoksa indirme sayfası açılır
+            var self = Updater.CanSelfUpdate && r.ZipUrl != null;
+            var get = Ui.Button(self ? "Güncelle" : "İndir", () =>
+            {
+                if (!self) { UpdateCheck.OpenPage(r.Url); return; }
+                var dlg = new UpdateDialog(r);
+                dlg.Closed += () => Children.Remove(dlg);
+                Children.Add(dlg);
+            }, primary: true);
             get.Margin = new Thickness(18, 0, 0, 0);
             get.Padding = new Thickness(22, 6, 22, 6);
             get.Tag = "update-download";
