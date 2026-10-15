@@ -44,6 +44,17 @@ public sealed partial class Game
 {
     public const int BridgeCapacity = 4;
 
+    /// <summary>
+    /// Disiplin (Kuzey Krallıkları ve Nilfgaard): komutanın satırındaki birimler +N. Komutanın hava kalkanı, kahramanı bol (havaya zaten
+    /// dayanıklı) bu iki orduya az yarıyordu (arena, düzlük + komutan: Kuzey %39 → %26). +1 ile beş fraksiyon klasik dengesine yakın
+    /// (`GwentArena terrain`). Arena denemesi için ayarlanabilir (GWENT_NR_BONUS, GWENT_CMD_FACTIONS).
+    /// </summary>
+    public static int CommanderDiscipline { get; set; } = 1;
+    public static HashSet<string> DisciplinedFactions { get; set; } = new() { "northern_realms", "nilfgaard" };
+
+    /// <summary>Bu oyuncunun komutanı Disiplin verir mi.</summary>
+    public bool HasDiscipline(int side) => Options.Commanders && DisciplinedFactions.Contains(_players[side].Faction);
+
     /// <summary>Bu raundda bir satırın arazisi (arazi kapalıysa düzlük).</summary>
     public Terrain TerrainAt(int side, RowKind row) => Options.Terrain?.At(side, row, Round) ?? Terrain.Plain;
 

@@ -144,9 +144,37 @@ public class TerrainTests
         g.TestWeather(Ids.BitingFrost);
         g.TestWeather(Ids.TorrentialRain);
         Assert.Equal(RowKind.Close, g.Players[0].Commander);
-        Assert.Equal(5, g.CardScore(close));    // komutan yakın satırda
+        Assert.Equal(6, g.CardScore(close));    // komutan yakın satırda: havadan korunur, Kuzey'in Disiplini +1
         Assert.Equal(1, g.CardScore(siege));
         Assert.Equal(5, g.CardScore(oppClose)); // rakibin komutanı da yakın satırda
+    }
+
+    [Fact]
+    public void Northern_realms_and_nilfgaard_commanders_give_discipline()
+    {
+        var g = T.New("northern_realms", "monsters", options: Opts(commanders: true));
+        Assert.True(g.HasDiscipline(0));
+        Assert.False(g.HasDiscipline(1));
+        Assert.Equal(6, g.CardScore(g.TestBoard(0, "siegfried_of_denesle", RowKind.Close)));   // 5 + 1
+        Assert.Equal(6, g.CardScore(g.TestBoard(0, "ballista", RowKind.Siege)));               // komutan yok
+        Assert.Equal(10, g.CardScore(g.TestBoard(0, "john_natalis", RowKind.Close)));           // kahraman etkilenmez
+        Assert.Equal(5, g.CardScore(g.TestBoard(1, "vampire_katakan", RowKind.Close)));         // Canavarlarda yok
+        Assert.True(T.New("nilfgaard", "monsters", options: Opts(commanders: true)).HasDiscipline(0));
+        Assert.False(T.New("northern_realms", "monsters").HasDiscipline(0));                     // komutansız klasik
+    }
+
+    [Fact]
+    public void Planning_ai_moves_the_commander_to_its_main_row()
+    {
+        var g = T.New("northern_realms", "monsters", options: Opts(commanders: true));
+        T.Filler(g, 1);
+        for (var i = 0; i < 3; i++) g.TestBoard(0, "catapult", RowKind.Siege);
+        g.TestHand(0, "ballista");
+        g.TestBoard(1, "vampire_katakan", RowKind.Close);   // rakip önde değil, ben öndeyim
+        var a = new HeuristicAgent().Decide(g, 0);
+        Assert.Equal(new MoveCommander(0, RowKind.Siege), a);
+        var off = new HeuristicAgent(new AiTuning { CommanderPlanGain = 0 }).Decide(g, 0);
+        Assert.IsNotType<MoveCommander>(off);
     }
 
     [Fact]

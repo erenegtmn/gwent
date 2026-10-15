@@ -31,6 +31,11 @@ public sealed record AiTuning
     public double Overcommit { get; init; } = 0;
     /// <summary>Kaer Morhen: komutan figürünü taşımayı dener mi (arena karşılaştırması için kapatılabilir).</summary>
     public bool UseCommander { get; init; } = true;
+    /// <summary>
+    /// Kaer Morhen: komutanı önceden ana satırına taşır (yalnız hava gelince değil). Taşımak kart harcamadan tur geçirmektir:
+    /// öndeyken pas ya da gereksiz kart yerine, gerideyken teslim pası yerine kullanılır. 0 = kapalı; değer = gereken koruma farkı.
+    /// </summary>
+    public double CommanderPlanGain { get; init; } = 4;
 }
 
 /// <summary>
@@ -99,12 +104,16 @@ public sealed class HeuristicAgent : IAgent
             if (free != null) return free.Action;
         }
 
+        // Komutanı ana satırına taşımak: kart harcamadan geçen bir tur (rakip pas geçtiyse anlamı yok: hava gelmez)
+        var plan = opp.Passed ? null : PlanCommander(g, me);
+
         if (lead > 0)
         {
             if (opp.Passed) return pass;
             var oppPotential = opp.Hand.Count * _t.AvgCardPoints + (opp.LeaderUsed ? 0 : 3);
-            if (lead >= _t.PassAheadFactor * oppPotential) return pass;
-            // Kıl payı öndeyim: rakip yanıt verene dek en ucuz hamleyle önde kalırım.
+            if (lead >= _t.PassAheadFactor * oppPotential) return plan ?? pass;
+            // Kıl payı öndeyim: rakip yanıt verene dek en ucuz hamleyle önde kalırım (ya da kartsız: komutanı taşırım).
+            if (plan != null) return plan;
             var keep = Pick(cands.Where(c => c.Gain > 0));
             return keep?.Action ?? pass;
         }
@@ -112,7 +121,7 @@ public sealed class HeuristicAgent : IAgent
         var need = -lead + 1;
         var mustWin = self.Gems == 1; // bu raundu kaybedersem oyun biter
         var potential = Valuation.PotentialPoints(self.Hand) + (g.LeaderAvailable(me) ? 4 : 0);
-        if (!mustWin && need > potential * _t.ConcedeFactor) return pass; // kartlarımı sonraki raunda saklarım
+        if (!mustWin && need > potential * _t.ConcedeFactor) return plan ?? pass; // kartlarımı sonraki raunda saklarım (önce bedava hamle)
 
         // Yıpratma savaşı: toplam gücüm (saha + el) rakibinkinden azsa bu raundu kazanamam; kartlarımı saklarım.
         if (!mustWin && _t.RelativeConcedeFactor > 0)
@@ -155,6 +164,35 @@ public sealed class HeuristicAgent : IAgent
             list.Add(new Cand(a, gain, cost));
         }
         return list;
+    }
+
+    /// <summary>
+    /// Komutan için en değerli satır: oradaki birimlerimin havada kaybedeceği güç + elimdeki o satırın kartları (yarı ağırlık)
+    /// + Stribog rünleri. Şimdiki satırdan en az <see cref="AiTuning.CommanderPlanGain"/> iyiyse taşıma eylemi, değilse null.
+    /// </summary>
+    private GameAction? PlanCommander(Game g, int me)
+    {
+        if (_t.CommanderPlanGain <= 0 || !_t.UseCommander || !g.Options.Commanders) return null;
+        var self = g.Players[me];
+        if (self.CommanderMoved || self.Commander is not { } current) return null;
+        double Value(RowKind row)
+        {
+            double v = 0;
+            foreach (var c in self.Row(row).Cards.Where(c => c.Def.IsUnit && !c.Def.Hero))
+            {
+                v += Math.Max(0, g.CardScore(c) - 1);
+                if (c.Rune == RuneIds.Stribog) v += 2;
+            }
+            foreach (var c in self.Hand.Where(c => c.Def.IsUnit && !c.Def.Hero && !c.Has("spy")))
+            {
+                var fits = c.Def.FixedRow == row || (c.Def.IsAgile && row is RowKind.Close or RowKind.Ranged);
+                if (fits) v += 0.5 * Math.Max(0, c.Def.Strength - 1) / (c.Def.IsAgile ? 2 : 1);
+            }
+            return v;
+        }
+        var best = Enum.GetValues<RowKind>().OrderByDescending(Value).First();
+        if (best == current || Value(best) - Value(current) < _t.CommanderPlanGain) return null;
+        return g.LegalActions().OfType<MoveCommander>().FirstOrDefault(m => m.Player == me && m.Row == best);
     }
 
     /// <summary>Eylemi kopya üzerinde dener; çıkan seçimleri aynı sezgiyle çözer. Raund bitiminde sahalar sıfırlandığı için sonuç geçmişten okunur.</summary>

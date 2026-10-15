@@ -637,7 +637,11 @@ public sealed class GwintView : Viewbox
         if (ps.Commander == rk)
         {
             var shielding = G.WeatherActive(rk);
-            var token = new Grid { Width = 32, Height = 32, Tag = "commander", Cursor = Cursors.Arrow, ToolTip = "Komutan: bu satırı havadan korur." };
+            var token = new Grid
+            {
+                Width = 32, Height = 32, Tag = "commander", Cursor = Cursors.Arrow,
+                ToolTip = "Komutan: bu satırı havadan korur." + (G.HasDiscipline(side) ? $" Disiplin ({Texts.FactionShort(ps.Faction)}): bu satırdaki birimler +{Game.CommanderDiscipline}." : "")
+            };
             token.Children.Add(new Ellipse
             {
                 Fill = Theme.B(side == Me ? "#2a1c0e" : "#16202e"), Stroke = Theme.B(side == Me ? "#e8c970" : "#7ab0e8"), StrokeThickness = 2.5,

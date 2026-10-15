@@ -43,7 +43,7 @@ public class RuneTests
         var g = T.New(options: new GameOptions { Commanders = true });
         var close = Runed(g, 0, "siegfried_of_denesle", RowKind.Close, RuneIds.Stribog);
         var siege = Runed(g, 0, "ballista", RowKind.Siege, RuneIds.Stribog);
-        Assert.Equal(7, g.CardScore(close));  // komutan yakın satırda başlar
+        Assert.Equal(8, g.CardScore(close));  // komutan yakın satırda başlar: 5 + Stribog 2 + Kuzey Disiplini 1
         Assert.Equal(6, g.CardScore(siege));
         Assert.Equal(5, T.New().Let(g2 => g2.CardScore(Runed(g2, 0, "siegfried_of_denesle", RowKind.Close, RuneIds.Stribog)))); // komutansız: etkisiz
     }

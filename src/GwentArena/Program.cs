@@ -36,12 +36,16 @@ if (args.Length > 0 && args[0] == "terrain")
     // Kaer Morhen: her harita için fraksiyon dengesi, oyun uzunluğu, olay sayıları; komutanı kullanan AI'nın üstünlüğü.
     var per = args.Length > 1 ? int.Parse(args[1]) : 10;
     string[] fs = { "northern_realms", "nilfgaard", "scoiatael", "monsters", "skellige" };
-    var maps = new List<TerrainMap?> { null };
+    // terrain [oyun] [plan|nocmd]: plan = planlı komutan, plansıza karşı; nocmd = komutansız (yalnız arazinin etkisi)
+    var noCmd = args.Length > 2 && args[2] == "nocmd";
+    if (Environment.GetEnvironmentVariable("GWENT_NR_BONUS") is { } nrb) Game.CommanderDiscipline = int.Parse(nrb);
+    if (Environment.GetEnvironmentVariable("GWENT_CMD_FACTIONS") is { } cf) Game.DisciplinedFactions = cf.Split(',').ToHashSet();
+    var maps = new List<TerrainMap?> { null, TerrainMap.Symmetric("plain", "Düzlük", Terrain.Plain, Terrain.Plain, Terrain.Plain) };
     maps.AddRange(Battlefields.All);
     Console.WriteLine($"{"harita",-22} " + string.Join(" ", fs.Select(f => f[..6].PadLeft(7))) + "  adım  taşıma  düşen  | komutanlı AI");
     foreach (var map in maps)
     {
-        var opts = new GameOptions { Terrain = map, Commanders = map != null };
+        var opts = new GameOptions { Terrain = map, Commanders = map != null && !noCmd };
         var wins = fs.ToDictionary(f => f, _ => 0);
         var plays = fs.ToDictionary(f => f, _ => 0);
         long steps = 0; var moves = 0; var falls = 0; var played = 0;
@@ -56,11 +60,11 @@ if (args.Length > 0 && args[0] == "terrain")
                 if (r.Winner == 0) wins[a]++; else if (r.Winner == 1) wins[b]++;
                 moves += r.Game.Events.Count(e => e.Kind == "commander");
                 falls += r.Game.Events.Count(e => e.Kind == "bridge_fall");
-                if (map == null) continue;
+                if (map == null || noCmd) continue;
                 // Komutanı kullanan AI, kullanmayana karşı (koltuk değişerek)
                 var seat = seed % 2;
                 var withCmd = new HeuristicAgent();
-                var without = new HeuristicAgent(new AiTuning { UseCommander = false }, 2);
+                var without = new HeuristicAgent(args.Length > 2 && args[2] == "plan" ? new AiTuning { CommanderPlanGain = 0 } : new AiTuning { UseCommander = false }, 2);
                 var ag = seat == 0 ? new IAgent[] { withCmd, without } : new IAgent[] { without, withCmd };
                 var r2 = GameRunner.Play(ag[0], ag[1], DeckValidator.DefaultDeck(a), DeckValidator.DefaultDeck(b), sd, opts);
                 cmdGames++; if (r2.Winner == seat) cmdWins++;
