@@ -71,6 +71,36 @@ public static partial class UiSelfTest
                 Check(KeepStore.Load() is { } k && k.Wins + k.Losses == 1, "sonuç kaydedilmedi");
             }
 
+            // Müttefik Salonu: onar, Dandelion'u çağır (hemen maça katılır)
+            s.Crowns += 1000; s.Blue += 10;
+            view = new KeepView(s, new KeepNav((c, d, r, p) => started = (c, d, r, p), () => back = true));
+            Layout(view);
+            Click(Tagged("keep-upgrade:" + Keep.AlliesHall)); Layout(view);
+            Click(Tagged("keep-allies")); Layout(view);
+            Click(Tagged("ally-recruit:dandelion")); Layout(view);
+            Check(FindAll<ToggleButton>(view, t => (t.Tag as string) == "ally-active:dandelion").Any(t => t.IsChecked == true), "çağrılan müttefik maça katılmıyor");
+            Click(Tagged("allies-done")); Layout(view);
+            Check(Keep.MatchAllies(s).SequenceEqual(new[] { "dandelion" }), "müttefik kaydı");
+
+            // Wild Hunt kuşatması: hazır olunca başlat, ilk dalgaya çık; müttefik elde başlar
+            s.SiegeProgress = Keep.SiegeEvery;
+            view = new KeepView(s, new KeepNav((c, d, r, p) => started = (c, d, r, p), () => back = true));
+            Layout(view);
+            Click(Tagged("siege-start")); Layout(view);
+            Check(s.SiegeWave == 1, "kuşatma başlamadı");
+            started = null;
+            Click(Tagged("siege-go")); Layout(view);
+            Click(Tagged("prep-go"));
+            Check(started is { C.Id: -1 }, "kuşatmanın ilk dalgası başlamadı");
+            if (started is { } wave)
+            {
+                var ws = KeepMatch.Create(s, wave.C, wave.D, wave.R, wave.P, _ => { }, seed: 9);
+                Check(ws.Game.Players[0].Hand.Any(c => c.Def.Id == "dandelion") && ws.Game.Players[0].Hand.Count == Game.StartingHand + 1, "müttefik elde başlamadı");
+                Check(ws.Game.Options.Terrain?.Id == "kaer_morhen_ruins" && ws.Config.OppFaction == "monsters", "kuşatma kurulumu");
+                ws.Settle!(true);
+                Check(s.SiegeWave == 2, "dalga sonucu işlenmedi");
+            }
+
             // Menüye dönüş
             view = new KeepView(s, new KeepNav((_, _, _, _) => { }, () => back = true));
             Layout(view);

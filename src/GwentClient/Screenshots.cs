@@ -98,6 +98,15 @@ public static class Screenshots
             Save(kv, "keep.png");
             typeof(KaerMorhen.KeepView).GetMethod("OpenPrep", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(kv, new object[] { ks.Board[0] });
             Save(kv, "keep_prep.png");
+            ks.Buildings[global::KaerMorhen.Core.Keep.AlliesHall] = 2;
+            ks.Allies.AddRange(new[] { "dandelion", "zoltan_chivay", "triss_merigold" });
+            ks.ActiveAllies.AddRange(new[] { "zoltan_chivay", "triss_merigold" });
+            ks.SiegeProgress = global::KaerMorhen.Core.Keep.SiegeEvery;
+            global::KaerMorhen.Core.Keep.StartSiege(ks);
+            var kv2 = new KaerMorhen.KeepView(ks, new KaerMorhen.KeepNav((_, _, _, _) => { }, () => { }));
+            Save(kv2, "keep_siege.png");
+            typeof(KaerMorhen.KeepView).GetMethod("OpenAllies", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(kv2, null);
+            Save(kv2, "keep_allies.png");
             KaerMorhen.KeepStore.PathOverride = null;
             try { System.IO.File.Delete(ff + ".keep"); } catch { }
             KaerMorhen.ForgeStore.PathOverride = null;

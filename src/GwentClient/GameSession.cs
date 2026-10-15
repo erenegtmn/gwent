@@ -5,7 +5,7 @@ using GwentNet;
 namespace GwentClient;
 
 /// <summary>MyDeck boşsa fraksiyonun tüm kartları kullanılır. Rakip her zaman "önerilen" deste ile oynar (dengeli olsun).</summary>
-public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal, Deck? OppDeck = null, IReadOnlyList<string>? Curses = null, DateOnly? Daily = null, string? Battlefield = null, bool Commanders = false, IReadOnlyList<CardRune>? Runes = null, IReadOnlyList<TerrainPiece>? Pieces = null);
+public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal, Deck? OppDeck = null, IReadOnlyList<string>? Curses = null, DateOnly? Daily = null, string? Battlefield = null, bool Commanders = false, IReadOnlyList<CardRune>? Runes = null, IReadOnlyList<TerrainPiece>? Pieces = null, IReadOnlyList<string>? Allies = null);
 
 /// <summary>Online maçta sunucuyla konuşan taraf: eylemi gönderir. Sunucudan gelenler <see cref="GameSession.EnqueueRemote"/> ile oturuma verilir.</summary>
 public interface IMatchLink
@@ -117,7 +117,8 @@ public sealed class GameSession
             Battlefield = cfg.Battlefield, Commanders = cfg.Commanders,
             MyRunes = cfg.Runes is { Count: > 0 } ? cfg.Runes.ToList() : null,
             OppAutoRunes = cfg.Battlefield != null ? Forge.AiRuneCount(cfg.Difficulty) : 0,
-            Pieces = cfg.Pieces is { Count: > 0 } ? cfg.Pieces.ToList() : null
+            Pieces = cfg.Pieces is { Count: > 0 } ? cfg.Pieces.ToList() : null,
+            MyAllies = cfg.Allies is { Count: > 0 } ? cfg.Allies.ToList() : null
         };
         Game = Replay.CreateGame();
     }

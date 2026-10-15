@@ -44,6 +44,8 @@ public sealed class ReplayData
     public int OppAutoRunes { get; set; }
     /// <summary>Kaer Morhen: maç öncesi konan arazi parçaları (Mühendis Atölyesi).</summary>
     public List<TerrainPiece>? Pieces { get; set; }
+    /// <summary>Kaer Morhen: oyuncunun maça katılan müttefikleri (elde başlar).</summary>
+    public List<string>? MyAllies { get; set; }
     public int Difficulty { get; set; }
     public List<ReplayAction> Actions { get; set; } = new();
     /// <summary>Oyuncunun gördüğü Türkçe olay günlüğü (hata bildirirken neyin olduğunu gösterir).</summary>
@@ -62,6 +64,7 @@ public sealed class ReplayData
         (mine, theirs) = GwentAI.Curses.ApplyDecks(Curses, mine, theirs, opts);
         if (MyRunes is { Count: > 0 }) mine = mine with { Runes = MyRunes };
         if (OppAutoRunes > 0) theirs = theirs with { Runes = Forge.AutoRunes(theirs, OppAutoRunes) };
+        if (MyAllies is { Count: > 0 }) mine = mine with { Allies = MyAllies };
         if (!OppDeckUnchecked) return new Game(mine, theirs, Seed, opts);
         var errs = DeckValidator.Validate(mine, opts);
         if (errs.Count > 0) throw new ArgumentException("Oyuncu 0 destesi geçersiz: " + string.Join(" ", errs));

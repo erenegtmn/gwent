@@ -18,6 +18,9 @@ public sealed record Building(string Id, string Name, string Text, Mutagen Color
 /// <summary>Mühendis atölyesinin arazi parçası. Kule kendi satırına, barikat ve hendek rakibin satırına konur.</summary>
 public sealed record EngineerPiece(string Id, string Name, Terrain Terrain, bool OnOpponent, string Text);
 
+/// <summary>Müttefik: Müttefik Salonu'nda ikna edilir, maça elde fazladan kart olarak katılır (W3'teki Kaer Morhen savaşı gibi).</summary>
+public sealed record Ally(string CardId, string Name, string Text, Cost Cost);
+
 /// <summary>Sözleşme panosundaki bir iş: rakip, savaş alanı, (isteğe bağlı) lanet ve ödül.</summary>
 public sealed record Contract(int Id, string Title, string Text, string Faction, string LeaderId, Difficulty Difficulty, string Battlefield,
     string? Curse, int RewardCrowns, Mutagen RewardColor, int RewardMutagens, int Seed);
@@ -40,6 +43,15 @@ public sealed class KeepSave
     /// <summary>Son sözleşmede seçilen deste (fraksiyon ve seçim anahtarı: "@rec" ya da "deck:Ad").</summary>
     public string? LastFaction { get; set; }
     public string? LastDeck { get; set; }
+    /// <summary>İkna edilen müttefikler ve maça katılanlar (sıra önemli: yuva azsa baştakiler katılır).</summary>
+    public List<string> Allies { get; set; } = new();
+    public List<string> ActiveAllies { get; set; } = new();
+    /// <summary>Son kuşatmadan beri başarılan sözleşmeler; <see cref="Keep.SiegeEvery"/> olunca Wild Hunt gelir.</summary>
+    public int SiegeProgress { get; set; }
+    /// <summary>Süren kuşatmanın dalgası (0 = kuşatma yok).</summary>
+    public int SiegeWave { get; set; }
+    public int SiegesWon { get; set; }
+    public int SiegesLost { get; set; }
 
     public int Level(string building) => Buildings.GetValueOrDefault(building);
 
@@ -84,7 +96,9 @@ public static class Keep
             new[] { "Gözcü kulesi (kendi satırın Tepe olur).", "+ Barikat (rakibin satırı Köprü olur); maçta 2 parça.", "+ Hendek (rakibin satırı Bataklık olur); maçta 3 parça." }),
         new Building(Alchemy, "Simya Odası", "Maç öncesi iksirler (toksisite sınırıyla).", Mutagen.Green, Array.Empty<Cost>(), Array.Empty<string>(), Planned: true),
         new Building(Barracks, "Kışla", "Deste kuralları: fazladan kahraman/casus hakkı.", Mutagen.Red, Array.Empty<Cost>(), Array.Empty<string>(), Planned: true),
-        new Building(AlliesHall, "Müttefik Salonu", "Zoltan, Lambert, Yennefer, Triss... Kuşatmada yanında savaşırlar.", Mutagen.Blue, Array.Empty<Cost>(), Array.Empty<string>(), Planned: true),
+        new Building(AlliesHall, "Müttefik Salonu", "Dostlarını Kaer Morhen'e çağır. Maça elinde fazladan kart olarak katılırlar.", Mutagen.Blue,
+            new[] { new Cost(120, 1, Mutagen.Blue), new Cost(260, 3, Mutagen.Blue), new Cost(450, 5, Mutagen.Blue) },
+            new[] { "1 müttefik maça katılır.", "2 müttefik maça katılır.", "3 müttefik maça katılır." }),
     };
 
     public static Building Get(string id) => Buildings.First(b => b.Id == id);
@@ -95,6 +109,114 @@ public static class Keep
         new EngineerPiece("barricade", "Barikat", Terrain.Bridge, true, "Rakibin satırı Köprü olur (en fazla 4 birim)."),
         new EngineerPiece("moat", "Hendek", Terrain.Swamp, true, "Rakibin satırı Bataklık olur (−1)."),
     };
+
+    public static readonly IReadOnlyList<Ally> AllAllies = new[]
+    {
+        new Ally("dandelion", "Dandelion", "Ozan. Satırına Komutan Boynuzu çalar.", new Cost(60)),
+        new Ally("zoltan_chivay", "Zoltan Chivay", "Cüce dost; baltası ve sözü sağlamdır.", new Cost(90, 1, Mutagen.Green)),
+        new Ally("emiel_regis_rohellec_terzieff", "Regis", "Berber-cerrah; geceleri pek uyumaz.", new Cost(120, 2, Mutagen.Red)),
+        new Ally("vesemir", "Vesemir", "Kaer Morhen'in en yaşlı cadısı.", new Cost(150, 2, Mutagen.Green)),
+        new Ally("triss_merigold", "Triss Merigold", "Ateş büyüsünde ustadır (kahraman).", new Cost(220, 3, Mutagen.Blue)),
+        new Ally("yennefer_of_vengerberg", "Yennefer", "Vengerberg'li büyücü; ölüyü geri çağırır (kahraman, Medic).", new Cost(260, 3, Mutagen.Red)),
+    };
+
+    public static Ally GetAlly(string cardId) => AllAllies.First(a => a.CardId == cardId);
+
+    /// <summary>Maça katılabilecek müttefik sayısı (Müttefik Salonu seviyesi).</summary>
+    public static int AllySlots(KeepSave s) => Math.Min(AllyRules.MaxPerMatch, s.Level(AlliesHall));
+
+    public static string? RecruitBlocked(KeepSave s, string cardId)
+    {
+        if (s.Level(AlliesHall) == 0) return "Önce Müttefik Salonu'nu onar.";
+        if (s.Allies.Contains(cardId)) return "Zaten kalede.";
+        var c = GetAlly(cardId).Cost;
+        if (s.Crowns < c.Crowns) return $"{c.Crowns - s.Crowns} Crown eksik.";
+        if (c.Mutagens > 0 && s.Mutagens(c.Color) < c.Mutagens) return $"{c.Mutagens - s.Mutagens(c.Color)} {MutagenName(c.Color)} mutajen eksik.";
+        return null;
+    }
+
+    /// <summary>Müttefiki ikna eder; yuva boşsa hemen maça katılanlara eklenir.</summary>
+    public static bool Recruit(KeepSave s, string cardId)
+    {
+        if (RecruitBlocked(s, cardId) != null) return false;
+        var c = GetAlly(cardId).Cost;
+        s.Crowns -= c.Crowns;
+        if (c.Mutagens > 0) s.AddMutagens(c.Color, -c.Mutagens);
+        s.Allies.Add(cardId);
+        if (s.ActiveAllies.Count < AllySlots(s)) s.ActiveAllies.Add(cardId);
+        return true;
+    }
+
+    /// <summary>Müttefikin maça katılıp katılmayacağını değiştirir; yuvalar doluysa katılamaz.</summary>
+    public static bool ToggleActive(KeepSave s, string cardId)
+    {
+        if (!s.Allies.Contains(cardId)) return false;
+        if (s.ActiveAllies.Remove(cardId)) return true;
+        if (s.ActiveAllies.Count >= AllySlots(s)) return false;
+        s.ActiveAllies.Add(cardId);
+        return true;
+    }
+
+    /// <summary>Bu maça katılacak müttefikler.</summary>
+    public static List<string> MatchAllies(KeepSave s) => s.ActiveAllies.Where(s.Allies.Contains).Take(AllySlots(s)).ToList();
+
+    // ---------- Wild Hunt kuşatması (TASARIM.md §6.2) ----------
+
+    /// <summary>Bu kadar sözleşme başarılınca Wild Hunt kaleye saldırır.</summary>
+    public const int SiegeEvery = 5;
+    public const int SiegeWaves = 3;
+
+    public static bool SiegeReady(KeepSave s) => s.SiegeWave == 0 && s.SiegeProgress >= SiegeEvery;
+
+    public static void StartSiege(KeepSave s)
+    {
+        if (SiegeReady(s)) s.SiegeWave = 1;
+    }
+
+    /// <summary>Sürmekte olan kuşatmanın dalgası, sözleşme olarak (kimliği eksi dalga numarası). Kuşatma yoksa null.</summary>
+    public static Contract? SiegeContract(KeepSave s)
+    {
+        if (s.SiegeWave == 0) return null;
+        var w = s.SiegeWave;
+        var (leader, diff, title, text) = w switch
+        {
+            1 => ("eredin_commander_of_the_red_riders", Difficulty.Normal, "Kızıl Süvariler", "Wild Hunt'ın öncüleri surlara dayandı."),
+            2 => ("eredin_destroyer_of_worlds", Difficulty.Hard, "Imlerith'in Saldırısı", "Kapıya koçbaşı vuruyorlar. Hendekler tutmalı."),
+            _ => ("eredin_king_of_the_wild_hunt", Difficulty.Hard, "Wild Hunt'ın Kralı", "Eredin bizzat geldi; ardından Beyaz Ayaz yürüyor.")
+        };
+        var color = (Mutagen)((w - 1) % 3);
+        return new Contract(-w, $"Kuşatma {w}/{SiegeWaves}: {title}", text, "monsters", leader, diff, "kaer_morhen_ruins",
+            w == SiegeWaves ? Curses.EndlessWinter : null, 80 + 40 * w, color, 1 + w, unchecked(s.Seed * 31 + s.SiegesWon * 7 + w));
+    }
+
+    private static ContractResult CompleteSiege(KeepSave s, Contract c, bool won)
+    {
+        if (!won)
+        {
+            s.SiegesLost++;
+            s.SiegeWave = 0;
+            s.SiegeProgress = 0;
+            s.Crowns += LossCrowns;
+            return new ContractResult(false, LossCrowns, c.RewardColor, 0,
+                $"{c.Title}: surlar tutmadı. Wild Hunt yağmalayıp çekildi; kale ayakta. +{LossCrowns} Crown. Bir sonraki kuşatmaya hazırlan.");
+        }
+        s.Crowns += c.RewardCrowns;
+        s.AddMutagens(c.RewardColor, c.RewardMutagens);
+        if (s.SiegeWave < SiegeWaves)
+        {
+            s.SiegeWave++;
+            return new ContractResult(true, c.RewardCrowns, c.RewardColor, c.RewardMutagens,
+                $"{c.Title} püskürtüldü! +{c.RewardCrowns} Crown, +{c.RewardMutagens} {MutagenName(c.RewardColor)} mutajen. Sıradaki dalga geliyor.");
+        }
+        s.SiegesWon++;
+        s.SiegeWave = 0;
+        s.SiegeProgress = 0;
+        const int bonus = 200;
+        s.Crowns += bonus;
+        foreach (var m in new[] { Mutagen.Red, Mutagen.Green, Mutagen.Blue }) s.AddMutagens(m, 2);
+        return new ContractResult(true, c.RewardCrowns + bonus, c.RewardColor, c.RewardMutagens,
+            $"Kuşatma püskürtüldü! Kaer Morhen ayakta. +{c.RewardCrowns + bonus} Crown, her renkten +2 mutajen (ve +{c.RewardMutagens} {MutagenName(c.RewardColor)}).");
+    }
 
     // ---------- Kale ----------
 
@@ -227,10 +349,12 @@ public static class Keep
     /// </summary>
     public static ContractResult Complete(KeepSave s, int contractId, bool won)
     {
+        if (contractId < 0 && SiegeContract(s) is { } siege && siege.Id == contractId) return CompleteSiege(s, siege, won);
         var c = s.Board.FirstOrDefault(x => x.Id == contractId) ?? throw new InvalidOperationException("Sözleşme panoda yok.");
         if (won)
         {
             s.Wins++;
+            s.SiegeProgress++;
             s.Crowns += c.RewardCrowns;
             s.AddMutagens(c.RewardColor, c.RewardMutagens);
             s.Board.Remove(c);

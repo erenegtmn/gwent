@@ -67,12 +67,12 @@ public static class KeepMatch
     public static GameSession Create(KeepSave s, Contract c, Deck deck, List<CardRune> runes, List<TerrainPiece> pieces, Action<ContractResult> settled, int? seed = null)
     {
         var cfg = new MatchConfig(deck.Faction, deck.LeaderId, c.Faction, c.LeaderId, false, seed ?? Random.Shared.Next(1, int.MaxValue), deck, c.Difficulty,
-            null, c.Curse == null ? null : new[] { c.Curse }, null, c.Battlefield, true, Keep.LimitRunes(s, runes), pieces);
+            null, c.Curse == null ? null : new[] { c.Curse }, null, c.Battlefield, true, Keep.LimitRunes(s, runes), pieces, Keep.MatchAllies(s));
         return new GameSession(cfg)
         {
             OppNameOverride = c.Title,
             OppAvatarOverride = c.LeaderId,
-            ModeLabel = "Sözleşme",
+            ModeLabel = c.Id < 0 ? "Wild Hunt kuşatması" : "Sözleşme",
             ExitLabel = "Kaleye dön",
             Settle = won =>
             {

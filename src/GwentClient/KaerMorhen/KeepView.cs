@@ -91,6 +91,7 @@ public sealed class KeepView : Grid
         Canvas.SetLeft(cap2, 1120); Canvas.SetTop(cap2, 214);
         canvas.Children.Add(cap2);
         var board = new StackPanel { Width = 740 };
+        board.Children.Add(SiegeCard());
         foreach (var c in _s.Board) board.Children.Add(ContractCard(c));
         Canvas.SetLeft(board, 1110); Canvas.SetTop(board, 244);
         canvas.Children.Add(board);
@@ -142,6 +143,16 @@ public sealed class KeepView : Grid
                 sp.Children.Add(btn);
             }
             else sp.Children.Add(Ui.Text("En üst seviyede.", 13, Theme.B("#c9b88a")));
+            if (b.Id == Keep.AlliesHall && lvl > 0)
+            {
+                var allies = Ui.Button($"Müttefikler… ({Keep.MatchAllies(_s).Count}/{Keep.AllySlots(_s)} maçta)", OpenAllies);
+                allies.Tag = "keep-allies";
+                allies.HorizontalAlignment = HorizontalAlignment.Left;
+                allies.FontSize = 14;
+                allies.Padding = new Thickness(14, 6, 14, 6);
+                allies.Margin = new Thickness(0, 6, 0, 0);
+                sp.Children.Add(allies);
+            }
         }
         var panel = Ornate.Panel(sp, new Thickness(22, 16, 22, 16), 12, 0);
         panel.Margin = new Thickness(8);
@@ -150,8 +161,35 @@ public sealed class KeepView : Grid
         return panel;
     }
 
+    /// <summary>Wild Hunt: yaklaşma göstergesi, kuşatmayı başlat ya da sıradaki dalga.</summary>
+    private UIElement SiegeCard()
+    {
+        if (Keep.SiegeContract(_s) is { } wave) return ContractCard(wave);
+        if (!Keep.SiegeReady(_s))
+        {
+            var t = Ui.Text($"Wild Hunt yaklaşıyor: {_s.SiegeProgress}/{Keep.SiegeEvery} sözleşme. Sonra kaleye saldıracaklar."
+                + (_s.SiegesWon + _s.SiegesLost > 0 ? $"  (Kuşatmalar: {_s.SiegesWon} püskürtüldü, {_s.SiegesLost} kırılamadı)" : ""), 15, Theme.B("#9ac4f0"), false, TextAlignment.Left, true);
+            t.Tag = "siege-progress";
+            t.Margin = new Thickness(4, 0, 0, 12);
+            return t;
+        }
+        var sp = new StackPanel();
+        sp.Children.Add(Ui.Text("Wild Hunt Kaer Morhen'e geliyor!", 24, Theme.B("#9ac4f0"), true));
+        sp.Children.Add(Ui.Text($"Üç dalga: Kızıl Süvariler, Imlerith, sonunda Eredin ve Beyaz Ayaz. Kalenin parçaları ve müttefiklerin seninle. Bir dalgayı kaybedersen kuşatma biter (kale yıkılmaz).", 14, Theme.Text, false, TextAlignment.Left, true));
+        var go = Ui.Button("Kuşatmayı başlat", () => { Keep.StartSiege(_s); Save(); Build(); }, primary: true);
+        go.Tag = "siege-start";
+        go.HorizontalAlignment = HorizontalAlignment.Left;
+        go.Margin = new Thickness(0, 8, 0, 0);
+        go.Padding = new Thickness(20, 8, 20, 8);
+        sp.Children.Add(go);
+        var panel = Ornate.Panel(sp, new Thickness(22, 14, 22, 14), 12, 0, Theme.B("#ee0c1420"));
+        panel.Margin = new Thickness(0, 0, 0, 12);
+        return panel;
+    }
+
     private UIElement ContractCard(Contract c)
     {
+        var siege = c.Id < 0;
         var g = new Grid();
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -159,7 +197,7 @@ public sealed class KeepView : Grid
         if (shield != null) g.Children.Add(new Image { Source = shield, Width = 70, Height = 70, Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Top });
         var sp = new StackPanel();
         Grid.SetColumn(sp, 1);
-        sp.Children.Add(Ui.Text(c.Title, 21, Theme.B("#e8c970"), true));
+        sp.Children.Add(Ui.Text(c.Title, 21, Theme.B(siege ? "#9ac4f0" : "#e8c970"), true));
         sp.Children.Add(Ui.Text(c.Text, 13, Theme.TextDim, false, TextAlignment.Left, true));
         var map = Battlefields.Get(c.Battlefield)?.Name ?? c.Battlefield;
         var diff = c.Difficulty switch { Difficulty.Easy => "Kolay", Difficulty.Normal => "Normal", _ => "Zor" };
@@ -169,17 +207,82 @@ public sealed class KeepView : Grid
         reward.Children.Add(Ui.Text($"Ödül: ◆ {c.RewardCrowns} Crown  ", 15, Theme.B("#f0d890"), true));
         reward.Children.Add(new System.Windows.Shapes.Ellipse { Width = 14, Height = 14, Fill = MutColor(c.RewardColor), Margin = new Thickness(4, 3, 6, 0) });
         reward.Children.Add(Ui.Text($"{c.RewardMutagens} {Keep.MutagenName(c.RewardColor)} mutajen", 15, Theme.Text, true));
-        var take = Ui.Button("Sözleşmeyi al", () => OpenPrep(c), primary: true);
-        take.Tag = "contract:" + c.Id;
+        var take = Ui.Button(siege ? "Surlara!" : "Sözleşmeyi al", () => OpenPrep(c), primary: true);
+        take.Tag = siege ? "siege-go" : "contract:" + c.Id;
         take.FontSize = 14;
         take.Padding = new Thickness(16, 6, 16, 6);
         take.Margin = new Thickness(24, 0, 0, 0);
         reward.Children.Add(take);
         sp.Children.Add(reward);
         g.Children.Add(sp);
-        var panel = Ornate.Panel(g, new Thickness(22, 14, 22, 14), 12, 0);
+        var panel = Ornate.Panel(g, new Thickness(22, 14, 22, 14), 12, 0, siege ? Theme.B("#ee0c1420") : null);
         panel.Margin = new Thickness(0, 0, 0, 12);
         return panel;
+    }
+
+    // ---------- Müttefikler ----------
+
+    private void OpenAllies()
+    {
+        _overlay.Children.Clear();
+        _overlay.Visibility = Visibility.Visible;
+        _overlay.Background = Theme.B("#d8080503");
+        var root = new StackPanel { Width = 1240 };
+        root.Children.Add(Ornate.Heading("Müttefik Salonu", $"Dostlarını çağır. Maça katılanlar elinde fazladan kart olarak başlar ({Keep.AllySlots(_s)} yuva).", 36));
+        var wrap = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+        foreach (var a in Keep.AllAllies)
+        {
+            var ally = a;
+            var def = CardCatalog.Default.Get(a.CardId);
+            var cell = new StackPanel { Width = 196, Margin = new Thickness(5) };
+            var card = new GwintCard(def, 150, def.Strength, height: 200) { HorizontalAlignment = HorizontalAlignment.Center, IsHitTestVisible = false };
+            cell.Children.Add(card);
+            cell.Children.Add(Ui.Text(a.Name, 16, Theme.B("#e8c970"), true, TextAlignment.Center));
+            var lore = Ui.Text(a.Text, 12, Theme.TextDim, false, TextAlignment.Center, true);
+            lore.Height = 34;
+            cell.Children.Add(lore);
+            if (_s.Allies.Contains(a.CardId))
+            {
+                var active = _s.ActiveAllies.Contains(a.CardId);
+                var tb = new ToggleButton
+                {
+                    Style = (Style)Application.Current.FindResource("GToggle"), IsChecked = active, Tag = "ally-active:" + a.CardId, Margin = new Thickness(0, 4, 0, 0),
+                    Content = Ui.Text(active ? "Maça katılır" : "Kalede bekler", 14, Theme.Text, true, TextAlignment.Center)
+                };
+                tb.Click += (_, _) =>
+                {
+                    if (!Keep.ToggleActive(_s, ally.CardId)) Sfx.Play("dummy");
+                    Save();
+                    OpenAllies();
+                };
+                cell.Children.Add(tb);
+            }
+            else
+            {
+                var blocked = Keep.RecruitBlocked(_s, a.CardId);
+                var c = a.Cost;
+                cell.Children.Add(Ui.Text($"◆ {c.Crowns} Crown" + (c.Mutagens > 0 ? $" + {c.Mutagens} {Keep.MutagenName(c.Color)}" : ""), 13, Theme.B("#f0d890"), true, TextAlignment.Center));
+                var btn = Ui.Button("Çağır",
+                    () => { if (Keep.Recruit(_s, ally.CardId)) { Save(); Sfx.Play("leader_change"); } OpenAllies(); }, enabled: blocked == null);
+                btn.Tag = "ally-recruit:" + a.CardId;
+                btn.FontSize = 13;
+                btn.Margin = new Thickness(0, 4, 0, 0);
+                if (blocked != null) { ToolTipService.SetShowOnDisabled(btn, true); btn.ToolTip = blocked; }
+                cell.Children.Add(btn);
+            }
+            wrap.Children.Add(cell);
+        }
+        root.Children.Add(wrap);
+        var done = Ui.Button("Tamam", () => { _overlay.Visibility = Visibility.Collapsed; _overlay.Children.Clear(); Build(); }, primary: true);
+        done.Tag = "allies-done";
+        done.HorizontalAlignment = HorizontalAlignment.Center;
+        done.Padding = new Thickness(40, 10, 40, 10);
+        done.Margin = new Thickness(0, 16, 0, 0);
+        root.Children.Add(done);
+        var panel = Ornate.Panel(root, new Thickness(40, 28, 40, 28), 20, 54);
+        panel.HorizontalAlignment = HorizontalAlignment.Center;
+        panel.VerticalAlignment = VerticalAlignment.Center;
+        _overlay.Children.Add(panel);
     }
 
     // ---------- Sözleşme hazırlığı ----------
@@ -290,6 +393,12 @@ public sealed class KeepView : Grid
             row.Children.Add(tb);
             root.Children.Add(row);
         }
+
+        var allies = Keep.MatchAllies(_s);
+        root.Children.Add(Ornate.Caption("Müttefikler"));
+        root.Children.Add(Ui.Text(allies.Count == 0
+            ? (Keep.AllySlots(_s) == 0 ? "Müttefik Salonu harabe: dostlarını çağırmak için kalede onar." : "Maça katılan müttefik yok (Müttefik Salonu'ndan seç).")
+            : "Elinde başlar: " + string.Join(" · ", allies.Select(a => Keep.GetAlly(a).Name)), 15, Theme.Text, false, TextAlignment.Left, true));
 
         var map = Battlefields.Get(c.Battlefield);
         root.Children.Add(Ui.Text($"Savaş alanı: {map?.Name}. Komutanlar açık." + (c.Curse != null ? $" Lanet: {Curses.Get(c.Curse).Name} — {Curses.Get(c.Curse).Text}" : ""), 14, Theme.TextDim, false, TextAlignment.Left, true));
