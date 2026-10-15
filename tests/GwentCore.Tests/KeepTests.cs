@@ -115,8 +115,8 @@ public class KeepTests
             Keep.Complete(s, c.Id, true);
         }
         Assert.Contains(seen, c => c.Difficulty == Difficulty.Hard);
-        Assert.Contains(seen, c => c.Curse != null);
-        Assert.All(seen.Where(c => c.Curse != null), c => Assert.NotEqual(Curses.Mirror, c.Curse));
+        Assert.Contains(seen, c => c.Curses != null);
+        Assert.All(seen.Where(c => c.Curses != null), c => Assert.DoesNotContain(Curses.Mirror, c.Curses!));
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class KeepTests
             MyFaction = deck.Faction, MyLeaderId = deck.LeaderId, MyDeckCards = deck.CardIds.ToList(),
             MyRunes = Keep.LimitRunes(s, Forge.AutoRunes(deck, 3)),
             OppFaction = c.Faction, OppLeaderId = c.LeaderId, Difficulty = (int)c.Difficulty, OppAutoRunes = Forge.AiRuneCount(c.Difficulty),
-            Seed = c.Seed, Battlefield = c.Battlefield, Commanders = true, Curses = c.Curse == null ? null : new List<string> { c.Curse },
+            Seed = c.Seed, Battlefield = c.Battlefield, Commanders = true, Curses = c.Curses?.ToList(),
             Pieces = Keep.ToTerrain(s, new[] { ("tower", RowKind.Siege), ("moat", RowKind.Close) })
         };
         var g = replay.CreateGame();

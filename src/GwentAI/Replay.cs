@@ -48,6 +48,8 @@ public sealed class ReplayData
     public List<string>? MyAllies { get; set; }
     /// <summary>Kaer Morhen: Kışla avantajları ve iksirler.</summary>
     public Perks? MyPerks { get; set; }
+    /// <summary>Kaer Morhen: rakibin avantajları (kuşatma boss'ları: fazladan kart, iksirler).</summary>
+    public Perks? OppPerks { get; set; }
     public int Difficulty { get; set; }
     public List<ReplayAction> Actions { get; set; } = new();
     /// <summary>Oyuncunun gördüğü Türkçe olay günlüğü (hata bildirirken neyin olduğunu gösterir).</summary>
@@ -68,6 +70,7 @@ public sealed class ReplayData
         if (OppAutoRunes > 0) theirs = theirs with { Runes = Forge.AutoRunes(theirs, OppAutoRunes) };
         if (MyAllies is { Count: > 0 }) mine = mine with { Allies = MyAllies };
         if (MyPerks != null) mine = mine with { Perks = MyPerks };
+        if (OppPerks != null) theirs = theirs with { Perks = OppPerks };
         if (!OppDeckUnchecked) return new Game(mine, theirs, Seed, opts);
         var errs = DeckValidator.Validate(mine, opts);
         if (errs.Count > 0) throw new ArgumentException("Oyuncu 0 destesi geçersiz: " + string.Join(" ", errs));

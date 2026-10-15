@@ -66,14 +66,21 @@ public static class KeepMatch
 {
     public static GameSession Create(KeepSave s, Contract c, Deck deck, List<CardRune> runes, List<TerrainPiece> pieces, Action<ContractResult> settled, int? seed = null)
     {
-        var cfg = new MatchConfig(deck.Faction, deck.LeaderId, c.Faction, c.LeaderId, false, seed ?? Random.Shared.Next(1, int.MaxValue), deck, c.Difficulty,
-            null, c.Curse == null ? null : new[] { c.Curse }, null, c.Battlefield, true, Keep.LimitRunes(s, runes), pieces, Keep.MatchAllies(s), Keep.MatchPerks(s));
+        // Gaunter O'Dimm (Ayna): rakip senin destenle ve liderinle oynar
+        var mirror = c.Curses?.Contains(Curses.Mirror) == true;
+        var oppFaction = mirror ? deck.Faction : c.Faction;
+        var oppLeader = mirror ? deck.LeaderId : c.LeaderId;
+        var cfg = new MatchConfig(deck.Faction, deck.LeaderId, oppFaction, oppLeader, false, seed ?? Random.Shared.Next(1, int.MaxValue), deck, c.Difficulty,
+            null, c.Curses, null, c.Battlefield, true, Keep.LimitRunes(s, runes), pieces, Keep.MatchAllies(s), Keep.MatchPerks(s), c.OppPerks);
         return new GameSession(cfg)
         {
             OppNameOverride = c.Title,
-            OppAvatarOverride = c.LeaderId,
-            ModeLabel = c.Id < 0 ? "Wild Hunt kuşatması" : "Sözleşme",
+            OppAvatarOverride = mirror ? "gaunter_odimm" : c.LeaderId,
+            ModeLabel = c.Id < 0 ? "Kaer Morhen kuşatması" : "Sözleşme",
             ExitLabel = "Kaleye dön",
+            LeaveWarning = c.Id < 0
+                ? "Kuşatmadan çekilmek dalgayı kaybetmek sayılır: Kaer Morhen düşer ve sefer baştan başlar."
+                : "Sözleşmeyi yarıda bırakmak başarısızlık sayılır.",
             Settle = won =>
             {
                 var r = Keep.Complete(s, c.Id, won == true);

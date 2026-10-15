@@ -5,7 +5,7 @@ using GwentNet;
 namespace GwentClient;
 
 /// <summary>MyDeck boşsa fraksiyonun tüm kartları kullanılır. Rakip her zaman "önerilen" deste ile oynar (dengeli olsun).</summary>
-public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal, Deck? OppDeck = null, IReadOnlyList<string>? Curses = null, DateOnly? Daily = null, string? Battlefield = null, bool Commanders = false, IReadOnlyList<CardRune>? Runes = null, IReadOnlyList<TerrainPiece>? Pieces = null, IReadOnlyList<string>? Allies = null, Perks? Perks = null);
+public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal, Deck? OppDeck = null, IReadOnlyList<string>? Curses = null, DateOnly? Daily = null, string? Battlefield = null, bool Commanders = false, IReadOnlyList<CardRune>? Runes = null, IReadOnlyList<TerrainPiece>? Pieces = null, IReadOnlyList<string>? Allies = null, Perks? Perks = null, Perks? OppPerks = null);
 
 /// <summary>Online maçta sunucuyla konuşan taraf: eylemi gönderir. Sunucudan gelenler <see cref="GameSession.EnqueueRemote"/> ile oturuma verilir.</summary>
 public interface IMatchLink
@@ -59,6 +59,9 @@ public sealed class GameSession
 
     /// <summary>İstatistikteki kip adı ("Collect 'Em All", "Draft"); rakip adının önüne yazılır.</summary>
     public string? ModeLabel { get; init; }
+
+    /// <summary>Yerel maçta yarıda çıkmadan önce sorulacak uyarı (ör. kuşatmayı bırakmak seferi bitirir). null = sormadan çık.</summary>
+    public string? LeaveWarning { get; init; }
     public bool IsRemote => _link != null;
 
     /// <summary>Turnuva maçı: oyun sonunda "Bracket'e dön" gösterilir (rövanş yalnız berabere kalınca).</summary>
@@ -119,7 +122,8 @@ public sealed class GameSession
             OppAutoRunes = cfg.Battlefield != null ? Forge.AiRuneCount(cfg.Difficulty) : 0,
             Pieces = cfg.Pieces is { Count: > 0 } ? cfg.Pieces.ToList() : null,
             MyAllies = cfg.Allies is { Count: > 0 } ? cfg.Allies.ToList() : null,
-            MyPerks = cfg.Perks
+            MyPerks = cfg.Perks,
+            OppPerks = cfg.OppPerks
         };
         Game = Replay.CreateGame();
     }

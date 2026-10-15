@@ -24,9 +24,21 @@ public sealed record Potion(string Id, string Name, int Toxicity, int Level, str
 /// <summary>Müttefik: Müttefik Salonu'nda ikna edilir, maça elde fazladan kart olarak katılır (W3'teki Kaer Morhen savaşı gibi).</summary>
 public sealed record Ally(string CardId, string Name, string Text, Cost Cost);
 
-/// <summary>Sözleşme panosundaki bir iş: rakip, savaş alanı, (isteğe bağlı) lanet ve ödül.</summary>
+/// <summary>
+/// Sözleşme panosundaki bir iş (ya da kuşatma dalgası): rakip, savaş alanı, lanetler ve ödül. OppPerks: rakibin avantajları (kuşatma boss'ları).
+/// Faction "mirror": Gaunter O'Dimm — rakip oyuncunun destesiyle oynar (Ayna laneti).
+/// </summary>
 public sealed record Contract(int Id, string Title, string Text, string Faction, string LeaderId, Difficulty Difficulty, string Battlefield,
-    string? Curse, int RewardCrowns, Mutagen RewardColor, int RewardMutagens, int Seed);
+    IReadOnlyList<string>? Curses, int RewardCrowns, Mutagen RewardColor, int RewardMutagens, int Seed, Perks? OppPerks = null);
+
+/// <summary>Kuşatmanın bir dalgası.</summary>
+public sealed record SiegeWave(string LeaderId, Difficulty Difficulty, string Title, string Text, IReadOnlyList<string>? Curses = null, Perks? Perks = null);
+
+/// <summary>Kronik'in bir bölümü: Kaer Morhen'e saldıran düşman ve dalgaları.</summary>
+public sealed record Antagonist(string Name, string Faction, string Intro, IReadOnlyList<SiegeWave> Waves);
+
+/// <summary>Biten bir seferin özeti (kuşatma kaybedilince kale düşer, sefer biter).</summary>
+public sealed record RunRecord(int Run, int Chapter, int Contracts, int SiegesWon, string FallenTo);
 
 /// <summary>Kalenin kaydı. Yalnız <see cref="Keep"/> değiştirir.</summary>
 public sealed class KeepSave
@@ -57,6 +69,12 @@ public sealed class KeepSave
     public int SiegeWave { get; set; }
     public int SiegesWon { get; set; }
     public int SiegesLost { get; set; }
+    /// <summary>Kronik bölümü (0'dan; <see cref="Keep.Chronicle"/> sayısı ve sonrası: sonsuz Beyaz Ayaz).</summary>
+    public int Chapter { get; set; }
+    /// <summary>Kaçıncı sefer (kale her düştüğünde yeni sefer başlar) ve biten seferler. Sefer sıfırlanınca bunlar korunur.</summary>
+    public int Run { get; set; } = 1;
+    public List<RunRecord> Runs { get; set; } = new();
+    public int BestChapter => Runs.Select(r => r.Chapter).Append(Chapter).Max();
 
     public int Level(string building) => Buildings.GetValueOrDefault(building);
 
@@ -229,6 +247,52 @@ public static class Keep
 
     public static bool SiegeReady(KeepSave s) => s.SiegeWave == 0 && s.SiegeProgress >= SiegeEvery;
 
+    /// <summary>Düşman kapıda (ya da kuşatma sürüyor): sözleşmeye çıkılamaz, önce kuşatma karşılanır.</summary>
+    public static bool ContractsLocked(KeepSave s) => SiegeReady(s) || s.SiegeWave > 0;
+
+    private static Perks Boss(int extraHand = 1, params string[] potions) => new(extraHand, 0, false, potions.Length > 0 ? potions : null);
+
+    /// <summary>Kronik: Kaer Morhen'e sırayla saldıran düşmanlar. Her biri bir öncekinden sert; sonuncusundan sonra sonsuz Beyaz Ayaz.</summary>
+    public static readonly IReadOnlyList<Antagonist> Chronicle = new[]
+    {
+        new Antagonist("Wild Hunt'ın Öncüleri", "monsters", "Kızıl süvariler dağ yolunda görüldü. Kaer Morhen'in surları yıllardır bu kadar sessiz değildi.", new[]
+        {
+            new SiegeWave("eredin_commander_of_the_red_riders", Difficulty.Normal, "Kızıl Süvariler", "Wild Hunt'ın öncüleri surlara dayandı."),
+            new SiegeWave("eredin_bringer_of_death", Difficulty.Normal, "Caranthir'in Büyüsü", "Kapıların önünde buz yükseliyor."),
+            new SiegeWave("eredin_destroyer_of_worlds", Difficulty.Hard, "Imlerith'in Saldırısı", "Koçbaşı kapıya vuruyor. Hendekler tutmalı."),
+        }),
+        new Antagonist("Radovid'in Cadı Avcıları", "northern_realms", "Redanya kralı büyücülere ve cadılara savaş açtı. Sıradaki hedef Kaer Morhen.", new[]
+        {
+            new SiegeWave("foltest_the_siegemaster", Difficulty.Normal, "Kuşatma Makineleri", "Mancınıklar vadiye kuruluyor."),
+            new SiegeWave("foltest_lord_commander_of_the_north", Difficulty.Hard, "Kızıl Bayraklar", "Cadı avcıları surlara tırmanıyor."),
+            new SiegeWave("foltest_king_of_temeria", Difficulty.Hard, "Yakma Fermanı", "Büyü yasak: kahramanların sesi kısıldı.", new[] { Curses.NoHeroes }, Boss()),
+        }),
+        new Antagonist("Nilfgaard İstilası", "nilfgaard", "İmparatorluğun ordusu kuzeye yürüyor. Emhyr, Kaer Morhen'in teslim olmasını istiyor.", new[]
+        {
+            new SiegeWave("emhyr_var_emreis_his_imperial_majesty", Difficulty.Hard, "İmparatorluk Öncüsü", "Kara zırhlı birlikler vadiyi doldurdu."),
+            new SiegeWave("emhyr_var_emreis_the_relentless", Difficulty.Hard, "Impera Tugayı", "Her kazanılan savaşın bir bedeli var.", new[] { Curses.BloodPrice }),
+            new SiegeWave("emhyr_var_emreis_invader_of_the_north", Difficulty.Hard, "Kuzeyin İstilacısı", "Emhyr bizzat sahada.", null, Boss(1, PotionIds.Thunderbolt)),
+        }),
+        new Antagonist("Gaunter O'Dimm'in Pazarlığı", "mirror", "Aynalı Adam kapıyı çaldı. Seninle kendi silahlarınla oynamak istiyor.", new[]
+        {
+            new SiegeWave("", Difficulty.Hard, "Aynadaki Yüz", "Karşında kendi destenle oynayan biri var.", new[] { Curses.Mirror }),
+            new SiegeWave("", Difficulty.Hard, "Kısa Mum", "Mum kısa, oyun uzun değil.", new[] { Curses.Mirror, Curses.ShortCandle }),
+            new SiegeWave("", Difficulty.Hard, "Ruhun Bedeli", "O'Dimm her zaferin bedelini tahsil eder.", new[] { Curses.Mirror, Curses.BloodPrice }, Boss()),
+        }),
+        new Antagonist("Wild Hunt'ın Kralı", "monsters", "Beyaz Ayaz geliyor. Eredin bizzat Kaer Morhen'e yürüyor: son savaş.", new[]
+        {
+            new SiegeWave("eredin_breacc_glas_the_treacherous", Difficulty.Hard, "Naglfar Demir Attı", "Hayalet gemiden askerler iniyor.", new[] { Curses.EndlessWinter }),
+            new SiegeWave("eredin_destroyer_of_worlds", Difficulty.Hard, "Imlerith ve Caranthir", "Wild Hunt'ın generalleri birlikte saldırıyor.", new[] { Curses.EndlessWinter }, Boss()),
+            new SiegeWave("eredin_king_of_the_wild_hunt", Difficulty.Hard, "Eredin Bréacc Glas", "Wild Hunt'ın Kralı surların önünde.", new[] { Curses.EndlessWinter }, Boss(1, PotionIds.Thunderbolt, PotionIds.BlackBlood)),
+        }),
+    };
+
+    /// <summary>Kronik bitti mi (sonsuz Beyaz Ayaz: düşmanlar sırayla, daha sert döner).</summary>
+    public static bool Endless(KeepSave s) => s.Chapter >= Chronicle.Count;
+
+    /// <summary>Sıradaki ya da süren kuşatmanın düşmanı.</summary>
+    public static Antagonist CurrentAntagonist(KeepSave s) => Chronicle[s.Chapter % Chronicle.Count];
+
     public static void StartSiege(KeepSave s)
     {
         if (SiegeReady(s)) s.SiegeWave = 1;
@@ -239,27 +303,36 @@ public static class Keep
     {
         if (s.SiegeWave == 0) return null;
         var w = s.SiegeWave;
-        var (leader, diff, title, text) = w switch
+        var foe = CurrentAntagonist(s);
+        var wave = foe.Waves[Math.Min(w, foe.Waves.Count) - 1];
+        var perks = wave.Perks;
+        var diff = wave.Difficulty;
+        if (Endless(s))
         {
-            1 => ("eredin_commander_of_the_red_riders", Difficulty.Normal, "Kızıl Süvariler", "Wild Hunt'ın öncüleri surlara dayandı."),
-            2 => ("eredin_destroyer_of_worlds", Difficulty.Hard, "Imlerith'in Saldırısı", "Kapıya koçbaşı vuruyorlar. Hendekler tutmalı."),
-            _ => ("eredin_king_of_the_wild_hunt", Difficulty.Hard, "Wild Hunt'ın Kralı", "Eredin bizzat geldi; ardından Beyaz Ayaz yürüyor.")
-        };
-        var color = (Mutagen)((w - 1) % 3);
-        return new Contract(-w, $"Kuşatma {w}/{SiegeWaves}: {title}", text, "monsters", leader, diff, "kaer_morhen_ruins",
-            w == SiegeWaves ? Curses.EndlessWinter : null, 80 + 40 * w, color, 1 + w, unchecked(s.Seed * 31 + s.SiegesWon * 7 + w));
+            // Sonsuz Beyaz Ayaz: hepsi Zor, her dalgada rakip fazladan kartla ve iksirle gelir
+            diff = Difficulty.Hard;
+            var pots = (perks?.Potions ?? Array.Empty<string>()).Append(PotionIds.Thunderbolt).Distinct().ToList();
+            perks = new Perks(1, 0, false, pots);
+        }
+        var color = (Mutagen)((w - 1 + s.Chapter) % 3);
+        var leader = wave.LeaderId;
+        if (foe.Faction != "mirror" && leader.Length == 0) leader = CardCatalog.Default.Leaders(foe.Faction).First().Id;
+        var crowns = 80 + 40 * w + 20 * Math.Min(s.Chapter, 10);
+        return new Contract(-w, $"{foe.Name} {w}/{SiegeWaves}: {wave.Title}", wave.Text, foe.Faction, leader, diff, "kaer_morhen_ruins",
+            wave.Curses, crowns, color, 1 + w, unchecked(s.Seed * 31 + s.Chapter * 101 + s.SiegesLost * 7 + w), perks);
     }
 
     private static ContractResult CompleteSiege(KeepSave s, Contract c, bool won)
     {
+        var foe = CurrentAntagonist(s);
         if (!won)
         {
-            s.SiegesLost++;
-            s.SiegeWave = 0;
-            s.SiegeProgress = 0;
-            s.Crowns += LossCrowns;
-            return new ContractResult(false, LossCrowns, c.RewardColor, 0,
-                $"{c.Title}: surlar tutmadı. Wild Hunt yağmalayıp çekildi; kale ayakta. +{LossCrowns} Crown. Bir sonraki kuşatmaya hazırlan.");
+            // Kale düştü: sefer biter, her şey baştan (roguelike). Sefer geçmişi ve deste tercihi kalır.
+            var rec = new RunRecord(s.Run, s.Chapter, s.Wins, s.SiegesWon, foe.Name);
+            Fall(s);
+            return new ContractResult(false, 0, c.RewardColor, 0,
+                $"Kaer Morhen düştü! {foe.Name} surları aştı. {rec.Run}. sefer bitti: Kronik {rec.Chapter + 1}. bölüm, {rec.Contracts} sözleşme, {rec.SiegesWon} kuşatma püskürtüldü. "
+                + $"{s.Run}. sefer başlıyor: kale yeniden harabe.");
         }
         s.Crowns += c.RewardCrowns;
         s.AddMutagens(c.RewardColor, c.RewardMutagens);
@@ -272,11 +345,35 @@ public static class Keep
         s.SiegesWon++;
         s.SiegeWave = 0;
         s.SiegeProgress = 0;
-        const int bonus = 200;
+        s.Chapter++;
+        var bonus = 200 + 50 * Math.Min(s.Chapter, 10);
         s.Crowns += bonus;
         foreach (var m in new[] { Mutagen.Red, Mutagen.Green, Mutagen.Blue }) s.AddMutagens(m, 2);
+        var next = s.Chapter == Chronicle.Count
+            ? "Kronik tamamlandı: Kaer Morhen Wild Hunt'a karşı ayakta! Ama Beyaz Ayaz dinmez: düşmanlar daha sert dönecek."
+            : $"Sıradaki tehdit: {CurrentAntagonist(s).Name}.";
         return new ContractResult(true, c.RewardCrowns + bonus, c.RewardColor, c.RewardMutagens,
-            $"Kuşatma püskürtüldü! Kaer Morhen ayakta. +{c.RewardCrowns + bonus} Crown, her renkten +2 mutajen (ve +{c.RewardMutagens} {MutagenName(c.RewardColor)}).");
+            $"{foe.Name} yenildi! +{c.RewardCrowns + bonus} Crown, her renkten +2 mutajen. {next}");
+    }
+
+    /// <summary>Kale düştü: seferi kaydeder ve yeni sefer başlatır (yeni tohum: farklı pano).</summary>
+    public static void Fall(KeepSave s)
+    {
+        s.Runs.Add(new RunRecord(s.Run, s.Chapter, s.Wins, s.SiegesWon, CurrentAntagonist(s).Name));
+        var fresh = NewSave(unchecked(s.Seed * 1103515245 + 12345 + s.Run) & int.MaxValue);
+        s.Run++;
+        s.Seed = fresh.Seed;
+        s.Crowns = fresh.Crowns;
+        s.Red = s.Green = s.Blue = 0;
+        s.Buildings = fresh.Buildings;
+        s.Board = fresh.Board;
+        s.ContractCounter = fresh.ContractCounter;
+        s.Wins = s.Losses = 0;
+        s.SiegeProgress = s.SiegeWave = s.SiegesWon = s.SiegesLost = 0;
+        s.Chapter = 0;
+        s.Allies.Clear();
+        s.ActiveAllies.Clear();
+        s.Potions.Clear();
     }
 
     // ---------- Kale ----------
@@ -386,8 +483,11 @@ public static class Keep
         // Aynı şablon panoda iki kez olmasın
         var free = Templates.Where(t => s.Board.All(c => c.Title != t.Title)).ToList();
         var t = free[rng.Next(free.Count)];
+        // Zorluk: şablonun tabanı, çoğunlukla bir üstü (%70); Kronik ilerledikçe taban yükselir. Zor için Savaş Odası 2. seviye.
         var maxDiff = war >= 2 ? Difficulty.Hard : Difficulty.Normal;
-        var diff = (Difficulty)Math.Min((int)maxDiff, (int)t.MinDifficulty + rng.Next(2));
+        var floor = Math.Min(2, s.Chapter);
+        var tier = Math.Max(floor, (int)t.MinDifficulty + (rng.NextDouble() < 0.7 ? 1 : 0));
+        var diff = (Difficulty)Math.Min((int)maxDiff, tier);
         string? curse = null;
         if (war >= 3 && rng.NextDouble() < 0.35)
         {
@@ -398,7 +498,8 @@ public static class Keep
         var crowns = diff switch { Difficulty.Easy => 40, Difficulty.Normal => 70, _ => 110 };
         var mut = diff switch { Difficulty.Easy => 1, Difficulty.Normal => 2, _ => 3 };
         if (curse != null) { crowns = crowns * 3 / 2; mut++; }
-        return new Contract(n, t.Title, t.Text, t.Faction, leaders[rng.Next(leaders.Count)].Id, diff, t.Battlefield, curse, crowns, t.Color, mut, rng.Next(1, int.MaxValue));
+        return new Contract(n, t.Title, t.Text, t.Faction, leaders[rng.Next(leaders.Count)].Id, diff, t.Battlefield, curse == null ? null : new[] { curse },
+            crowns, t.Color, mut, rng.Next(1, int.MaxValue));
     }
 
     /// <summary>Kaybedince teselli Crown'ı.</summary>

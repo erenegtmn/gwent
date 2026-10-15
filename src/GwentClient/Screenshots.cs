@@ -110,6 +110,10 @@ public static class Screenshots
             Save(kv2, "keep_siege.png");
             typeof(KaerMorhen.KeepView).GetMethod("OpenAllies", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(kv2, null);
             Save(kv2, "keep_allies.png");
+            // Kale düştü: yeni sefer
+            ks.Chapter = 2;
+            var fall = global::KaerMorhen.Core.Keep.Complete(ks, -1, false);
+            Save(new KaerMorhen.KeepView(ks, new KaerMorhen.KeepNav((_, _, _, _) => { }, () => { }), fall.Summary), "keep_fallen.png");
             // Kışla: 11 kart, 3 değiştirme
             var pcfg = cfg with { Perks = new Perks(1, 1, true) };
             Save(new GwintView(new GameSession(pcfg), () => { }, _ => { }, animate: false), "mulligan_perks.png");

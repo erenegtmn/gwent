@@ -240,7 +240,7 @@ public sealed class GwintView : Viewbox
 
     private void OnMenuClicked()
     {
-        if (_s.IsRemote && !_s.IsOver && !_s.IsSpectator) { _confirm = "leave"; Refresh(); }
+        if ((_s.IsRemote || _s.LeaveWarning != null) && !_s.IsOver && !_s.IsSpectator) { _confirm = "leave"; Refresh(); }
         else _toMenu();
     }
 
@@ -249,7 +249,7 @@ public sealed class GwintView : Viewbox
         var resign = _confirm == "resign";
         var sp = new StackPanel { MinWidth = 640 };
         sp.Children.Add(Title(resign ? "Teslim olmak istiyor musun?" : "Maçtan ayrılmak istiyor musun?"));
-        var t = Txt(resign ? "Maçı kaybedersin; rakip galip sayılır." : "Maç sürerken ayrılmak teslim olmak sayılır; rakip galip sayılır.", 22, Theme.TextDim, false, TextAlignment.Center, 640);
+        var t = Txt(resign ? "Maçı kaybedersin; rakip galip sayılır." : _s.LeaveWarning ?? "Maç sürerken ayrılmak teslim olmak sayılır; rakip galip sayılır.", 22, Theme.TextDim, false, TextAlignment.Center, 640);
         t.Margin = new Thickness(0, 12, 0, 26);
         sp.Children.Add(t);
         var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };

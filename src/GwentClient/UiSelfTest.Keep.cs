@@ -89,6 +89,7 @@ public static partial class UiSelfTest
             s.SiegeProgress = Keep.SiegeEvery;
             view = new KeepView(s, new KeepNav((c, d, r, p) => started = (c, d, r, p), () => back = true));
             Layout(view);
+            Check(!Tagged("contract:" + s.Board[0].Id).IsEnabled, "düşman kapıdayken sözleşme açık");
             Click(Tagged("siege-start")); Layout(view);
             Check(s.SiegeWave == 1, "kuşatma başlamadı");
             started = null;
@@ -105,13 +106,21 @@ public static partial class UiSelfTest
                 Check(ws.Game.Players[0].Hand.Any(c => c.Def.Id == "dandelion") && ws.Game.Players[0].Hand.Count == Game.StartingHand + 2, "müttefik / kışla eli");
                 Check(ws.Game.Options.Terrain?.Id == "kaer_morhen_ruins" && ws.Config.OppFaction == "monsters", "kuşatma kurulumu");
                 Check(ws.Game.MulligansFor(0) == 3 && ws.Game.PerksOf(0)?.Has(PotionIds.Cat) == true && ws.Game.FirstIsChosen, "kışla/simya maça geçmedi");
-                var wv = new GwintView(ws, () => { }, _ => { }, animate: false, effects: true);
+                // Kuşatmadan çıkmak önce onay ister (seferi bitirir)
+                var left = false;
+                var wv = new GwintView(ws, () => left = true, _ => { }, animate: false, effects: true);
+                Layout(wv);
+                typeof(GwintView).GetMethod("OnMenuClicked", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(wv, null);
+                Layout(wv);
+                Check(!left && FindAll<Button>(wv, b => (b.Tag as string) == "confirm-yes").Any(), "kuşatmadan çıkarken onay sorulmadı");
+                Click(FindAll<Button>(wv, b => b.Content is string t && t == "Vazgeç").First());
+                Layout(wv);
                 var wrng = new Random(4);
                 for (var step = 0; step < 4000 && !ws.IsOver; step++) { Layout(wv); UiStep(wv, ws, wrng, _ => { }); }
                 Layout(wv);
                 Check(ws.IsOver, "kuşatma dalgası bitmedi");
                 Check(ws.Game.Events.Any(e => e.Kind == "first_chosen" && e.Player == 0), "kim başlar seçimi arayüzden yapılmadı");
-                Check(s.SiegeWave == (ws.WinnerSeat == 0 ? 2 : 0), "dalga sonucu işlenmedi");
+                Check(ws.WinnerSeat == 0 ? s.SiegeWave == 2 : s.Run == 2 && s.Level(Keep.Forge) == 0 && s.Runs.Count == 1, "dalga sonucu işlenmedi (kayıpta sefer sıfırlanmalı)");
             }
 
             // Menüye dönüş
