@@ -23,7 +23,7 @@ public sealed class KeepView : Grid
     private readonly Grid _overlay = new() { Width = 1920, Height = 1080, Visibility = Visibility.Collapsed };
     private string? _message;
     private readonly Grid _sceneHost = new() { Width = 1920, Height = 1080 };
-    private KeepDiorama? _diorama;
+    private KeepScene? _diorama;
     /// <summary>Seçili bina: kamera ona yaklaşır, solda ayrıntı paneli açılır.</summary>
     private string? _selected;
 
@@ -60,7 +60,7 @@ public sealed class KeepView : Grid
     private void Build()
     {
         _sceneHost.Children.Clear();
-        _diorama = new KeepDiorama(_s);
+        _diorama = new KeepScene(_s);
         _diorama.BuildingClicked += id => Select(id == _selected ? null : id);
         _sceneHost.Children.Add(_diorama);
         if (_selected != null) _diorama.Focus(_selected);
