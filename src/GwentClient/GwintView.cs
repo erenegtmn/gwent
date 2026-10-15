@@ -554,6 +554,14 @@ public sealed class GwintView : Viewbox
             if (arriving) shadow.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(120)) { BeginTime = TimeSpan.FromMilliseconds(500) });
             Put(_board, shadow, pos.X + 3, pos.Y + 6);
             if (arriving) AnimateArrival(gc, c, side, pos);
+            else if (_effects && !_firstDraw && _prevBoardInfo.TryGetValue(c.Uid, out var was) && (Math.Abs(was.Pos.X - pos.X) > 0.5 || Math.Abs(was.Pos.Y - pos.Y) > 0.5))
+            {
+                // Sıra yeniden dizildi (kart yandı / geri alındı): kart eski yerinde kalır, yanma bitince boşluğu kapatmak için kayar.
+                // Böylece ateş, yerine kayan başka bir kartın üstünde yanıyormuş gibi görünmez.
+                var hold = _evs.Any(e => e.Kind == "kill") ? 1050 : 0;
+                SlideFrom(gc, was.Pos.X - pos.X, was.Pos.Y - pos.Y, hold);
+                SlideFrom(shadow, was.Pos.X - pos.X, was.Pos.Y - pos.Y, hold);
+            }
             var captured = c;
             gc.MouseLeftButtonUp += (_, e) => { if (isDecoyTarget) { e.Handled = true; if (_selected is { } sel && MyTurn) DoPlay(sel, null, captured.Uid); } };
             Put(_board, gc, pos.X, pos.Y);
@@ -1213,6 +1221,18 @@ public sealed class GwintView : Viewbox
     }
 
     private static Point Center(Point topLeft) => new(topLeft.X + CardW / 2, topLeft.Y + CardH / 2);
+
+    /// <summary>Öğe (dx, dy) kadar geride başlar, <paramref name="holdMs"/> bekler, sonra yerine kayar.</summary>
+    private static void SlideFrom(FrameworkElement el, double dx, double dy, int holdMs)
+    {
+        if (el.RenderTransform is not null and not MatrixTransform) return;   // başka bir dönüşüm (ör. üzerine gelme) varsa dokunma
+        var tt = new TranslateTransform(dx, dy);
+        el.RenderTransform = tt;
+        var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut };
+        var begin = TimeSpan.FromMilliseconds(holdMs);
+        tt.BeginAnimation(TranslateTransform.XProperty, new System.Windows.Media.Animation.DoubleAnimation(dx, 0, TimeSpan.FromMilliseconds(380)) { BeginTime = begin, EasingFunction = ease });
+        tt.BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(dy, 0, TimeSpan.FromMilliseconds(380)) { BeginTime = begin, EasingFunction = ease });
+    }
 
     /// <summary>Sahaya yeni inen kart: elden/desteden/mezarlıktan uçar, inince efekt oynar.</summary>
     private void AnimateArrival(GwintCard gc, CardInstance card, int side, Point pos)
