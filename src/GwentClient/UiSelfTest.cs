@@ -635,16 +635,16 @@ public static partial class UiSelfTest
         var roll = rng.NextDouble();
         var pass = FindAll<Border>(view, b => (string?)b.Tag == "pass-button").FirstOrDefault();
         var leader = FindAll<GwintCard>(view, b => (string?)b.Tag == "leader-button").FirstOrDefault();
-        if (roll < 0.04 && pass != null) { Raise(pass, UIElement.MouseLeftButtonUpEvent); Count("pas"); return false; }
+        if (roll < 0.04 && pass != null) { ClickAt(view, pass); Count("pas"); return false; }
         var piles = FindAll<GwintCard>(view, b => (string?)b.Tag == "grave-pile").ToList();
-        if (roll < 0.14 && piles.Count > 0) { Raise(piles[rng.Next(piles.Count)], UIElement.MouseLeftButtonUpEvent); Count("mezarlik-ac"); return false; }
-        if (roll < 0.10 && leader != null) { Raise(leader, UIElement.MouseLeftButtonUpEvent); Count("lider"); return false; }
+        if (roll < 0.14 && piles.Count > 0) { ClickAt(view, piles[rng.Next(piles.Count)]); Count("mezarlik-ac"); return false; }
+        if (roll < 0.10 && leader != null) { ClickAt(view, leader); Count("lider"); return false; }
         var moves = FindAll<Grid>(view, g => (string?)g.Tag == "commander-move").ToList();
-        if (roll < 0.20 && moves.Count > 0) { Raise(moves[rng.Next(moves.Count)], UIElement.MouseLeftButtonUpEvent); Count("komutan-tasi"); return false; }
+        if (roll < 0.20 && moves.Count > 0) { ClickAt(view, moves[rng.Next(moves.Count)]); Count("komutan-tasi"); return false; }
 
         var hand = FindAll<GwintCard>(view, c => (string?)c.Tag == "hand").ToList();
-        if (hand.Count == 0) { if (pass != null) Raise(pass, UIElement.MouseLeftButtonUpEvent); return false; }
-        Raise(hand[rng.Next(hand.Count)], UIElement.MouseLeftButtonUpEvent);
+        if (hand.Count == 0) { if (pass != null) ClickAt(view, pass); return false; }
+        ClickAt(view, hand[rng.Next(hand.Count)]);
         Count("kart-sec");
         Layout(view);
 
@@ -652,13 +652,13 @@ public static partial class UiSelfTest
         if (playBtn != null) { Click(playBtn); Count("oyna-dugme"); return false; }
 
         var rows = FindAll<Border>(view, g => (string?)g.Tag == "row-hl").ToList();
-        if (rows.Count > 0) { Raise(rows[rng.Next(rows.Count)], UIElement.MouseLeftButtonUpEvent); Count("sira-tikla"); return false; }
+        if (rows.Count > 0) { ClickAt(view, rows[rng.Next(rows.Count)]); Count("sira-tikla"); return false; }
 
         var decoys = FindAll<GwintCard>(view, c => (string?)c.Tag == "decoy-target").ToList();
-        if (decoys.Count > 0) { Raise(decoys[rng.Next(decoys.Count)], UIElement.MouseLeftButtonUpEvent); Count("yem-hedef"); return false; }
+        if (decoys.Count > 0) { ClickAt(view, decoys[rng.Next(decoys.Count)]); Count("yem-hedef"); return false; }
 
         var weather = FindAll<Border>(view, b => (string?)b.Tag == "weather-hl").FirstOrDefault();
-        if (weather != null) { Raise(weather, UIElement.MouseLeftButtonUpEvent); Count("hava-tikla"); return false; }
+        if (weather != null) { ClickAt(view, weather); Count("hava-tikla"); return false; }
 
         // Oynanamayan seçim: seçimi kaldır (boş yere tıkla)
         Count("hedefsiz-secim");
@@ -755,6 +755,44 @@ public static partial class UiSelfTest
     {
         if (!b.IsEnabled) return;
         Raise(b, ButtonBase.ClickEvent);
+    }
+
+    /// <summary>
+    /// Gerçek fare tıklaması gibi: öğenin ortasındaki noktada isabet denetimi yapılır (arka planı olmayan ya da üstü örtülü öğe
+    /// tıklanamaz); isabet öğeye ulaşıyorsa sol tıklama gönderilir, ulaşmıyorsa hata.
+    /// </summary>
+    internal static void ClickAt(FrameworkElement root, FrameworkElement el)
+    {
+        // Uçuş animasyonunun başındaki kart (sınamada zaman akmadığı için görünmez ve uçuş konumunda takılı): yerini denetleyemeyiz
+        if (el.Opacity == 0) { Raise(el, UIElement.MouseLeftButtonUpEvent); return; }
+        // Öğenin görünen herhangi bir noktası yeter (üst üste binen el kartlarında orta nokta komşu kartın altında kalabilir)
+        DependencyObject? first = null;
+        Point at = default;
+        for (var iy = 1; iy <= 5; iy++)
+            for (var ix = 1; ix <= 5; ix++)
+            {
+                var p = el.TranslatePoint(new Point(el.ActualWidth * ix / 6, el.ActualHeight * iy / 6), root);
+                var hit = HitAt(root, p);
+                first ??= hit;
+                if (ix == 3 && iy == 3) at = p;
+                for (var cur = hit; cur != null; cur = VisualTreeHelper.GetParent(cur))
+                    if (ReferenceEquals(cur, el)) { Raise(el, UIElement.MouseLeftButtonUpEvent); return; }
+            }
+        var chain = new List<string>();
+        for (var cur = first; cur != null && chain.Count < 6; cur = VisualTreeHelper.GetParent(cur))
+            chain.Add(cur.GetType().Name + (cur is FrameworkElement fe ? $"[{fe.Tag}|{fe.ActualWidth:F0}x{fe.ActualHeight:F0}|z{Panel.GetZIndex(fe)}]" : ""));
+        throw new InvalidOperationException($"Tıklanamıyor ({el.Tag}) @ {at}: fare {string.Join(" < ", chain)} isabet ediyor.");
+    }
+
+    /// <summary>Fare gibi isabet: gizli (Collapsed/Hidden), tıklamaya kapalı ve tamamen saydam öğeler (sınamada zaman akmadığı için animasyonun başında takılı kalan kartlar) ile alt ağaçları sayılmaz.</summary>
+    private static DependencyObject? HitAt(Visual root, Point p)
+    {
+        DependencyObject? hit = null;
+        VisualTreeHelper.HitTest(root,
+            d => d is UIElement u && (u.Visibility != Visibility.Visible || !u.IsHitTestVisible || u.Opacity == 0) ? HitTestFilterBehavior.ContinueSkipSelfAndChildren : HitTestFilterBehavior.Continue,
+            r => { hit = r.VisualHit; return HitTestResultBehavior.Stop; },
+            new PointHitTestParameters(p));
+        return hit;
     }
 
     internal static void Raise(UIElement el, RoutedEvent ev)

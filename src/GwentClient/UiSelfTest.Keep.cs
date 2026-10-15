@@ -45,9 +45,9 @@ public static partial class UiSelfTest
             Raise(FindAll<ToggleButton>(view, t => (t.Tag as string) == "prep-faction:skellige").First(), ButtonBase.ClickEvent); Layout(view);
             Click(Tagged("prep-forge")); Layout(view);
             var tiles = FindAll<Grid>(view, g => (g.Tag as string)?.StartsWith("forge-card:") == true).ToList();
-            Raise(tiles[0], System.Windows.UIElement.MouseLeftButtonUpEvent); Layout(view);
+            ClickAt(view, tiles[0]); Layout(view);
             tiles = FindAll<Grid>(view, g => (g.Tag as string)?.StartsWith("forge-card:") == true).ToList();
-            Raise(tiles[1], System.Windows.UIElement.MouseLeftButtonUpEvent); Layout(view);   // yuva dolu: takılmamalı
+            ClickAt(view, tiles[1]); Layout(view);   // yuva dolu: takılmamalı
             Click(Tagged("forge-done")); Layout(view);
             for (var i = 0; i < 2; i++) { Raise(FindAll<ToggleButton>(view, t => (t.Tag as string) == "prep-piece:tower").First(), ButtonBase.ClickEvent); Layout(view); }
             Check(!FindAll<ToggleButton>(view, t => (t.Tag as string) == "prep-piece:barricade").Any(), "atölye 1. seviyede barikat var");

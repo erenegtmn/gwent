@@ -100,7 +100,7 @@ public sealed class ForgeView : Grid
             for (var k = 0; k < copies; k++)
             {
                 var rune = k < mine.Count ? mine[k].Rune : null;
-                var cell = new Grid { Width = 118, Height = 158, Margin = new Thickness(5), Cursor = System.Windows.Input.Cursors.Hand, Tag = "forge-card:" + def.Id };
+                var cell = new Grid { Width = 118, Height = 158, Margin = new Thickness(5), Cursor = System.Windows.Input.Cursors.Hand, Background = Brushes.Transparent, Tag = "forge-card:" + def.Id };
                 var card = new GwintCard(def, 118, def.Strength, height: 158, highlight: rune != null);
                 card.IsHitTestVisible = false;
                 cell.Children.Add(card);

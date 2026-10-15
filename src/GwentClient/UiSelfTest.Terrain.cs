@@ -36,7 +36,7 @@ public static partial class UiSelfTest
                 Check(moves.Count == 2, $"{map.Id}: komutan taşıma hedefleri ({moves.Count})");
                 if (moves.Count > 0)
                 {
-                    Raise(moves[0], System.Windows.UIElement.MouseLeftButtonUpEvent);
+                    ClickAt(mid, moves[0]);
                     Check(mid.Session.Game.Players[mid.Session.MySeat].CommanderMoved, $"{map.Id}: tıklayınca komutan taşınmadı");
                 }
 
@@ -60,13 +60,13 @@ public static partial class UiSelfTest
                 Layout(menu);
                 var tiles = FindAll<Grid>(menu, g => (g.Tag as string)?.StartsWith("forge-card:") == true).ToList();
                 Check(tiles.Count > 5, "demircide kart yok");
-                Raise(tiles[0], System.Windows.UIElement.MouseLeftButtonUpEvent);               // Svarog
+                ClickAt(menu, tiles[0]);               // Svarog
                 Layout(menu);
                 tiles = FindAll<Grid>(menu, g => (g.Tag as string)?.StartsWith("forge-card:") == true).ToList();
-                Raise(tiles[1], System.Windows.UIElement.MouseLeftButtonUpEvent);
+                ClickAt(menu, tiles[1]);
                 Layout(menu);
                 tiles = FindAll<Grid>(menu, g => (g.Tag as string)?.StartsWith("forge-card:") == true).ToList();
-                Raise(tiles[1], System.Windows.UIElement.MouseLeftButtonUpEvent);               // ikinci kart: Perun
+                ClickAt(menu, tiles[1]);               // ikinci kart: Perun
                 Layout(menu);
                 Click(FindAll<Button>(menu, b => (b.Tag as string) == "forge-done").First());
                 Layout(menu);
