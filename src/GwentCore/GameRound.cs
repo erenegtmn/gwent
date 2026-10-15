@@ -11,6 +11,7 @@ public sealed partial class Game
         foreach (var c in BoardCards()) c.NoRemove = false;
         Emit("round_start", first, 0, Round.ToString());
         BeginRoundTerrain();
+        if (Round == 1) CatPeek();
         if (Options.RoundWeather) CurseWeather(first);
 
         for (var p = 0; p < 2; p++)
@@ -18,6 +19,9 @@ public sealed partial class Game
             var player = p;
             // Northern Realms: bir önceki raundu kazandıysa 1 kart çeker.
             if (Round > 1 && _lastRoundWinner == player && _players[player].Faction == "northern_realms")
+                _work.Enqueue(() => Draw(player, 1));
+            // Kırlangıç iksiri: kaybettiği ya da berabere kaldığı raunddan sonra 1 kart
+            if (Round > 1 && _lastRoundWinner != player && HasPotion(player, PotionIds.Swallow))
                 _work.Enqueue(() => Draw(player, 1));
             // Skellige: 3. raundun başında mezarlıktan 2 rastgele birim sahaya iner.
             if (Round == 3 && _players[player].Faction == "skellige")

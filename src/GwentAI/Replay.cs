@@ -46,6 +46,8 @@ public sealed class ReplayData
     public List<TerrainPiece>? Pieces { get; set; }
     /// <summary>Kaer Morhen: oyuncunun maça katılan müttefikleri (elde başlar).</summary>
     public List<string>? MyAllies { get; set; }
+    /// <summary>Kaer Morhen: Kışla avantajları ve iksirler.</summary>
+    public Perks? MyPerks { get; set; }
     public int Difficulty { get; set; }
     public List<ReplayAction> Actions { get; set; } = new();
     /// <summary>Oyuncunun gördüğü Türkçe olay günlüğü (hata bildirirken neyin olduğunu gösterir).</summary>
@@ -65,6 +67,7 @@ public sealed class ReplayData
         if (MyRunes is { Count: > 0 }) mine = mine with { Runes = MyRunes };
         if (OppAutoRunes > 0) theirs = theirs with { Runes = Forge.AutoRunes(theirs, OppAutoRunes) };
         if (MyAllies is { Count: > 0 }) mine = mine with { Allies = MyAllies };
+        if (MyPerks != null) mine = mine with { Perks = MyPerks };
         if (!OppDeckUnchecked) return new Game(mine, theirs, Seed, opts);
         var errs = DeckValidator.Validate(mine, opts);
         if (errs.Count > 0) throw new ArgumentException("Oyuncu 0 destesi geçersiz: " + string.Join(" ", errs));

@@ -54,6 +54,7 @@ public static class DeckValidator
         if (specials > MaxSpecials) errors.Add($"Destede en fazla {MaxSpecials} özel kart olabilir (şu an {specials}).");
         errors.AddRange(RuneIds.Validate(deck, catalog));
         errors.AddRange(AllyRules.Validate(deck, catalog));
+        errors.AddRange(PotionIds.Validate(deck));
         return errors;
     }
 

@@ -75,7 +75,7 @@ public sealed class HeuristicAgent : IAgent
         var hand = g.Players[me].Hand;
         var bondCounts = hand.Where(c => c.Has("bond")).GroupBy(c => c.Def.Id).ToDictionary(x => x.Key, x => x.Count());
         double Keep(CardInstance c) => Valuation.CardValue(c.Def) + (bondCounts.GetValueOrDefault(c.Def.Id) >= 2 ? 3 : 0);
-        var swap = hand.OrderBy(Keep).Where(c => Keep(c) < _t.MulliganBelow).Take(Game.MaxMulligans).Select(c => c.Uid).ToList();
+        var swap = hand.OrderBy(Keep).Where(c => Keep(c) < _t.MulliganBelow).Take(g.MulligansFor(me)).Select(c => c.Uid).ToList();
         return new Mulligan(me, swap);
     }
 

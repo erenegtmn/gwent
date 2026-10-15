@@ -68,7 +68,8 @@ public sealed partial class Game
             foreach (var id in decks[p].CardIds) ps.Deck.Add(NewCard(id, p));
             ApplyRunes(ps, decks[p]);
             _rng.Shuffle(ps.Deck);
-            for (var i = 0; i < Options.StartingHand && ps.Deck.Count > 0; i++) DrawOne(ps);
+            _perks[p] = decks[p].Perks;
+            for (var i = 0; i < Options.StartingHand + (_perks[p]?.ExtraHand ?? 0) && ps.Deck.Count > 0; i++) DrawOne(ps);
             // Daisy of the Valley: oyun başında fazladan 1 kart (rakipte White Flame varsa iptal).
             if (LeaderPassive(p, "francesca_findabair_daisy_of_the_valley") && ps.Deck.Count > 0) DrawOne(ps);
             AddAllies(ps, decks[p]);
@@ -95,6 +96,8 @@ public sealed partial class Game
         Outcome = s.Outcome;
         _uid = s._uid;
         _lastRoundWinner = s._lastRoundWinner;
+        Array.Copy(s._perks, _perks, 2);
+        Array.Copy(s._blackBloodUsed, _blackBloodUsed, 2);
         History.AddRange(s.History);
 
         var map = new Dictionary<CardInstance, CardInstance>();
@@ -214,7 +217,7 @@ public sealed partial class Game
         if (p.MulliganDone) return ActionResult.Fail("Kartlarını zaten değiştirdin.");
         var uids = m.Cards.Distinct().ToList();
         if (uids.Count != m.Cards.Count) return ActionResult.Fail("Aynı kart iki kez seçilemez.");
-        if (uids.Count > MaxMulligans) return ActionResult.Fail($"En fazla {MaxMulligans} kart değiştirebilirsin.");
+        if (uids.Count > MulligansFor(m.Player)) return ActionResult.Fail($"En fazla {MulligansFor(m.Player)} kart değiştirebilirsin.");
         var cards = new List<CardInstance>();
         foreach (var uid in uids)
         {
@@ -235,7 +238,7 @@ public sealed partial class Game
 
     private void AfterMulligan()
     {
-        var scoia = Enumerable.Range(0, 2).Where(i => _players[i].Faction == "scoiatael").ToList();
+        var scoia = FirstChoosers();   // Scoia'tael ya da Kışla
         if (scoia.Count == 1)
         {
             Phase = Phase.ChooseFirst;

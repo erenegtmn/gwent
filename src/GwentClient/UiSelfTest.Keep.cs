@@ -35,7 +35,7 @@ public static partial class UiSelfTest
             Click(Tagged("keep-upgrade:" + Keep.Workshop)); Layout(view);
             Check(s.Level(Keep.Forge) == 1 && s.Level(Keep.Workshop) == 1, "binalar onarılmadı");
             Check(s.Crowns == 1000 - 80 - 100, $"bedel düşmedi ({s.Crowns})");
-            Check(!FindAll<Button>(view, b => (b.Tag as string) == "keep-upgrade:" + Keep.Alchemy).Any(), "planlanmış binada düğme var");
+            Check(FindAll<Button>(view, b => (b.Tag as string) == "keep-upgrade:" + Keep.Alchemy).Any(), "simya odasında düğme yok");
             Check(!Tagged("keep-upgrade:" + Keep.Forge).IsEnabled, "mutajensiz yükseltme açık");
             Check(KeepStore.Load()?.Level(Keep.Forge) == 1, "kale kaydedilmedi");
 
@@ -76,6 +76,9 @@ public static partial class UiSelfTest
             view = new KeepView(s, new KeepNav((c, d, r, p) => started = (c, d, r, p), () => back = true));
             Layout(view);
             Click(Tagged("keep-upgrade:" + Keep.AlliesHall)); Layout(view);
+            Click(Tagged("keep-upgrade:" + Keep.Alchemy)); Layout(view);
+            Click(Tagged("keep-upgrade:" + Keep.Barracks)); Layout(view);
+            Check(s.Level(Keep.Alchemy) == 1 && s.Level(Keep.Barracks) == 1, "simya/kışla onarılmadı");
             Click(Tagged("keep-allies")); Layout(view);
             Click(Tagged("ally-recruit:dandelion")); Layout(view);
             Check(FindAll<ToggleButton>(view, t => (t.Tag as string) == "ally-active:dandelion").Any(t => t.IsChecked == true), "çağrılan müttefik maça katılmıyor");
@@ -90,15 +93,25 @@ public static partial class UiSelfTest
             Check(s.SiegeWave == 1, "kuşatma başlamadı");
             started = null;
             Click(Tagged("siege-go")); Layout(view);
+            Raise(FindAll<ToggleButton>(view, t => (t.Tag as string) == "prep-potion:" + PotionIds.Cat).First(), ButtonBase.ClickEvent); Layout(view);
+            Raise(FindAll<ToggleButton>(view, t => (t.Tag as string) == "prep-potion:" + PotionIds.Swallow).First(), ButtonBase.ClickEvent); Layout(view);   // toksisite aşar: içilmez
+            Check(s.Potions.SequenceEqual(new[] { PotionIds.Cat }), "iksir seçimi / toksisite sınırı");
             Click(Tagged("prep-go"));
             Check(started is { C.Id: -1 }, "kuşatmanın ilk dalgası başlamadı");
             if (started is { } wave)
             {
+                s.Buildings[Keep.Barracks] = 3;   // 11 kart, 3 değiştirme, kim başlar seçimi arayüzde de denensin
                 var ws = KeepMatch.Create(s, wave.C, wave.D, wave.R, wave.P, _ => { }, seed: 9);
-                Check(ws.Game.Players[0].Hand.Any(c => c.Def.Id == "dandelion") && ws.Game.Players[0].Hand.Count == Game.StartingHand + 1, "müttefik elde başlamadı");
+                Check(ws.Game.Players[0].Hand.Any(c => c.Def.Id == "dandelion") && ws.Game.Players[0].Hand.Count == Game.StartingHand + 2, "müttefik / kışla eli");
                 Check(ws.Game.Options.Terrain?.Id == "kaer_morhen_ruins" && ws.Config.OppFaction == "monsters", "kuşatma kurulumu");
-                ws.Settle!(true);
-                Check(s.SiegeWave == 2, "dalga sonucu işlenmedi");
+                Check(ws.Game.MulligansFor(0) == 3 && ws.Game.PerksOf(0)?.Has(PotionIds.Cat) == true && ws.Game.FirstIsChosen, "kışla/simya maça geçmedi");
+                var wv = new GwintView(ws, () => { }, _ => { }, animate: false, effects: true);
+                var wrng = new Random(4);
+                for (var step = 0; step < 4000 && !ws.IsOver; step++) { Layout(wv); UiStep(wv, ws, wrng, _ => { }); }
+                Layout(wv);
+                Check(ws.IsOver, "kuşatma dalgası bitmedi");
+                Check(ws.Game.Events.Any(e => e.Kind == "first_chosen" && e.Player == 0), "kim başlar seçimi arayüzden yapılmadı");
+                Check(s.SiegeWave == (ws.WinnerSeat == 0 ? 2 : 0), "dalga sonucu işlenmedi");
             }
 
             // Menüye dönüş

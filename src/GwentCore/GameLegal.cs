@@ -18,7 +18,12 @@ public sealed partial class Game
                 foreach (var c in p.Hand) yield return new Mulligan(p.Index, new[] { c.Uid });
                 for (var i = 0; i < p.Hand.Count; i++)
                     for (var j = i + 1; j < p.Hand.Count; j++)
+                    {
                         yield return new Mulligan(p.Index, new[] { p.Hand[i].Uid, p.Hand[j].Uid });
+                        if (MulligansFor(p.Index) >= 3)
+                            for (var k = j + 1; k < p.Hand.Count; k++)
+                                yield return new Mulligan(p.Index, new[] { p.Hand[i].Uid, p.Hand[j].Uid, p.Hand[k].Uid });
+                    }
             }
             yield break;
         }

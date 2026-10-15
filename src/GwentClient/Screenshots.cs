@@ -94,6 +94,9 @@ public static class Screenshots
             ks.Crowns = 340; ks.Red = 3; ks.Blue = 1; ks.Green = 2;
             ks.Buildings[global::KaerMorhen.Core.Keep.Forge] = 1;
             ks.Buildings[global::KaerMorhen.Core.Keep.Workshop] = 2;
+            ks.Buildings[global::KaerMorhen.Core.Keep.Alchemy] = 2;
+            ks.Buildings[global::KaerMorhen.Core.Keep.Barracks] = 2;
+            ks.Potions.AddRange(new[] { PotionIds.Cat, PotionIds.Thunderbolt });
             var kv = new KaerMorhen.KeepView(ks, new KaerMorhen.KeepNav((_, _, _, _) => { }, () => { }), "Sözleşme tamam: White Orchard Griffin. +40 Crown, +1 kırmızı mutajen.");
             Save(kv, "keep.png");
             typeof(KaerMorhen.KeepView).GetMethod("OpenPrep", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(kv, new object[] { ks.Board[0] });
@@ -107,6 +110,9 @@ public static class Screenshots
             Save(kv2, "keep_siege.png");
             typeof(KaerMorhen.KeepView).GetMethod("OpenAllies", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(kv2, null);
             Save(kv2, "keep_allies.png");
+            // Kışla: 11 kart, 3 değiştirme
+            var pcfg = cfg with { Perks = new Perks(1, 1, true) };
+            Save(new GwintView(new GameSession(pcfg), () => { }, _ => { }, animate: false), "mulligan_perks.png");
             KaerMorhen.KeepStore.PathOverride = null;
             try { System.IO.File.Delete(ff + ".keep"); } catch { }
             KaerMorhen.ForgeStore.PathOverride = null;

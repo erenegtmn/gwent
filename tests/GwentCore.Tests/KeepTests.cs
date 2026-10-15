@@ -41,7 +41,9 @@ public class KeepTests
         Assert.True(Keep.Upgrade(s, Keep.Forge));
         Assert.Equal(0, s.Red);
         Assert.Equal(800, s.Crowns);
-        Assert.False(Keep.Upgrade(s, Keep.Alchemy));            // planlanmış bina
+        s.Red = 10;
+        Assert.True(Keep.Upgrade(s, Keep.Forge));
+        Assert.Contains("En üst", Keep.UpgradeBlocked(s, Keep.Forge));
     }
 
     [Fact]

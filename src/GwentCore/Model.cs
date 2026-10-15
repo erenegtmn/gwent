@@ -158,7 +158,8 @@ public sealed record Choose(int Player, IReadOnlyList<int> Cards, RowKind? Row =
 
 /// <summary>Seri hâle getirilebilir deste tanımı. Kartlar tekrarlı yazılır (3 kopya = 3 kez).</summary>
 /// <summary>Runes: Kaer Morhen rünleri (<see cref="CardRune"/>); Allies: maça elde başlayan müttefik kartları (<see cref="AllyRules"/>). null = klasik.</summary>
-public sealed record Deck(string Faction, string LeaderId, IReadOnlyList<string> CardIds, IReadOnlyList<CardRune>? Runes = null, IReadOnlyList<string>? Allies = null);
+public sealed record Deck(string Faction, string LeaderId, IReadOnlyList<string> CardIds, IReadOnlyList<CardRune>? Runes = null, IReadOnlyList<string>? Allies = null,
+    Perks? Perks = null);
 
 /// <summary>
 /// Tohumlu, kopyalanabilir rastgele sayı üreteci (SplitMix64). Kendi algoritmamız olduğu için

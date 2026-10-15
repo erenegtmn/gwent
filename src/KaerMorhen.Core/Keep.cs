@@ -18,6 +18,9 @@ public sealed record Building(string Id, string Name, string Text, Mutagen Color
 /// <summary>Mühendis atölyesinin arazi parçası. Kule kendi satırına, barikat ve hendek rakibin satırına konur.</summary>
 public sealed record EngineerPiece(string Id, string Name, Terrain Terrain, bool OnOpponent, string Text);
 
+/// <summary>İksir: Simya Odası'nda açılır, maç öncesi içilir. Toplam toksisite simya seviyesinin sınırını aşamaz.</summary>
+public sealed record Potion(string Id, string Name, int Toxicity, int Level, string Text);
+
 /// <summary>Müttefik: Müttefik Salonu'nda ikna edilir, maça elde fazladan kart olarak katılır (W3'teki Kaer Morhen savaşı gibi).</summary>
 public sealed record Ally(string CardId, string Name, string Text, Cost Cost);
 
@@ -46,6 +49,8 @@ public sealed class KeepSave
     /// <summary>İkna edilen müttefikler ve maça katılanlar (sıra önemli: yuva azsa baştakiler katılır).</summary>
     public List<string> Allies { get; set; } = new();
     public List<string> ActiveAllies { get; set; } = new();
+    /// <summary>Maç öncesi içilecek iksirler (toksisite sınırına göre).</summary>
+    public List<string> Potions { get; set; } = new();
     /// <summary>Son kuşatmadan beri başarılan sözleşmeler; <see cref="Keep.SiegeEvery"/> olunca Wild Hunt gelir.</summary>
     public int SiegeProgress { get; set; }
     /// <summary>Süren kuşatmanın dalgası (0 = kuşatma yok).</summary>
@@ -94,8 +99,12 @@ public static class Keep
         new Building(Workshop, "Mühendis Atölyesi", "Savaş alanına arazi parçası kurar.", Mutagen.Green,
             new[] { new Cost(100), new Cost(250, 2, Mutagen.Green), new Cost(450, 4, Mutagen.Green) },
             new[] { "Gözcü kulesi (kendi satırın Tepe olur).", "+ Barikat (rakibin satırı Köprü olur); maçta 2 parça.", "+ Hendek (rakibin satırı Bataklık olur); maçta 3 parça." }),
-        new Building(Alchemy, "Simya Odası", "Maç öncesi iksirler (toksisite sınırıyla).", Mutagen.Green, Array.Empty<Cost>(), Array.Empty<string>(), Planned: true),
-        new Building(Barracks, "Kışla", "Deste kuralları: fazladan kahraman/casus hakkı.", Mutagen.Red, Array.Empty<Cost>(), Array.Empty<string>(), Planned: true),
+        new Building(Alchemy, "Simya Odası", "Maç öncesi iksirler; toplam toksisite sınırı aşılamaz.", Mutagen.Green,
+            new[] { new Cost(100), new Cost(220, 2, Mutagen.Green), new Cost(400, 4, Mutagen.Green) },
+            new[] { "Toksisite 3: Kedi, Kırlangıç.", "Toksisite 5: + Gök Gürültüsü, Puhu.", "Toksisite 7: + Kara Kan." }),
+        new Building(Barracks, "Kışla", "Askerlerin talimi: maç kurallarında küçük üstünlükler.", Mutagen.Red,
+            new[] { new Cost(120), new Cost(260, 2, Mutagen.Red), new Cost(450, 4, Mutagen.Red) },
+            new[] { "3 kart değiştirebilirsin (2 yerine).", "+ Raundu kimin başlatacağını sen seçersin.", "+ Maça 11 kartla başlarsın." }),
         new Building(AlliesHall, "Müttefik Salonu", "Dostlarını Kaer Morhen'e çağır. Maça elinde fazladan kart olarak katılırlar.", Mutagen.Blue,
             new[] { new Cost(120, 1, Mutagen.Blue), new Cost(260, 3, Mutagen.Blue), new Cost(450, 5, Mutagen.Blue) },
             new[] { "1 müttefik maça katılır.", "2 müttefik maça katılır.", "3 müttefik maça katılır." }),
@@ -109,6 +118,58 @@ public static class Keep
         new EngineerPiece("barricade", "Barikat", Terrain.Bridge, true, "Rakibin satırı Köprü olur (en fazla 4 birim)."),
         new EngineerPiece("moat", "Hendek", Terrain.Swamp, true, "Rakibin satırı Bataklık olur (−1)."),
     };
+
+    public static readonly IReadOnlyList<Potion> AllPotions = new[]
+    {
+        new Potion(PotionIds.Cat, "Kedi", 2, 1, "1. raund başında rakibin elinden rastgele 3 kartı görürsün."),
+        new Potion(PotionIds.Swallow, "Kırlangıç", 2, 1, "Kaybettiğin ya da berabere kaldığın raunddan sonra 1 kart çekersin."),
+        new Potion(PotionIds.Thunderbolt, "Gök Gürültüsü", 3, 2, "1. raundda yakın dövüş birimlerin +1."),
+        new Potion(PotionIds.TawnyOwl, "Puhu", 2, 2, "Hava birimlerini 1'e değil, yarı güce indirir."),
+        new Potion(PotionIds.BlackBlood, "Kara Kan", 3, 3, "Rakibin oynadığı ilk casus ona kart çektirmez."),
+    };
+
+    public static Potion GetPotion(string id) => AllPotions.First(p => p.Id == id);
+
+    /// <summary>Simya seviyesine göre toksisite sınırı (0 = simya yok).</summary>
+    public static int ToxicityLimit(KeepSave s) => s.Level(Alchemy) switch { 0 => 0, 1 => 3, 2 => 5, _ => 7 };
+
+    public static IReadOnlyList<Potion> UnlockedPotions(KeepSave s) => AllPotions.Where(p => p.Level <= s.Level(Alchemy)).ToList();
+
+    /// <summary>Seçili iksirlerden geçerli olanlar (açılmış, sınırı aşmayan; sıra korunur).</summary>
+    public static List<string> MatchPotions(KeepSave s)
+    {
+        var limit = ToxicityLimit(s);
+        var list = new List<string>();
+        var tox = 0;
+        foreach (var p in s.Potions.Distinct().Select(GetPotion).Where(p => p.Level <= s.Level(Alchemy)))
+        {
+            if (tox + p.Toxicity > limit) continue;
+            tox += p.Toxicity;
+            list.Add(p.Id);
+        }
+        return list;
+    }
+
+    public static int Toxicity(IEnumerable<string> potions) => potions.Sum(id => GetPotion(id).Toxicity);
+
+    /// <summary>İksiri seçer/bırakır; sınır aşılacaksa ya da açılmamışsa false.</summary>
+    public static bool TogglePotion(KeepSave s, string id)
+    {
+        if (s.Potions.Remove(id)) return true;
+        var p = GetPotion(id);
+        if (p.Level > s.Level(Alchemy) || Toxicity(MatchPotions(s)) + p.Toxicity > ToxicityLimit(s)) return false;
+        s.Potions.Add(id);
+        return true;
+    }
+
+    /// <summary>Kışla ve simyanın maça etkisi.</summary>
+    public static Perks? MatchPerks(KeepSave s)
+    {
+        var b = s.Level(Barracks);
+        var potions = MatchPotions(s);
+        if (b == 0 && potions.Count == 0) return null;
+        return new Perks(b >= 3 ? 1 : 0, b >= 1 ? 1 : 0, b >= 2, potions.Count > 0 ? potions : null);
+    }
 
     public static readonly IReadOnlyList<Ally> AllAllies = new[]
     {

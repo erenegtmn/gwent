@@ -32,10 +32,11 @@ public sealed partial class Game
         var weatherHit = WeatherActive(rowKind) && !CommanderShields(side, rowKind) && card.Rune != RuneIds.Perun;
         if (weatherHit)
         {
-            var min = LeaderPassive(side, "king_bran") ? total / 2 : 1;
+            var min = LeaderPassive(side, "king_bran") || HasPotion(side, PotionIds.TawnyOwl) ? total / 2 : 1;
             total = Math.Min(min, total);
         }
         total = TerrainScore(total, side, rowKind, weatherHit);
+        if (Round == 1 && rowKind == RowKind.Close && HasPotion(side, PotionIds.Thunderbolt)) total += 1;
         if (card.Rune == RuneIds.Stribog && Options.Commanders && _players[side].Commander == rowKind) total += 2;
 
         if (DoubleSpy && card.Has("spy")) total *= 2;

@@ -157,7 +157,7 @@ public sealed class GwintView : Viewbox
         if (_opening)
         {
             // Scoia'tael'de başlangıcı seçen taraf var: yazı-tura yapılmaz
-            _dealDelay = G.Players.Count(pl => pl.Faction == "scoiatael") == 1 ? 500 : 3300;
+            _dealDelay = G.FirstIsChosen ? 500 : 3300;   // Scoia'tael ya da Kışla
             PreviewMouseLeftButtonDown += (_, e) => { if (_opening) { e.Handled = true; FinishOpening(); } };
         }
         Refresh();
@@ -1714,12 +1714,12 @@ public sealed class GwintView : Viewbox
     {
         var sp = new StackPanel();
         sp.Children.Add(Title("Kart değiştir"));
-        var sub = Txt("İstediğin en çok 2 kartı seç; destene karışıp yerine yeni kart çekersin.", 20, Theme.TextDim, false, TextAlignment.Center);
+        var sub = Txt($"İstediğin en çok {G.MulligansFor(Me)} kartı seç; destene karışıp yerine yeni kart çekersin.", 20, Theme.TextDim, false, TextAlignment.Center);
         sub.Margin = new Thickness(0, 6, 0, 22);
         sp.Children.Add(sub);
 
-        var full = _mulliganSel.Count >= Game.MaxMulligans;
-        var count = Txt($"Seçilen: {_mulliganSel.Count} / {Game.MaxMulligans}" + (full ? "   ·   değiştirmek istemediğin karta yeniden tıkla" : ""), 20,
+        var full = _mulliganSel.Count >= G.MulligansFor(Me);
+        var count = Txt($"Seçilen: {_mulliganSel.Count} / {G.MulligansFor(Me)}" + (full ? "   ·   değiştirmek istemediğin karta yeniden tıkla" : ""), 20,
             _mulliganSel.Count > 0 ? Theme.B("#f0b070") : Theme.TextDim, true, TextAlignment.Center);
         count.Margin = new Thickness(0, 0, 0, 10);
         sp.Children.Add(count);
@@ -1733,7 +1733,7 @@ public sealed class GwintView : Viewbox
             var uid = c.Uid;
             gc.MouseLeftButtonUp += (_, _) =>
             {
-                if (!_mulliganSel.Remove(uid) && _mulliganSel.Count < Game.MaxMulligans) _mulliganSel.Add(uid);
+                if (!_mulliganSel.Remove(uid) && _mulliganSel.Count < G.MulligansFor(Me)) _mulliganSel.Add(uid);
                 Refresh();
             };
             // Seçilen kart belirgin: yukarı kalkar, kızıl bir örtü ve "DEĞİŞECEK" etiketi; sınır dolunca seçilmeyenler hafifçe söner
@@ -1782,7 +1782,7 @@ public sealed class GwintView : Viewbox
     private UIElement ChooseFirstPanel()
     {
         var sp = new StackPanel { MinWidth = 600 };
-        sp.Children.Add(Title("Scoia'tael yeteneği"));
+        sp.Children.Add(Title(G.Players[Me].Faction == "scoiatael" ? "Scoia'tael yeteneği" : "Kışla: kim başlasın?"));
         var sub = Txt("İlk turu kimin oynayacağını sen seçersin.", 22, Theme.TextDim, false, TextAlignment.Center);
         sub.Margin = new Thickness(0, 6, 0, 22);
         sp.Children.Add(sub);

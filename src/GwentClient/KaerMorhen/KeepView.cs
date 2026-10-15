@@ -394,6 +394,37 @@ public sealed class KeepView : Grid
             root.Children.Add(row);
         }
 
+        // Simya: iksirler (tıkla: iç / bırak), toksisite sınırı
+        var limit = Keep.ToxicityLimit(_s);
+        var chosen = Keep.MatchPotions(_s);
+        root.Children.Add(Ornate.Caption(limit == 0 ? "Simya" : $"Simya — toksisite {Keep.Toxicity(chosen)}/{limit}"));
+        if (limit == 0) root.Children.Add(Ui.Text("Simya Odası harabe: iksir içmek için kalede onar.", 15, Theme.TextDim));
+        else
+        {
+            var pw = new WrapPanel();
+            foreach (var p in Keep.UnlockedPotions(_s))
+            {
+                var potion = p;
+                var on = chosen.Contains(p.Id);
+                var tb = new ToggleButton
+                {
+                    Style = (Style)Application.Current.FindResource("GToggle"), Width = 336, Margin = new Thickness(3), Padding = new Thickness(10, 5, 10, 6), Tag = "prep-potion:" + p.Id,
+                    HorizontalContentAlignment = HorizontalAlignment.Left, IsChecked = on, ToolTip = p.Text
+                };
+                var tsp = new StackPanel();
+                tsp.Children.Add(Ui.Text($"{p.Name}  ·  toksisite {p.Toxicity}", 14, Theme.B("#9ad070"), true));
+                tsp.Children.Add(Ui.Text(p.Text, 11, Theme.TextDim, false, TextAlignment.Left, true));
+                tb.Content = tsp;
+                tb.Click += (_, _) => { if (!Keep.TogglePotion(_s, potion.Id)) Sfx.Play("dummy"); Save(); OpenPrep(c); };
+                pw.Children.Add(tb);
+            }
+            root.Children.Add(pw);
+        }
+
+        // Kışla
+        var barracks = _s.Level(Keep.Barracks);
+        if (barracks > 0) root.Children.Add(Ui.Text("Kışla: " + string.Join(" ", Keep.Get(Keep.Barracks).Effects.Take(barracks)).Replace("+ ", ""), 14, Theme.Text, false, TextAlignment.Left, true));
+
         var allies = Keep.MatchAllies(_s);
         root.Children.Add(Ornate.Caption("Müttefikler"));
         root.Children.Add(Ui.Text(allies.Count == 0

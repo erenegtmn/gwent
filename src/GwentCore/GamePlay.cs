@@ -107,7 +107,7 @@ public sealed partial class Game
             switch (ab)
             {
                 case "spy":
-                    Draw(actor, 2);
+                    if (!BlackBloodBlocks(actor)) Draw(actor, 2);
                     break;
                 case "medic":
                     StartMedic(actor);

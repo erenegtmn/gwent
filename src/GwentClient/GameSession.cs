@@ -5,7 +5,7 @@ using GwentNet;
 namespace GwentClient;
 
 /// <summary>MyDeck boşsa fraksiyonun tüm kartları kullanılır. Rakip her zaman "önerilen" deste ile oynar (dengeli olsun).</summary>
-public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal, Deck? OppDeck = null, IReadOnlyList<string>? Curses = null, DateOnly? Daily = null, string? Battlefield = null, bool Commanders = false, IReadOnlyList<CardRune>? Runes = null, IReadOnlyList<TerrainPiece>? Pieces = null, IReadOnlyList<string>? Allies = null);
+public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal, Deck? OppDeck = null, IReadOnlyList<string>? Curses = null, DateOnly? Daily = null, string? Battlefield = null, bool Commanders = false, IReadOnlyList<CardRune>? Runes = null, IReadOnlyList<TerrainPiece>? Pieces = null, IReadOnlyList<string>? Allies = null, Perks? Perks = null);
 
 /// <summary>Online maçta sunucuyla konuşan taraf: eylemi gönderir. Sunucudan gelenler <see cref="GameSession.EnqueueRemote"/> ile oturuma verilir.</summary>
 public interface IMatchLink
@@ -118,7 +118,8 @@ public sealed class GameSession
             MyRunes = cfg.Runes is { Count: > 0 } ? cfg.Runes.ToList() : null,
             OppAutoRunes = cfg.Battlefield != null ? Forge.AiRuneCount(cfg.Difficulty) : 0,
             Pieces = cfg.Pieces is { Count: > 0 } ? cfg.Pieces.ToList() : null,
-            MyAllies = cfg.Allies is { Count: > 0 } ? cfg.Allies.ToList() : null
+            MyAllies = cfg.Allies is { Count: > 0 } ? cfg.Allies.ToList() : null,
+            MyPerks = cfg.Perks
         };
         Game = Replay.CreateGame();
     }
@@ -315,7 +316,7 @@ public sealed class GameSession
         switch (e.Kind)
         {
             case "coin_toss": return $"Yazı-tura: {W(e.Player)} başlıyor.";
-            case "first_chosen": return $"Scoia'tael: {W(e.Player)} {(int.Parse(e.Detail) == e.Player ? "kendisinin başlamasını" : "rakibin başlamasını")} seçti.";
+            case "first_chosen": return $"{(Game.Players[e.Player].Faction == "scoiatael" ? "Scoia'tael" : "Kışla")}: {W(e.Player)} {(int.Parse(e.Detail) == e.Player ? "kendisinin başlamasını" : "rakibin başlamasını")} seçti.";
             case "round_start": return $"— Raund {e.Detail} —";
             case "play":
                 _announced.Add(e.CardUid);
@@ -330,6 +331,7 @@ public sealed class GameSession
                 var k = e.Detail.Split(':');
                 return k.Length > 1 ? $"{CardName(k[0])} ({k[1]}) yandı." : $"{CardName(e.Detail)} yandı.";
             }
+            case "potion_black_blood": return $"Kara Kan: {W(1 - e.Player)} casusu kart çektirmedi.";
             case "rune_return": return $"Veles rünü: {CardName(e.Detail)} yanmadı, ele döndü.";
             case "rune_keep": return $"Morana rünü: {CardName(e.Detail)} bir sonraki raunda kalıyor.";
             case "spawn": return $"{CardName(e.Detail)} sahaya geldi.";
