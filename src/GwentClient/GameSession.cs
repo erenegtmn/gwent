@@ -5,7 +5,7 @@ using GwentNet;
 namespace GwentClient;
 
 /// <summary>MyDeck boşsa fraksiyonun tüm kartları kullanılır. Rakip her zaman "önerilen" deste ile oynar (dengeli olsun).</summary>
-public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal, Deck? OppDeck = null, IReadOnlyList<string>? Curses = null, DateOnly? Daily = null);
+public sealed record MatchConfig(string MyFaction, string MyLeaderId, string OppFaction, string OppLeaderId, bool NextGen, int Seed, Deck? MyDeck = null, Difficulty Difficulty = Difficulty.Normal, Deck? OppDeck = null, IReadOnlyList<string>? Curses = null, DateOnly? Daily = null, string? Battlefield = null, bool Commanders = false);
 
 /// <summary>Online maçta sunucuyla konuşan taraf: eylemi gönderir. Sunucudan gelenler <see cref="GameSession.EnqueueRemote"/> ile oturuma verilir.</summary>
 public interface IMatchLink
@@ -113,7 +113,8 @@ public sealed class GameSession
         {
             MyFaction = cfg.MyFaction, MyLeaderId = cfg.MyDeck?.LeaderId ?? cfg.MyLeaderId, OppFaction = cfg.OppFaction, OppLeaderId = cfg.OppLeaderId,
             NextGen = cfg.NextGen, Seed = cfg.Seed, MyDeckCards = cfg.MyDeck?.CardIds.ToList(), Difficulty = (int)cfg.Difficulty,
-            OppDeckCards = cfg.OppDeck?.CardIds.ToList(), OppDeckUnchecked = cfg.OppDeck != null, Curses = cfg.Curses?.ToList()
+            OppDeckCards = cfg.OppDeck?.CardIds.ToList(), OppDeckUnchecked = cfg.OppDeck != null, Curses = cfg.Curses?.ToList(),
+            Battlefield = cfg.Battlefield, Commanders = cfg.Commanders
         };
         Game = Replay.CreateGame();
     }
@@ -294,6 +295,17 @@ public sealed class GameSession
     {
         string W(int p) => Texts.Who(p, MySeat);
         // Raund puanları oyuncu numarasına göredir (0, 1); günlükte "Sen / Rakip" sırasına çevrilir
+        string? TerrainChange(TerrainMap tm)
+        {
+            var changes = new List<string>();
+            foreach (var rk in Enum.GetValues<RowKind>())
+            {
+                var was = tm.At(MySeat, rk, Game.Round - 1);
+                var now = tm.At(MySeat, rk, Game.Round);
+                if (was != now) changes.Add($"{Texts.Row(rk)}: {Battlefields.Name(was)} → {Battlefields.Name(now)}");
+            }
+            return changes.Count == 0 ? null : "Arazi değişti — " + string.Join(", ", changes) + ".";
+        }
         string Mine(string[] parts) => parts[MySeat];
         string Theirs(string[] parts) => parts[1 - MySeat];
         switch (e.Kind)
@@ -320,6 +332,9 @@ public sealed class GameSession
             case "skellige_revive": return $"Skellige: {CardName(e.Detail)} mezarlıktan döndü.";
             case "curse_weather": return $"Bitmeyen Kış: raund {CardName(e.Detail)} ile açıldı.";
             case "curse_discard": return $"Kan Bedeli: {W(e.Player)} elinden {CardName(e.Detail)} kartını kaybetti.";
+            case "commander": return $"{W(e.Player)} komutanını {Texts.Row(Enum.Parse<RowKind>(e.Detail))} satırına taşıdı.";
+            case "bridge_fall": return $"Köprü dolu: {CardName(e.Detail)} köprüden düştü.";
+            case "terrain": return Game.Options.Terrain is { } tm && Game.Round > 1 ? TerrainChange(tm) : null;
             case "round_end":
             {
                 var parts = e.Detail.Split(':');

@@ -13,7 +13,7 @@ public enum ChoiceKind
     KingWeather       // destenden bir hava kartı oyna
 }
 
-public sealed class GameOptions
+public sealed record GameOptions
 {
     /// <summary>Yalnız yeni nesil (next-gen) güncellemesindeki içerik: Roach ve Geralt/Ciri'nin Muster'ı.</summary>
     public bool NextGen { get; init; }
@@ -26,6 +26,13 @@ public sealed class GameOptions
     public bool RoundWeather { get; init; }
     /// <summary>"Kan Bedeli": raundu kazanan elinden rastgele bir kart kaybeder (mezarlığa).</summary>
     public bool BloodPrice { get; init; }
+
+    // ---------- Kaer Morhen (TASARIM.md §5; varsayılan kapalı) ----------
+
+    /// <summary>Savaş alanı: satırların arazisi (<see cref="GwentCore.Terrain"/>). null = klasik tahta.</summary>
+    public TerrainMap? Terrain { get; init; }
+    /// <summary>Komutan figürü: bulunduğu satırı havadan korur; raund başına bir kez taşınabilir (bir hamle sayılır).</summary>
+    public bool Commanders { get; init; }
 }
 
 public sealed class CardInstance
@@ -86,6 +93,10 @@ public sealed class PlayerState
     public int Gems { get; internal set; } = 2;
     public bool Passed { get; internal set; }
     public bool MulliganDone { get; internal set; }
+    /// <summary>Komutan figürünün satırı (<see cref="GameOptions.Commanders"/> kapalıysa null).</summary>
+    public RowKind? Commander { get; internal set; }
+    /// <summary>Komutan bu raund taşındı mı.</summary>
+    public bool CommanderMoved { get; internal set; }
 
     internal PlayerState(int index, string faction, CardDef leader)
     {

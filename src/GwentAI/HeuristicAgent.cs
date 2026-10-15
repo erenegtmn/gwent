@@ -29,6 +29,8 @@ public sealed record AiTuning
     /// 0 = her zaman en ekonomik hamle (Zor).
     /// </summary>
     public double Overcommit { get; init; } = 0;
+    /// <summary>Kaer Morhen: komutan figürünü taşımayı dener mi (arena karşılaştırması için kapatılabilir).</summary>
+    public bool UseCommander { get; init; } = true;
 }
 
 /// <summary>
@@ -137,7 +139,7 @@ public sealed class HeuristicAgent : IAgent
 
         foreach (var a in g.LegalActions())
         {
-            if (a is Pass) continue;
+            if (a is Pass || (a is MoveCommander && !_t.UseCommander)) continue;
             var sim = Simulate(g, a, me);
             if (sim == null) continue;
 

@@ -32,6 +32,8 @@ public sealed partial class Game
     private readonly GameRandom _rng;
     private readonly List<GameEvent> _events = new();
     private readonly Queue<Action> _work = new();
+    /// <summary>Sıradaki işlerden önce yapılacaklar (harabedeki Medic'in ikinci canlandırması: tur bitmeden çalışmalı).</summary>
+    private readonly Queue<Action> _front = new();
     private int _uid;
     private int? _lastRoundWinner;
     private bool _clearing;
@@ -56,7 +58,10 @@ public sealed partial class Game
         var decks = new[] { deck0, deck1 };
         // Önce iki oyuncu da kurulur: lider yetenekleri (White Flame, Daisy) rakibe bakar.
         for (var p = 0; p < 2; p++)
-            _players[p] = new PlayerState(p, decks[p].Faction, Catalog.Get(decks[p].LeaderId));
+            _players[p] = new PlayerState(p, decks[p].Faction, Catalog.Get(decks[p].LeaderId))
+            {
+                Commander = Options.Commanders ? RowKind.Close : null
+            };
         for (var p = 0; p < 2; p++)
         {
             var ps = _players[p];
@@ -105,7 +110,9 @@ public sealed partial class Game
                 LeaderUsed = o.LeaderUsed,
                 Gems = o.Gems,
                 Passed = o.Passed,
-                MulliganDone = o.MulliganDone
+                MulliganDone = o.MulliganDone,
+                Commander = o.Commander,
+                CommanderMoved = o.CommanderMoved
             };
             n.Deck.AddRange(o.Deck.Select(M));
             n.Hand.AddRange(o.Hand.Select(M));
@@ -128,7 +135,7 @@ public sealed partial class Game
     public Game Clone()
     {
         if (Pending != null) throw new InvalidOperationException("Bekleyen bir seçim varken oyun kopyalanamaz.");
-        if (_work.Count > 0) throw new InvalidOperationException("İşlem sürerken oyun kopyalanamaz.");
+        if (_work.Count > 0 || _front.Count > 0) throw new InvalidOperationException("İşlem sürerken oyun kopyalanamaz.");
         return new Game(this);
     }
 
@@ -184,15 +191,16 @@ public sealed partial class Game
             case Pass pa: return DoPass(pa);
             case UseLeader ul: return DoUseLeader(ul);
             case Choose ch: return DoChoose(ch);
+            case MoveCommander mc: return DoMoveCommander(mc);
             default: return ActionResult.Fail("Bilinmeyen eylem.");
         }
     }
 
     private void Pump()
     {
-        while (Pending == null && _work.Count > 0 && Phase != Phase.GameOver)
-            _work.Dequeue()();
-        if (Phase == Phase.GameOver) _work.Clear();
+        while (Pending == null && (_front.Count > 0 || _work.Count > 0) && Phase != Phase.GameOver)
+            (_front.Count > 0 ? _front.Dequeue() : _work.Dequeue())();
+        if (Phase == Phase.GameOver) { _work.Clear(); _front.Clear(); }
     }
 
     // ---------- Oyun başı ----------

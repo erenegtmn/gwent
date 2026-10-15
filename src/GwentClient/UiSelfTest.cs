@@ -18,7 +18,7 @@ public static partial class UiSelfTest
 
     public static int Run(int games)
     {
-        var failures = RunDeckBuilder() + RunGuide() + RunUpdateCheck() + RunCurseCheck();
+        var failures = RunDeckBuilder() + RunGuide() + RunUpdateCheck() + RunCurseCheck() + RunTerrainCheck();
         var sfxProblems = Sfx.Diagnose();
         foreach (var p in sfxProblems) Console.WriteLine("[HATA] ses: " + p);
         Console.WriteLine($"Ses: {Sfx.AllNames.Length} yer tutucu denetlendi, {sfxProblems.Count} sorun.");
@@ -639,6 +639,8 @@ public static partial class UiSelfTest
         var piles = FindAll<GwintCard>(view, b => (string?)b.Tag == "grave-pile").ToList();
         if (roll < 0.14 && piles.Count > 0) { Raise(piles[rng.Next(piles.Count)], UIElement.MouseLeftButtonUpEvent); Count("mezarlik-ac"); return false; }
         if (roll < 0.10 && leader != null) { Raise(leader, UIElement.MouseLeftButtonUpEvent); Count("lider"); return false; }
+        var moves = FindAll<Grid>(view, g => (string?)g.Tag == "commander-move").ToList();
+        if (roll < 0.20 && moves.Count > 0) { Raise(moves[rng.Next(moves.Count)], UIElement.MouseLeftButtonUpEvent); Count("komutan-tasi"); return false; }
 
         var hand = FindAll<GwintCard>(view, c => (string?)c.Tag == "hand").ToList();
         if (hand.Count == 0) { if (pass != null) Raise(pass, UIElement.MouseLeftButtonUpEvent); return false; }

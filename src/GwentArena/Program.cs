@@ -30,6 +30,49 @@ if (args.Length > 0 && args[0] == "trace")
     return;
 }
 
+if (args.Length > 0 && args[0] == "terrain")
+{
+    // dotnet run --project src/GwentArena -c Release -- terrain [oyun/eşleşme]
+    // Kaer Morhen: her harita için fraksiyon dengesi, oyun uzunluğu, olay sayıları; komutanı kullanan AI'nın üstünlüğü.
+    var per = args.Length > 1 ? int.Parse(args[1]) : 10;
+    string[] fs = { "northern_realms", "nilfgaard", "scoiatael", "monsters", "skellige" };
+    var maps = new List<TerrainMap?> { null };
+    maps.AddRange(Battlefields.All);
+    Console.WriteLine($"{"harita",-22} " + string.Join(" ", fs.Select(f => f[..6].PadLeft(7))) + "  adım  taşıma  düşen  | komutanlı AI");
+    foreach (var map in maps)
+    {
+        var opts = new GameOptions { Terrain = map, Commanders = map != null };
+        var wins = fs.ToDictionary(f => f, _ => 0);
+        var plays = fs.ToDictionary(f => f, _ => 0);
+        long steps = 0; var moves = 0; var falls = 0; var played = 0;
+        var cmdWins = 0; var cmdGames = 0;
+        foreach (var a in fs) foreach (var b in fs)
+            for (var seed = 1; seed <= per; seed++)
+            {
+                var sd = seed * 977 + 13;
+                var r = GameRunner.Play(new HeuristicAgent(), new HeuristicAgent(seed: 2), DeckValidator.DefaultDeck(a), DeckValidator.DefaultDeck(b), sd, opts);
+                played++; steps += r.Steps;
+                plays[a]++; plays[b]++;
+                if (r.Winner == 0) wins[a]++; else if (r.Winner == 1) wins[b]++;
+                moves += r.Game.Events.Count(e => e.Kind == "commander");
+                falls += r.Game.Events.Count(e => e.Kind == "bridge_fall");
+                if (map == null) continue;
+                // Komutanı kullanan AI, kullanmayana karşı (koltuk değişerek)
+                var seat = seed % 2;
+                var withCmd = new HeuristicAgent();
+                var without = new HeuristicAgent(new AiTuning { UseCommander = false }, 2);
+                var ag = seat == 0 ? new IAgent[] { withCmd, without } : new IAgent[] { without, withCmd };
+                var r2 = GameRunner.Play(ag[0], ag[1], DeckValidator.DefaultDeck(a), DeckValidator.DefaultDeck(b), sd, opts);
+                cmdGames++; if (r2.Winner == seat) cmdWins++;
+            }
+        var name = map?.Name ?? "(klasik)";
+        Console.WriteLine($"{name,-22} " + string.Join(" ", fs.Select(f => $"{100.0 * wins[f] / plays[f],6:F0}%")) +
+                          $"  {steps / (double)played,4:F0}  {moves / (double)played,6:F1}  {falls / (double)played,5:F2}" +
+                          (map == null ? "" : $"  | {100.0 * cmdWins / cmdGames,5:F1}%"));
+    }
+    return;
+}
+
 if (args.Length > 0 && args[0] == "sweep")
 {
     // dotnet run --project src/GwentArena -c Release -- sweep [oyun/eşleşme]

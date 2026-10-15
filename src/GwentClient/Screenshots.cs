@@ -60,6 +60,16 @@ public static class Screenshots
             for (var i = 0; i < 6 && !cs.IsOver; i++) { cs.AutoPlayFor(0, new GwentAI.HeuristicAgent(), 1); if (cs.AiToAct) cs.AiStep(); }
             Save(new GwintView(cs, () => { }, _ => { }, animate: false), "cursed_game.png");
         }
+        foreach (var field in new[] { "pontar_bridge", "crookback_bog" })
+        {
+            // Kaer Morhen: arazili savaş alanı + komutanlar, birkaç hamle sonra (rakip yağmur/don oynadıysa komutan korur)
+            var tcfg = cfg with { Battlefield = field, Commanders = true, Seed = 77 };
+            var ts = new GameSession(tcfg);
+            ts.AutoPlayFor(0, new GwentAI.HeuristicAgent(), 1);
+            ts.AiAutoMulligan();
+            for (var i = 0; i < 7 && !ts.IsOver; i++) { ts.AutoPlayFor(0, new GwentAI.HeuristicAgent(), 1); if (ts.AiToAct) ts.AiStep(); }
+            Save(new GwintView(ts, () => { }, _ => { }, animate: false), $"terrain_{field}.png");
+        }
         {
             // Kart değiştirme: iki kart seçili (belirgin işaret)
             var ms = new GameSession(cfg);

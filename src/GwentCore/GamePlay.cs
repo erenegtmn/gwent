@@ -20,6 +20,8 @@ public sealed partial class Game
                 row = a.Row.Value;
             }
             else row = def.FixedRow!.Value;
+            if (RowFull(def.Has("spy") ? 1 - a.Player : a.Player, row))
+                return ActionResult.Fail($"Köprü dolu: bu satırda en fazla {BridgeCapacity} birim olabilir.");
 
             p.Hand.Remove(card);
             Emit("play", a.Player, card.Uid, def.Id);
@@ -93,7 +95,7 @@ public sealed partial class Game
     private void PlayUnit(CardInstance card, int actor, RowKind row)
     {
         var side = card.Has("spy") ? 1 - actor : actor;
-        PlaceOnBoard(card, side, row);
+        if (!TryPlaceUnit(card, side, row)) return;
         Emit("place", actor, card.Uid, $"{side}:{row}");
         OnPlaced(card, actor, allowMuster: true);
     }
@@ -109,6 +111,9 @@ public sealed partial class Game
                     break;
                 case "medic":
                     StartMedic(actor);
+                    // Harabe: Medic iki kez canlandırır (ikincisi ilk seçim bitince, tur bitmeden)
+                    if (Locate(card) is { } ml && TerrainAt(ml.Side, ml.Row) == Terrain.Ruins)
+                        _front.Enqueue(() => StartMedic(actor));
                     break;
                 case "muster":
                     if (allowMuster) DoMuster(card, actor);
@@ -143,7 +148,7 @@ public sealed partial class Game
         {
             zone.Remove(c);
             var row = c.Def.FixedRow ?? RowKind.Close;
-            PlaceOnBoard(c, actor, row);
+            if (!TryPlaceUnit(c, actor, row)) continue;
             Emit("place", actor, c.Uid, $"{actor}:{row}");
             OnPlaced(c, actor, allowMuster: false);
         }

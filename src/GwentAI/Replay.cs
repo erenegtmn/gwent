@@ -34,6 +34,10 @@ public sealed class ReplayData
     public bool OppDeckUnchecked { get; set; }
     /// <summary>Etkin lanetler (<see cref="Curses"/>): motor seçenekleri ve deste dönüşümleri bunlardan kurulur.</summary>
     public List<string>? Curses { get; set; }
+    /// <summary>Kaer Morhen savaş alanı (<see cref="Battlefields"/>); null = klasik tahta.</summary>
+    public string? Battlefield { get; set; }
+    /// <summary>Kaer Morhen komutan figürleri.</summary>
+    public bool Commanders { get; set; }
     public int Difficulty { get; set; }
     public List<ReplayAction> Actions { get; set; } = new();
     /// <summary>Oyuncunun gördüğü Türkçe olay günlüğü (hata bildirirken neyin olduğunu gösterir).</summary>
@@ -42,7 +46,7 @@ public sealed class ReplayData
     /// <summary>Oyunu kurar. Rakip destesi verilmemişse yapay zekânın zorluğuna göre kurulur (<see cref="AiDecks"/>).</summary>
     public Game CreateGame()
     {
-        var opts = GwentAI.Curses.Options(Curses, NextGen);
+        var opts = Battlefields.With(GwentAI.Curses.Options(Curses, NextGen), Battlefield, Commanders);
         var mine = MyDeckCards != null
             ? new Deck(MyFaction, MyLeaderId, MyDeckCards)
             : DeckValidator.DefaultDeck(MyFaction, opts) with { LeaderId = MyLeaderId };
@@ -80,6 +84,7 @@ public sealed class ReplayData
         Pass p => new ReplayAction { Type = "pass", Player = p.Player },
         UseLeader u => new ReplayAction { Type = "leader", Player = u.Player },
         Choose c => new ReplayAction { Type = "choose", Player = c.Player, Cards = c.Cards.ToList(), Row = c.Row?.ToString() },
+        MoveCommander m => new ReplayAction { Type = "commander", Player = m.Player, Row = m.Row.ToString() },
         _ => throw new ArgumentException("Bilinmeyen eylem: " + a)
     };
 
@@ -94,6 +99,7 @@ public sealed class ReplayData
             "pass" => new Pass(r.Player),
             "leader" => new UseLeader(r.Player),
             "choose" => new Choose(r.Player, r.Cards ?? new List<int>(), row),
+            "commander" => new MoveCommander(r.Player, row ?? RowKind.Close),
             _ => throw new ArgumentException("Bilinmeyen eylem türü: " + r.Type)
         };
     }

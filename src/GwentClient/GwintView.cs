@@ -478,9 +478,9 @@ public sealed class GwintView : Viewbox
         var d = _selected.Def;
         if (d.IsUnit)
         {
-            if (d.IsAgile) return side == Me && rk is RowKind.Close or RowKind.Ranged;
+            if (d.IsAgile) return side == Me && rk is RowKind.Close or RowKind.Ranged && !G.RowFull(Me, rk);
             var target = d.Has("spy") ? Opp : Me;
-            return side == target && rk == d.FixedRow;
+            return side == target && rk == d.FixedRow && !G.RowFull(target, rk);
         }
         if (d.Id is Ids.Horn or Ids.Mardroeme) return side == Me && G.Players[Me].Row(rk).Special == null;
         return false;
@@ -493,6 +493,7 @@ public sealed class GwintView : Viewbox
         var row = G.Players[side].Row(rk);
         var top = RowTop[index];
         var highlighted = RowHighlighted(side, rk);
+        BuildTerrain(side, rk, top);
 
         // Hava: canlı örtü, çizimler arasında aynı örnek kalır (animasyon sıfırlanmaz)
         if (G.WeatherActive(rk))
@@ -506,6 +507,7 @@ public sealed class GwintView : Viewbox
                 _wxType[index] = type;
             }
             Put(_board, _wxEl[index]!, 707, top);
+            _wxEl[index]!.Opacity = G.CommanderShields(side, rk) ? 0.3 : 1;   // komutan bu satırı havadan koruyor
         }
         else if (_wxEl[index] is { } old)
         {
@@ -587,6 +589,95 @@ public sealed class GwintView : Viewbox
             Panel.SetZIndex(hl, 5);
             Put(_board, hl, SlotX - 3, top);
         }
+    }
+
+    // ---------- Kaer Morhen: arazi ve komutan ----------
+
+    private static string TerrainGlyph(Terrain t) => t switch
+    {
+        Terrain.Hill => "▲", Terrain.Bridge => "≡", Terrain.Forest => "♣", Terrain.Swamp => "≈", Terrain.Ruins => "⌂", _ => ""
+    };
+
+    private static string TerrainColor(Terrain t) => t switch
+    {
+        Terrain.Hill => "#d0a858", Terrain.Bridge => "#a8a8b4", Terrain.Forest => "#5cae4c", Terrain.Swamp => "#6f9488", Terrain.Ruins => "#a890c0", _ => "#c9c0aa"
+    };
+
+    /// <summary>Komutan nişanı satır puanı rozetinin sağ alt köşesine iliştirilir (oyuncu toplamının defnesiyle çakışmaz).</summary>
+    private const double CommanderX = 540, CommanderDy = 74;
+
+    /// <summary>Satırın arazisi (renk tonu + rozet) ve komutan figürü / taşıma hedefi.</summary>
+    private void BuildTerrain(int side, RowKind rk, double top)
+    {
+        var t = G.TerrainAt(side, rk);
+        if (t != Terrain.Plain)
+        {
+            var col = (Color)ColorConverter.ConvertFromString(TerrainColor(t));
+            Put(_board, new Rectangle
+            {
+                Width = CardsRight - 707, Height = RowH, IsHitTestVisible = false, RadiusX = 4, RadiusY = 4,
+                Fill = new LinearGradientBrush(Color.FromArgb(0x55, col.R, col.G, col.B), Color.FromArgb(0x10, col.R, col.G, col.B), 0)
+            }, 707, top);
+            Put(_board, new Rectangle { Width = 4, Height = RowH - 8, Fill = new SolidColorBrush(col), Opacity = 0.8, IsHitTestVisible = false }, 707, top + 4);
+            var full = t == Terrain.Bridge ? $" {G.Players[side].Row(rk).Cards.Count(c => c.Def.IsUnit)}/{Game.BridgeCapacity}" : "";
+            var chip = new Border
+            {
+                Width = 126, Height = 24, CornerRadius = new CornerRadius(3), Background = Theme.B("#d8140e08"), BorderBrush = new SolidColorBrush(col),
+                BorderThickness = new Thickness(1), Tag = "terrain",
+                ToolTip = $"{GwentAI.Battlefields.Name(t)}: {GwentAI.Battlefields.Rule(t)}",
+                Child = Txt($"{TerrainGlyph(t)} {GwentAI.Battlefields.Name(t)}{full}", 15, new SolidColorBrush(col), true, TextAlignment.Center)
+            };
+            ((TextBlock)chip.Child).VerticalAlignment = VerticalAlignment.Center;
+            Panel.SetZIndex(chip, 4);
+            Put(_board, chip, SlotX + 2, top + RowH - 26);
+        }
+
+        if (!G.Options.Commanders) return;
+        var ps = G.Players[side];
+        if (ps.Commander == rk)
+        {
+            var shielding = G.WeatherActive(rk);
+            var token = new Grid { Width = 32, Height = 32, Tag = "commander", Cursor = Cursors.Arrow, ToolTip = "Komutan: bu satırı havadan korur." };
+            token.Children.Add(new Ellipse
+            {
+                Fill = Theme.B(side == Me ? "#2a1c0e" : "#16202e"), Stroke = Theme.B(side == Me ? "#e8c970" : "#7ab0e8"), StrokeThickness = 2.5,
+                Effect = shielding ? new DropShadowEffect { Color = Color.FromRgb(255, 215, 110), BlurRadius = 16, ShadowDepth = 0, Opacity = 0.9 } : null
+            });
+            var glyph = Txt("♜", 18, Theme.B(side == Me ? "#e8c970" : "#9ac4f0"), true, TextAlignment.Center);
+            glyph.HorizontalAlignment = HorizontalAlignment.Center;
+            glyph.VerticalAlignment = VerticalAlignment.Center;
+            token.Children.Add(glyph);
+            Panel.SetZIndex(token, 6);
+            Put(_board, token, CommanderX, top + CommanderDy);
+        }
+        else if (side == Me && MyTurn && _selected == null && !ps.CommanderMoved)
+        {
+            // Taşıma hedefi: soluk figür, üzerine gelince belirginleşir
+            var target = new Grid
+            {
+                Width = 32, Height = 32, Tag = "commander-move", Cursor = Cursors.Hand, Opacity = 0.35, Background = Brushes.Transparent,
+                ToolTip = $"Komutanı {Texts.Row(rk)} satırına taşı (bu hamlen sayılır; raundda bir kez)."
+            };
+            target.Children.Add(new Ellipse { Stroke = Theme.B("#e8c970"), StrokeThickness = 2, StrokeDashArray = new DoubleCollection { 3, 2 } });
+            var g2 = Txt("♜", 17, Theme.B("#e8c970"), false, TextAlignment.Center);
+            g2.HorizontalAlignment = HorizontalAlignment.Center;
+            g2.VerticalAlignment = VerticalAlignment.Center;
+            target.Children.Add(g2);
+            target.MouseEnter += (_, _) => target.Opacity = 1;
+            target.MouseLeave += (_, _) => target.Opacity = 0.35;
+            var row = rk;
+            target.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnMoveCommander(row); };
+            Panel.SetZIndex(target, 6);
+            Put(_board, target, CommanderX, top + CommanderDy);
+        }
+    }
+
+    private void OnMoveCommander(RowKind row)
+    {
+        if (!MyTurn) return;
+        var r = _s.Apply(new MoveCommander(Me, row));
+        if (!r.Ok) { _hint = r.Error ?? ""; Refresh(); return; }
+        AfterHumanAction();
     }
 
     // ---------- Oyuncu blokları ----------
@@ -817,6 +908,22 @@ public sealed class GwintView : Viewbox
             label.Tag = "curse-label";
             label.ToolTip = string.Join(Environment.NewLine, cs.Select(c => c.Name + ": " + c.Text));
             Put(_board, label, 590, 1030);
+        }
+        // Savaş alanı (Kaer Morhen): adı ve üzerine gelince raund programı
+        if (G.Options.Terrain is { } map)
+        {
+            var lines = new List<string> { map.Name };
+            for (var r = 1; r <= Math.Max(1, map.Rounds.Count); r++)
+            {
+                var parts = Enum.GetValues<RowKind>().Select(rk => $"{Texts.Row(rk)} {GwentAI.Battlefields.Name(map.At(Me, rk, r))}");
+                lines.Add($"Raund {r}{(r == map.Rounds.Count && r < 3 ? "+" : "")}: " + string.Join(" · ", parts));
+            }
+            if (G.Options.Commanders) lines.Add("Komutan (♜) bulunduğu satırı havadan korur; raundda bir kez taşınabilir, bu bir hamle sayılır.");
+            var bl = Txt("⚑ " + map.Name + (map.Rounds.Count > 1 ? $" · raund {G.Round}" : ""), 17, Theme.B("#d8c890"), true, TextAlignment.Left, 600);
+            bl.IsHitTestVisible = true;
+            bl.Tag = "battlefield-label";
+            bl.ToolTip = string.Join(Environment.NewLine, lines);
+            Put(_board, bl, 590, 1000);
         }
 
         if (_showLog)
@@ -1432,6 +1539,24 @@ public sealed class GwintView : Viewbox
                     sub = (e.Player == Me ? "Raundu kazandın ve kaybettin: " : "Rakip raundu kazandı ve kaybetti: ") + G.Catalog.Get(e.Detail).Name;
                     color = Theme.B("#e07060");
                     hold = 1500;
+                    break;
+                case "commander":
+                    sounds.Add("dummy");
+                    if (title == null) { title = e.Player == Me ? "Komutanını taşıdın" : "Rakip komutanını taşıdı"; sub = Texts.Row(Enum.Parse<RowKind>(e.Detail)); color = Theme.Gold; hold = 900; }
+                    break;
+                case "bridge_fall":
+                    title = "Köprü dolu";
+                    sub = G.Catalog.Get(e.Detail).Name + " köprüden düştü";
+                    color = Theme.Bad;
+                    hold = 1200;
+                    break;
+                case "terrain":
+                    if (G.Round > 1 && G.Options.Terrain is { } tm)
+                    {
+                        var ch = Enum.GetValues<RowKind>().Where(rk => tm.At(Me, rk, G.Round) != tm.At(Me, rk, G.Round - 1))
+                            .Select(rk => $"{Texts.Row(rk)}: {GwentAI.Battlefields.Name(tm.At(Me, rk, G.Round))}").ToList();
+                        if (ch.Count > 0) sub = (sub == null ? "" : sub + Environment.NewLine) + "Arazi değişti — " + string.Join(", ", ch);
+                    }
                     break;
                 case "coin_toss":
                 case "first_chosen": sounds.Add("coin_toss"); break;

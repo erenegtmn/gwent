@@ -40,18 +40,20 @@ public sealed partial class Game
         if (me.Passed) yield break;
         yield return new Pass(Current);
         if (LeaderBlockedReason(Current) == null) yield return new UseLeader(Current);
+        foreach (var mc in CommanderActions()) yield return mc;
 
         foreach (var card in me.Hand)
         {
             var def = card.Def;
             if (def.IsUnit)
             {
+                var side = def.Has("spy") ? 1 - Current : Current;
                 if (def.IsAgile)
                 {
-                    yield return new PlayCard(Current, card.Uid, RowKind.Close);
-                    yield return new PlayCard(Current, card.Uid, RowKind.Ranged);
+                    if (!RowFull(side, RowKind.Close)) yield return new PlayCard(Current, card.Uid, RowKind.Close);
+                    if (!RowFull(side, RowKind.Ranged)) yield return new PlayCard(Current, card.Uid, RowKind.Ranged);
                 }
-                else yield return new PlayCard(Current, card.Uid);
+                else if (!RowFull(side, def.FixedRow!.Value)) yield return new PlayCard(Current, card.Uid);
             }
             else if (def.IsWeather || def.Id == Ids.Scorch)
             {

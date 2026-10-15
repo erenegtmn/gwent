@@ -10,6 +10,7 @@ public sealed partial class Game
         Current = first;
         foreach (var c in BoardCards()) c.NoRemove = false;
         Emit("round_start", first, 0, Round.ToString());
+        BeginRoundTerrain();
         if (Options.RoundWeather) CurseWeather(first);
 
         for (var p = 0; p < 2; p++)

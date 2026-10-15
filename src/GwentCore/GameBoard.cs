@@ -15,7 +15,7 @@ public sealed partial class Game
         Enumerable.Range(0, 2).Any(p => LeaderPassive(p, "eredin_breacc_glas_the_treacherous"));
 
     /// <summary>
-    /// Bir kartın nihai gücü. Sıra: taban → hava (1'e ya da King Bran ile yarıya) → casus çarpanı
+    /// Bir kartın nihai gücü. Sıra: taban → hava (1'e ya da King Bran ile yarıya; komutanın satırı korunur) → arazi → casus çarpanı
     /// → Tight Bond (çarpar) → Morale (+1) → Boynuz (×2). Kahraman kartlar hiçbirinden etkilenmez.
     /// </summary>
     public int CardScore(CardInstance card)
@@ -28,11 +28,13 @@ public sealed partial class Game
         var (side, rowKind, _) = loc;
         var row = _players[side].Row(rowKind);
 
-        if (WeatherActive(rowKind))
+        var weatherHit = WeatherActive(rowKind) && !CommanderShields(side, rowKind);
+        if (weatherHit)
         {
             var min = LeaderPassive(side, "king_bran") ? total / 2 : 1;
             total = Math.Min(min, total);
         }
+        total = TerrainScore(total, side, rowKind, weatherHit);
 
         if (DoubleSpy && card.Has("spy")) total *= 2;
 
@@ -99,7 +101,7 @@ public sealed partial class Game
     {
         if (from.Def.Summons == null) return;
         var token = NewCard(from.Def.Summons, from.Holder);
-        PlaceOnBoard(token, from.Holder, RowKind.Close);
+        if (!TryPlaceUnit(token, from.Holder, RowKind.Close)) return;
         Emit("spawn", from.Holder, token.Uid, token.Def.Id);
     }
 
@@ -121,7 +123,7 @@ public sealed partial class Game
     /// <summary>Özel kart / Clan Dimun Pirate: iki sahadaki en güçlü (kahraman olmayan) birim(ler)i yok eder.</summary>
     private void ScorchAll(CardInstance? exclude = null)
     {
-        var cands = BoardCards().Where(c => IsTargetableUnit(c) && c != exclude).Select(c => (c, s: CardScore(c))).ToList();
+        var cands = BoardCards().Where(c => IsScorchable(c) && c != exclude).Select(c => (c, s: CardScore(c))).ToList();
         if (cands.Count == 0) return;
         var max = cands.Max(x => x.s);
         foreach (var (c, _) in cands.Where(x => x.s == max).ToList()) Kill(c);
@@ -131,7 +133,7 @@ public sealed partial class Game
     private bool RowScorch(int targetSide, RowKind row)
     {
         if (RowTotal(targetSide, row) < 10) return false;
-        var cands = _players[targetSide].Row(row).Cards.Where(IsTargetableUnit).Select(c => (c, s: CardScore(c))).ToList();
+        var cands = _players[targetSide].Row(row).Cards.Where(IsScorchable).Select(c => (c, s: CardScore(c))).ToList();
         if (cands.Count == 0) return false;
         var max = cands.Max(x => x.s);
         foreach (var (c, _) in cands.Where(x => x.s == max).ToList()) Kill(c);

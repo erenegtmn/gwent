@@ -466,6 +466,8 @@ public sealed class MenuView : Grid
         root.Children.Add(Ornate.Caption("Gaunter O'Dimm'in lanetleri (isteğe bağlı)"));
         root.Children.Add(CurseRow());
         root.Children.Add(DailyRow());
+        root.Children.Add(Ornate.Caption("Kaer Morhen: savaş alanı (deneme)"));
+        root.Children.Add(BattlefieldRow());
         _nextGen.Margin = new Thickness(0, 14, 0, 0);
         root.Children.Add(_nextGen);
 
@@ -531,6 +533,43 @@ public sealed class MenuView : Grid
     }
 
     private readonly List<ToggleButton> _diffButtons = new();
+    private readonly List<ToggleButton> _fieldButtons = new();
+    /// <summary>Savaş alanı seçimi: null = kapalı (klasik), "random" ya da harita kimliği. Açıkken komutanlar da açıktır.</summary>
+    private string? _battlefield;
+
+    /// <summary>Kaer Morhen denemesi: arazili savaş alanı + komutan figürü (TASARIM.md §5).</summary>
+    private UIElement BattlefieldRow()
+    {
+        var wrap = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+        var items = new List<(string? Id, string Name, string Text)> { (null, "Kapalı", "Klasik Gwent tahtası."), ("random", "Rastgele", "Her maç başka bir harita.") };
+        items.AddRange(GwentAI.Battlefields.All.Select(m => ((string?)m.Id, m.Name, Summary(m))));
+        foreach (var (id, name, text) in items)
+        {
+            var key = id;
+            var sp = new StackPanel { Width = 196 };
+            sp.Children.Add(Ui.Text(name, 15, Theme.B("#d8c890"), true));
+            sp.Children.Add(Ui.Text(text, 11, Theme.TextDim, false, TextAlignment.Left, true));
+            var tb = new ToggleButton
+            {
+                Style = (Style)Application.Current.FindResource("GToggle"), Content = sp, Margin = new Thickness(3), Padding = new Thickness(10, 6, 10, 7),
+                HorizontalContentAlignment = HorizontalAlignment.Left, Tag = "battlefield:" + (id ?? "off"), IsChecked = _battlefield == id
+            };
+            tb.Click += (_, _) =>
+            {
+                _battlefield = key;
+                foreach (var b in _fieldButtons) b.IsChecked = (string)b.Tag == "battlefield:" + (key ?? "off");
+            };
+            _fieldButtons.Add(tb);
+            wrap.Children.Add(tb);
+        }
+        return wrap;
+
+        static string Summary(TerrainMap m)
+        {
+            var first = string.Join(", ", Enum.GetValues<RowKind>().Select(rk => m.At(0, rk, 1)).Where(t => t != Terrain.Plain).Distinct().Select(GwentAI.Battlefields.Name));
+            return (first.Length == 0 ? "Düzlük" : first) + (m.Rounds.Count > 1 ? "; raundlar arasında değişir." : ".");
+        }
+    }
     private readonly HashSet<string> _curses = new();
 
     /// <summary>Gaunter O'Dimm'in lanetleri: maçın kuralını büken isteğe bağlı seçenekler (birden çok seçilebilir).</summary>
@@ -821,8 +860,10 @@ public sealed class MenuView : Grid
         }
 
         if (curses.Contains(GwentAI.Curses.Mirror)) { opp = _myFaction; oppLeader = myDeck?.LeaderId ?? leader; }   // Ayna: rakip senin destenle
-        var cfg = new MatchConfig(_myFaction, leader, opp, oppLeader, NextGen, daily?.Seed ?? rng.Next(1, int.MaxValue), myDeck,
-            daily != null ? GwentAI.Difficulty.Hard : Settings.Difficulty, null, curses.Count > 0 ? curses : null, daily?.Date);
+        var seed = daily?.Seed ?? rng.Next(1, int.MaxValue);
+        var field = daily != null ? null : _battlefield == "random" ? GwentAI.Battlefields.ForSeed(seed).Id : _battlefield;
+        var cfg = new MatchConfig(_myFaction, leader, opp, oppLeader, NextGen, seed, myDeck,
+            daily != null ? GwentAI.Difficulty.Hard : Settings.Difficulty, null, curses.Count > 0 ? curses : null, daily?.Date, field, field != null);
         if (_animate) ShowVs(cfg);
         else _start(cfg);
     }
