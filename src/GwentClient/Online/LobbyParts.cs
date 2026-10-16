@@ -52,7 +52,11 @@ internal static class LobbyParts
         }
         var best = invites[0];
         var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
-        var box = new TextBox { Text = best.Invite, IsReadOnly = true, Width = 640, TextWrapping = TextWrapping.Wrap, Tag = "lobby-invite", FontFamily = Theme.Serif, FontSize = 14 };
+        var label = Ui.Text("DAVET KODU", 13, Theme.TextDim, true);
+        label.VerticalAlignment = VerticalAlignment.Center;
+        label.Margin = new Thickness(0, 0, 16, 0);
+        row.Children.Add(label);
+        var box = new TextBox { Text = best.Invite, IsReadOnly = true, Width = 470, TextWrapping = TextWrapping.Wrap, Tag = "lobby-invite", FontFamily = Theme.Serif, FontSize = 15 };
         box.Style = (Style)Application.Current.FindResource("GText");
         row.Children.Add(box);
         var b = Ui.Button("Kopyala", () => { try { Clipboard.SetText(best.Invite); } catch { /* pano kilitli olabilir */ } });
@@ -61,5 +65,11 @@ internal static class LobbyParts
         b.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(b);
         panel.Children.Add(row);
+        // Oda kodu tek başına internetten bağlatmaz (merkezi sunucu yok, adres davet kodunun içinde): bunu açıkça söyle
+        var hint = Ui.Text("Bunu arkadaşına gönder, Online → Odaya katıl'a yapıştırsın. Oda kodu tek başına yetmez.", 14, Theme.B("#c9b88a"), false, TextAlignment.Right, true);
+        hint.MaxWidth = 640;
+        hint.HorizontalAlignment = HorizontalAlignment.Right;
+        hint.Margin = new Thickness(0, 6, 0, 0);
+        panel.Children.Add(hint);
     }
 }

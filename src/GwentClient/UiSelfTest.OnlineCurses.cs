@@ -50,6 +50,9 @@ public static partial class UiSelfTest
             PumpUntil(() => guest.State!.Curses?.Count == 2, "lanet kapandı", host, guest);
             Layout(gl);
             Check(FindAll<TextBlock>(gl, t => (t.Tag as string) == "lobby-curses").Any(t => t.Text.Contains("Ayna") && t.Text.Contains("Kısa Mum")), "konuk lanetleri görmüyor");
+            Check(FindAll<ToggleButton>(gl, t => (t.Tag as string) == "lobby-view-curse:" + GwentAI.Curses.Mirror).Any(t => t.IsChecked == true && !t.IsEnabled), "konukta kilitli lanet düğmesi işaretli değil");
+            Check(FindAll<TextBlock>(gl, t => (t.Tag as string) == "lobby-foot").Any(t => t.Text.Contains("değiştirdi")), "konuğa kural değişikliği söylenmedi");
+            Check(FindAll<TextBlock>(gl, t => (t.Tag as string) == "lobby-mirror-hint").Count() == 2, "Ayna ipuçları iki panelde yok");
 
             foreach (var view in new[] { hl, gl })
             {

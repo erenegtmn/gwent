@@ -42,10 +42,23 @@ public sealed class LobbyView : Grid
     }
 
     private bool _wasDraft;
+    private string? _rulesSeen;
+    private string _notice = "";
+
+    /// <summary>Kuralların imzası (draft + lanetler): değişince oyuncuya söylenir, çünkü sunucu iki tarafın hazırlığını sıfırlar.</summary>
+    private string RulesKey => (Draft ? "D|" : "-|") + string.Join(",", State?.Curses ?? new List<string>());
+    private bool Mirror => State?.Curses?.Contains(GwentAI.Curses.Mirror) == true;
 
     private void OnState()
     {
         _busy = false;   // sunucu yeni durumu gönderdi: seçim işlendi
+        if (State?.Phase == RoomPhase.Lobby)
+        {
+            if (_rulesSeen != null && _rulesSeen != RulesKey)
+                _notice = State.YourSeat == 0 ? "Kurallar değişti: ikinizin de hazırlığı sıfırlandı."
+                    : "Oda kuran maç kurallarını değiştirdi. Yukarıdan bak, uygunsa yeniden Hazırım'a bas.";
+            _rulesSeen = RulesKey;
+        }
         if (_wasDraft && !Draft) { _wasDraft = false; SendLoadout(); }   // draft kapandı: deste seçicinin seçimi geri gönderilir
         _wasDraft = Draft;
         Rebuild();
@@ -68,6 +81,7 @@ public sealed class LobbyView : Grid
 
     private async void ToggleReady(bool ready)
     {
+        _notice = "";
         var r = await _c.Link.SetReadyAsync(ready);
         if (!r.Ok) { _error = r.Error ?? ""; Rebuild(); }
     }
@@ -91,41 +105,72 @@ public sealed class LobbyView : Grid
         Rebuild();
     }
 
+    private const string DraftText = "İkiniz de desteyi 25 kez 3 karttan birini seçerek kurarsınız.";
+
     /// <summary>
-    /// Gaunter O'Dimm'in lanetleri: oda kuran seçer (birden çok), konuk yalnız görür. Online'da Ayna deste takasıdır.
+    /// Maç kuralları tek şeritte: Draft + Gaunter O'Dimm'in lanetleri. İki tarafta da aynı yerleşim (konuk neyin açık olduğunu aynı
+    /// düğmelerden okur), yalnız oda kuran tıklayabilir. Açıklamalar düğmenin ipucunda; altta seçilenlerin tek satırlık özeti.
     /// </summary>
-    private UIElement CurseRow(RoomState st)
+    private UIElement RulesBar(RoomState st)
     {
+        var host = st.YourSeat == 0;
         var active = st.Curses ?? new List<string>();
-        var sp = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
-        if (st.YourSeat != 0)
-        {
-            var text = active.Count == 0 ? "Lanet yok: orijinal kurallar."
-                : "☠ Lanet: " + string.Join(" · ", active.Select(id => GwentAI.Curses.Get(id).Name));
-            var t = Ui.Text(text, 16, active.Count == 0 ? Theme.TextDim : Theme.B("#d8b8f0"), active.Count > 0);
-            t.Tag = "lobby-curses";
-            t.ToolTip = active.Count == 0 ? null : string.Join(Environment.NewLine, active.Select(id => GwentAI.Curses.Get(id).Name + ": " + GwentAI.Curses.TextFor(id, true)));
-            sp.Children.Add(t);
-            return sp;
-        }
-        sp.Children.Add(Ui.Text(Ornate.Spaced("GAUNTER O'DIMM'IN LANETLERİ"), 12, Theme.B("#a8905a"), true));
-        var wrap = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+        var sp = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+        var head = new StackPanel { Orientation = Orientation.Horizontal };
+        head.Children.Add(Ui.Text(Ornate.Spaced("MAÇ KURALLARI"), 12, Theme.B("#a8905a"), true));
+        head.Children.Add(Ui.Text(host ? "   seçmek için tıkla · ayrıntı için üzerine gel" : "   oda kuran seçer · ayrıntı için üzerine gel", 12, Theme.TextDim));
+        sp.Children.Add(head);
+
+        var row = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+        row.Children.Add(RuleChip("Draft maçı", DraftText, Draft, host, "lobby-draft", on => SetDraft(on)));
+        row.Children.Add(new Rectangle { Width = 1, Height = 26, Fill = Theme.B("#5a4a2a"), Margin = new Thickness(4, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
         foreach (var c in GwentAI.Curses.All)
         {
             var id = c.Id;
-            var inner = new StackPanel { Width = 186 };
-            inner.Children.Add(Ui.Text(c.Name, 15, Theme.B("#e0c8f0"), true));
-            inner.Children.Add(Ui.Text(GwentAI.Curses.TextFor(id, true), 11, Theme.TextDim, false, TextAlignment.Left, true));
-            var tb = new ToggleButton
-            {
-                Style = (Style)Application.Current.FindResource("GToggle"), Content = inner, Margin = new Thickness(0, 3, 6, 3), Padding = new Thickness(10, 6, 10, 7),
-                HorizontalContentAlignment = HorizontalAlignment.Left, Tag = "lobby-curse:" + id, IsChecked = active.Contains(id)
-            };
-            tb.Click += (_, _) => ToggleCurse(id, tb.IsChecked == true);
-            wrap.Children.Add(tb);
+            row.Children.Add(RuleChip(c.Name, GwentAI.Curses.TextFor(id, true), active.Contains(id), host, "lobby-curse:" + id, on => ToggleCurse(id, on)));
         }
-        sp.Children.Add(wrap);
+        sp.Children.Add(row);
+
+        var summary = Ui.Text(RulesSummary(active, host), 15, active.Count > 0 || Draft ? Theme.B("#d8b8f0") : Theme.TextDim, false, TextAlignment.Left, true);
+        summary.Tag = "lobby-curses";
+        summary.MaxWidth = 1150;
+        summary.HorizontalAlignment = HorizontalAlignment.Left;
+        summary.Margin = new Thickness(0, 4, 0, 0);
+        sp.Children.Add(summary);
         return sp;
+    }
+
+    /// <summary>Kural düğmesi: oda kuranda tıklanır; konukta aynı görünür ama kilitlidir (ipucu yine açılır).</summary>
+    private static ToggleButton RuleChip(string title, string tip, bool on, bool editable, string tag, Action<bool> changed)
+    {
+        var tb = new ToggleButton
+        {
+            Style = (Style)Application.Current.FindResource("GToggle"), Margin = new Thickness(0, 3, 6, 3), Padding = new Thickness(12, 5, 12, 6),
+            Content = Ui.Text(title, 15, on ? Theme.B("#f0e0ff") : Theme.B("#c8b8d8"), on),
+            IsChecked = on, ToolTip = title + ": " + tip,
+            Tag = editable ? tag : tag.Replace("lobby-", "lobby-view-"),
+        };
+        if (editable) tb.Click += (_, _) => changed(tb.IsChecked == true);
+        else
+        {
+            tb.IsEnabled = false;
+            tb.Cursor = Cursors.Arrow;
+            ToolTipService.SetShowOnDisabled(tb, true);
+        }
+        return tb;
+    }
+
+    /// <summary>Seçili kuralların tek satırlık özeti (ne değişeceğini düz cümleyle söyler).</summary>
+    private string RulesSummary(List<string> active, bool host)
+    {
+        var parts = new List<string>();
+        if (Draft) parts.Add(host ? "Draft: desteleri masada kuracaksınız" : "Draft: desteni aşağıda draft ile kur");
+        foreach (var id in active) {
+            var text = GwentAI.Curses.TextFor(id, true).TrimEnd('.');
+            parts.Add(GwentAI.Curses.Get(id).Name + ": " + char.ToLower(text[0], new System.Globalization.CultureInfo("tr-TR")) + text[1..]);
+        }
+        if (parts.Count == 0) return host ? "Orijinal kurallar. İstersen draft ya da bir veya birkaç lanet seç." : "Orijinal kurallar.";
+        return (active.Count > 0 ? "☠ " : "") + string.Join(" · ", parts) + ".";
     }
 
     /// <summary>Draft seçimi sunucuya gider (sunucu doğrular); yanıt gelene dek ikinci tıklama yok sayılır.</summary>
@@ -166,19 +211,7 @@ public sealed class LobbyView : Grid
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var titleCol = new StackPanel();
         titleCol.Children.Add(Ornate.Heading("Bekleme odası", Draft ? "Draft maçı: desteler masada kurulur" : NextGen ? "Yeni nesil içerik açık" : "Standart kartlar", 46));
-        if (st != null && st.Phase == RoomPhase.Lobby)
-        {
-            if (st.YourSeat == 0)
-            {
-                var opt = Ornate.Option("Draft maçı", "İkiniz de desteyi 25 kez 3 karttan birini seçerek kurarsınız", Draft);
-                opt.Tag = "lobby-draft";
-                opt.HorizontalAlignment = HorizontalAlignment.Left;
-                opt.Click += (_, _) => SetDraft(opt.IsChecked == true);
-                titleCol.Children.Add(opt);
-            }
-            else if (Draft) titleCol.Children.Add(Ui.Text("Oda kuran draft maçı seçti: desteni aşağıda draft ile kur.", 16, Theme.B("#e0c8f0"), true));
-            titleCol.Children.Add(CurseRow(st));
-        }
+        if (st != null && st.Phase == RoomPhase.Lobby) titleCol.Children.Add(RulesBar(st));
         head.Children.Add(titleCol);
 
         var code = LobbyParts.CodePanel(st?.Code, _c, "ODA KODU");
@@ -215,7 +248,9 @@ public sealed class LobbyView : Grid
         leaveBtn.Padding = new Thickness(30, 12, 30, 12);
         leaveBtn.Margin = new Thickness(16, 0, 0, 0);
         foot.Children.Add(leaveBtn);
-        var msg = Ui.Text(_error != "" ? _error : FootMessage(), 18, _error != "" ? Theme.Bad : Theme.B("#c9c0aa"), false, TextAlignment.Left, true);
+        var msg = Ui.Text(_error != "" ? _error : _notice != "" ? _notice : FootMessage(), 18,
+            _error != "" ? Theme.Bad : _notice != "" ? Theme.B("#f0d890") : Theme.B("#c9c0aa"), _notice != "" && _error == "", TextAlignment.Left, true);
+        msg.Tag = "lobby-foot";
         msg.VerticalAlignment = VerticalAlignment.Center;
         msg.Margin = new Thickness(26, 0, 0, 0);
         msg.MaxWidth = 760;
@@ -285,7 +320,7 @@ public sealed class LobbyView : Grid
 
     private string FootMessage()
     {
-        if (Opp == null) return "Rakip bekleniyor… Oda kodunu arkadaşına ver.";
+        if (Opp == null) return _c.Invites.Count > 0 ? "Rakip bekleniyor… Sağ üstteki davet kodunu kopyalayıp arkadaşına gönder." : "Rakip bekleniyor…";
         if (!Opp.Connected) return "Rakibin bağlantısı koptu.";
         if (Me?.Ready == true && Opp.Ready != true) return "Rakibin hazır olması bekleniyor…";
         if (Me?.Ready != true && Opp.Ready) return "Rakip hazır. Seçimini yapıp hazır ol.";
@@ -328,6 +363,7 @@ public sealed class LobbyView : Grid
         rule.HorizontalAlignment = HorizontalAlignment.Left;
         root.Children.Add(rule);
 
+        if (Mirror) root.Children.Add(MirrorHint("Ayna: burada kurduğun desteyle RAKİBİN oynayacak; sen onun destesiyle.", 560));
         (_picker.Parent as Panel)?.Children.Remove(_picker);   // önceki çizimin kökünden ayır
         if (Draft) root.Children.Add(DraftPanel());
         else
@@ -444,6 +480,19 @@ public sealed class LobbyView : Grid
         return l;
     }
 
+    /// <summary>Ayna açıkken desteler takas edilir; iki panelde de kimin hangi desteyle oynayacağı açıkça yazılır.</summary>
+    private static UIElement MirrorHint(string text, double width)
+    {
+        var t = Ui.Text("⇄ " + text, 15, Theme.B("#e0c8f0"), true, TextAlignment.Left, true);
+        t.MaxWidth = width;
+        t.Tag = "lobby-mirror-hint";
+        return new Border
+        {
+            Child = t, Margin = new Thickness(0, 8, 0, 4), Padding = new Thickness(12, 6, 12, 7), HorizontalAlignment = HorizontalAlignment.Left,
+            Background = Theme.B("#2a1d33"), BorderBrush = Theme.B("#6a4a80"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3)
+        };
+    }
+
     private UIElement OppPanel()
     {
         var oppReady = Opp?.Ready == true;
@@ -458,10 +507,11 @@ public sealed class LobbyView : Grid
             w.Margin = new Thickness(0, 24, 0, 0);
             w.FontStyle = FontStyles.Italic;
             sp.Children.Add(w);
-            sp.Children.Add(Ui.Text("Oda kodunu paylaş; katılınca burada belirir.", 16, Theme.TextDim, false, TextAlignment.Left, true));
+            sp.Children.Add(Ui.Text("Davet kodunu paylaş; arkadaşın katılınca burada belirir.", 16, Theme.TextDim, false, TextAlignment.Left, true));
             return sp;
         }
         sp.Children.Add(Ui.Text(Opp.Connected ? "● bağlı" : "● bağlantısı koptu", 15, Opp.Connected ? Theme.Good : Theme.Bad));
+        if (Mirror) sp.Children.Add(MirrorHint("Ayna: aşağıdaki desteyle SEN oynayacaksın.", 430));
 
         if (Draft && Opp.Loadout == null)
         {
