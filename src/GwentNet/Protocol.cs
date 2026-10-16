@@ -12,7 +12,7 @@ namespace GwentNet;
 public static class ProtocolInfo
 {
     /// <summary>Mesaj biçimi değişince artırılır.</summary>
-    public const int Number = 2;   // 2: online draft (RoomState.Draft, PlayerInfo.DraftPicks, SetDraft/DraftChoose)
+    public const int Number = 3;   // 2: online draft (RoomState.Draft, PlayerInfo.DraftPicks, SetDraft/DraftChoose); 3: oda lanetleri (RoomState/MatchSetup.Curses, SetCurses)
 
     /// <summary>
     /// Sürüm kimliği = protokol numarası + kart verisinin özeti. Kart/kural farkı olan istemci odaya girmesin
@@ -43,20 +43,28 @@ public sealed record DraftDto(string? Faction, List<string> LeaderOffer, string?
 public enum RoomPhase { Lobby, Playing, Finished }
 
 /// <summary>Odanın herkese görünen durumu. YourSeat/YourToken her oyuncuya kendine özel doldurulur (token yeniden bağlanma anahtarıdır).</summary>
-/// <summary>Draft: oda draft maçı (desteler masada kurulur); YourDraft oyuncunun kendi draft durumu.</summary>
+/// <summary>Draft: oda draft maçı (desteler masada kurulur); YourDraft oyuncunun kendi draft durumu. Curses: oda kuranın seçtiği lanetler.</summary>
 public sealed record RoomState(string Code, RoomPhase Phase, List<PlayerInfo> Players, int YourSeat, string YourToken, bool NextGen, int ActionCount,
-    bool Draft = false, DraftDto? YourDraft = null);
+    bool Draft = false, DraftDto? YourDraft = null, List<string>? Curses = null);
 
-/// <summary>Maçın kurulumu: iki açık deste + tohum. Aynı paket iki istemcide aynı <c>Game</c>'i kurar.</summary>
-public sealed record MatchSetup(int Seed, bool NextGen, LoadoutDto Seat0, LoadoutDto Seat1, string Nick0, string Nick1, int YourSeat)
+/// <summary>
+/// Maçın kurulumu: iki açık deste + tohum + lanetler. Aynı paket iki istemcide aynı <c>Game</c>'i kurar.
+/// Ayna laneti online'da <b>deste takasıdır</b> ve sunucu kurulumu yazarken uygular (Seat0/Seat1 zaten takaslı gelir);
+/// motora yalnız öteki lanetler gider, yoksa yerel Ayna (rakip = benim destem) bir de üstüne uygulanırdı.
+/// </summary>
+public sealed record MatchSetup(int Seed, bool NextGen, LoadoutDto Seat0, LoadoutDto Seat1, string Nick0, string Nick1, int YourSeat, List<string>? Curses = null)
 {
     /// <summary>Koltuk sırası (0, 1) korunur: koltuk takası karıştırma sırasını değiştirir ve kopyaları ayrıştırır.</summary>
     public ReplayData ToReplay() => new()
     {
         MyFaction = Seat0.Faction, MyLeaderId = Seat0.LeaderId, MyDeckCards = Seat0.CardIds,
         OppFaction = Seat1.Faction, OppLeaderId = Seat1.LeaderId, OppDeckCards = Seat1.CardIds,
-        NextGen = NextGen, Seed = Seed
+        NextGen = NextGen, Seed = Seed, Curses = EngineCurses()
     };
+
+    /// <summary>Motora giden lanetler: Ayna hariç (takas kurulumda yapıldı). Hiç yoksa null (eski kayıtlarla aynı).</summary>
+    public List<string>? EngineCurses() =>
+        Curses?.Where(c => c != GwentAI.Curses.Mirror).ToList() is { Count: > 0 } engine ? engine : null;
 }
 
 /// <summary>Sunucunun doğruladığı ve sıraladığı eylem. Seq 0'dan başlar, boşluk olamaz.</summary>

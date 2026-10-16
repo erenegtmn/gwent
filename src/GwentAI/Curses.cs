@@ -31,6 +31,11 @@ public static class Curses
 
     public static Curse Get(string id) => All.First(c => c.Id == id);
 
+    /// <summary>Online'da Ayna deste takasıdır (iki insan oyuncu: ikisi de ötekinin destesiyle oynar); öteki lanetler aynıdır.</summary>
+    public const string MirrorOnlineText = "Desteler takas edilir: sen rakibinin destesiyle, o seninkiyle oynar.";
+
+    public static string TextFor(string id, bool online) => online && id == Mirror ? MirrorOnlineText : Get(id).Text;
+
     /// <summary>Lanetlerin motor seçenekleri.</summary>
     public static GameOptions Options(IReadOnlyCollection<string>? curses, bool nextGen = false) => new()
     {

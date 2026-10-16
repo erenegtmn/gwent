@@ -90,6 +90,34 @@ public class SignalRTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Cursed_match_with_mirror_swap_plays_out_identically_over_the_wire()
+    {
+        await using var host = await NetClient.ConnectAsync(_server.LocalUrl, "Geralt", Difficulty.Hard, 5);
+        await using var guest = await NetClient.ConnectAsync(_server.LocalUrl, "Yennefer", Difficulty.Hard, 6);
+        var code = (await host.CreateAsync()).Value!;
+        Assert.True((await guest.JoinAsync(code)).Ok);
+        Assert.True((await host.ChooseAsync("nilfgaard")).Ok);
+        Assert.True((await guest.ChooseAsync("skellige")).Ok);
+        var curses = new List<string> { Curses.Mirror, Curses.ShortCandle, Curses.EndlessWinter, Curses.BloodPrice };
+        Assert.True((await host.Conn.InvokeAsync<Reply>("SetCurses", curses)).Ok);
+        Assert.False((await guest.Conn.InvokeAsync<Reply>("SetCurses", new List<string>())).Ok);   // konuk seçemez
+        await guest.WaitAsync(() => guest.State?.Curses?.Count == 4, "konuk lanetleri görür");
+        Assert.True((await host.ReadyAsync()).Ok);
+        Assert.True((await guest.ReadyAsync()).Ok);
+        await host.WaitAsync(() => host.Local != null, "maç başlangıcı");
+        await guest.WaitAsync(() => guest.Local != null, "maç başlangıcı");
+        Assert.Equal("skellige", guest.Setup!.Seat0.Faction);       // Ayna: host konuğun destesiyle
+        Assert.Equal(4, guest.Setup.Curses!.Count);
+        Assert.Equal(8, guest.Local!.Options.StartingHand);
+
+        await NetClient.RunToEndAsync(60000, host, guest);
+        var room = _server.Rooms.Find(code)!;
+        Assert.Equal(room.Game!.Events.Count, host.Local!.Events.Count);
+        Assert.Equal(room.Game.Events.Count, guest.Local.Events.Count);
+        for (var i = 0; i < room.Game.Events.Count; i++) Assert.Equal(room.Game.Events[i], guest.Local.Events[i]);
+    }
+
+    [Fact]
     public async Task Illegal_action_over_the_wire_is_rejected_and_state_unchanged()
     {
         var (host, guest, code) = await StartedMatchAsync(seed: 9);

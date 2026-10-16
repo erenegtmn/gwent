@@ -81,6 +81,53 @@ public sealed class LobbyView : Grid
         Rebuild();
     }
 
+    /// <summary>Oda kuran: bir laneti aç/kapat (sunucu doğrular; değişince iki tarafın hazırlığı sıfırlanır).</summary>
+    private async void ToggleCurse(string id, bool on)
+    {
+        var set = (State?.Curses ?? new List<string>()).ToHashSet();
+        if (on) set.Add(id); else set.Remove(id);
+        var r = await _c.Link.SetCursesAsync(set.ToList());
+        _error = r.Ok ? "" : r.Error ?? "";
+        Rebuild();
+    }
+
+    /// <summary>
+    /// Gaunter O'Dimm'in lanetleri: oda kuran seçer (birden çok), konuk yalnız görür. Online'da Ayna deste takasıdır.
+    /// </summary>
+    private UIElement CurseRow(RoomState st)
+    {
+        var active = st.Curses ?? new List<string>();
+        var sp = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
+        if (st.YourSeat != 0)
+        {
+            var text = active.Count == 0 ? "Lanet yok: orijinal kurallar."
+                : "☠ Lanet: " + string.Join(" · ", active.Select(id => GwentAI.Curses.Get(id).Name));
+            var t = Ui.Text(text, 16, active.Count == 0 ? Theme.TextDim : Theme.B("#d8b8f0"), active.Count > 0);
+            t.Tag = "lobby-curses";
+            t.ToolTip = active.Count == 0 ? null : string.Join(Environment.NewLine, active.Select(id => GwentAI.Curses.Get(id).Name + ": " + GwentAI.Curses.TextFor(id, true)));
+            sp.Children.Add(t);
+            return sp;
+        }
+        sp.Children.Add(Ui.Text(Ornate.Spaced("GAUNTER O'DIMM'IN LANETLERİ"), 12, Theme.B("#a8905a"), true));
+        var wrap = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+        foreach (var c in GwentAI.Curses.All)
+        {
+            var id = c.Id;
+            var inner = new StackPanel { Width = 186 };
+            inner.Children.Add(Ui.Text(c.Name, 15, Theme.B("#e0c8f0"), true));
+            inner.Children.Add(Ui.Text(GwentAI.Curses.TextFor(id, true), 11, Theme.TextDim, false, TextAlignment.Left, true));
+            var tb = new ToggleButton
+            {
+                Style = (Style)Application.Current.FindResource("GToggle"), Content = inner, Margin = new Thickness(0, 3, 6, 3), Padding = new Thickness(10, 6, 10, 7),
+                HorizontalContentAlignment = HorizontalAlignment.Left, Tag = "lobby-curse:" + id, IsChecked = active.Contains(id)
+            };
+            tb.Click += (_, _) => ToggleCurse(id, tb.IsChecked == true);
+            wrap.Children.Add(tb);
+        }
+        sp.Children.Add(wrap);
+        return sp;
+    }
+
     /// <summary>Draft seçimi sunucuya gider (sunucu doğrular); yanıt gelene dek ikinci tıklama yok sayılır.</summary>
     private async void Choose(string kind, string id)
     {
@@ -130,6 +177,7 @@ public sealed class LobbyView : Grid
                 titleCol.Children.Add(opt);
             }
             else if (Draft) titleCol.Children.Add(Ui.Text("Oda kuran draft maçı seçti: desteni aşağıda draft ile kur.", 16, Theme.B("#e0c8f0"), true));
+            titleCol.Children.Add(CurseRow(st));
         }
         head.Children.Add(titleCol);
 
