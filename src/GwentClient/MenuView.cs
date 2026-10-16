@@ -11,8 +11,8 @@ using GwentCore;
 namespace GwentClient;
 
 /// <summary>
-/// Ana menü. Solda logo ve yazı menüsü (Oyna / Deste Kurucu / Ses / Müzik / Çıkış), sağda fraksiyon kalkanı şeridi ve
-/// seçili fraksiyonun lider kartı. "Oyna" maç kurulumunu (deste, lider, rakip) açar.
+/// Ana menü. Solda logo ve yazı menüsü (Hızlı Gwent / Kaer Morhen / ... / Çıkış), sağda fraksiyon kalkanı şeridi ve
+/// seçili fraksiyonun lider kartı. "Hızlı Gwent" yapay zekâya karşı tek maçın kurulumunu (deste, lider, rakip) açar.
 /// </summary>
 public sealed class MenuView : Grid
 {
@@ -253,8 +253,8 @@ public sealed class MenuView : Grid
 
         var list = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Width = 360 };
         // Ana öğeler: oyun kipleri ve sık kullanılanlar. Profil (sol üstteki portre de açar) ve kılavuz altta küçük bağlantılardır.
+        list.Children.Add(MenuItem("Hızlı Gwent", ToggleSetup));
         if (_openKeep != null) list.Children.Add(MenuItem("Kaer Morhen", () => _openKeep()));
-        list.Children.Add(MenuItem("Oyna", ToggleSetup));
         if (_openCareer != null) list.Children.Add(MenuItem("Collect 'Em All", () => _openCareer()));
         if (_openDraft != null) list.Children.Add(MenuItem("Draft", () => _openDraft()));
         if (_openOnline != null) list.Children.Add(MenuItem("Online", () => _openOnline()));

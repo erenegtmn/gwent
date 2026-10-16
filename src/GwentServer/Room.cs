@@ -69,6 +69,9 @@ public sealed class Room
     /// <summary>Draft maçı: iki oyuncu da desteyi bekleme odasında draft ile kurar (oda kuran açar/kapatır).</summary>
     public bool Draft { get; internal set; }
 
+    /// <summary>Oda kuranın seçtiği lanetler (sırası <c>Curses.All</c> ile aynı). Boş = orijinal kurallar.</summary>
+    public List<string> Curses { get; internal set; } = new();
+
     internal int NextSeed() => _seed();
     public DateTime LastActivity { get; internal set; }
 
@@ -130,6 +133,7 @@ public sealed class Room
         {
             var room = new Room(snap.Code, snap.NextGen, clock, seed);
             room.Setup = snap.Setup with { YourSeat = 0 };
+            room.Curses = room.Setup.Curses?.ToList() ?? new();
             room.Game = room.Setup.ToReplay().CreateGame();
             foreach (var action in snap.Actions)
             {
@@ -158,7 +162,8 @@ public sealed class Room
             .Select(i => new PlayerInfo(Seats[i]!.Nick, i, Seats[i]!.Connected, Seats[i]!.Ready, Seats[i]!.Loadout,
                 Seats[i]!.Draft?.Picks.Count ?? -1, Seats[i]!.Draft?.Faction, Seats[i]!.Loadout?.Avatar ?? Seats[i]!.Avatar)).ToList(),
         seat, Seats[seat]?.Token ?? "", NextGen, _log.Count, Draft,
-        Seats[seat]?.Draft is { } d ? new DraftDto(d.Faction, d.LeaderOffer.ToList(), d.LeaderId, d.Picks.ToList(), d.Offer.ToList()) : null);
+        Seats[seat]?.Draft is { } d ? new DraftDto(d.Faction, d.LeaderOffer.ToList(), d.LeaderId, d.Picks.ToList(), d.Offer.ToList()) : null,
+        Curses.Count > 0 ? Curses.ToList() : null);
 
     internal void Send(int seat, Action<IGwentClient> send)
     {
@@ -223,7 +228,11 @@ public sealed class Room
     {
         var a = Seats[0]!;
         var b = Seats[1]!;
-        Setup = new MatchSetup(_seed(), NextGen, Resolve(a.Loadout!), Resolve(b.Loadout!), a.Nick, b.Nick, 0);
+        var la = Resolve(a.Loadout!);
+        var lb = Resolve(b.Loadout!);
+        // Ayna (online): desteler takas edilir, portre oyuncuda kalır. Rövanşta oyuncuların kendi seçiminden yeniden takaslanır.
+        if (Curses.Contains(GwentAI.Curses.Mirror)) (la, lb) = (lb with { Avatar = la.Avatar }, la with { Avatar = lb.Avatar });
+        Setup = new MatchSetup(_seed(), NextGen, la, lb, a.Nick, b.Nick, 0, Curses.Count > 0 ? Curses.ToList() : null);
         Game = Setup.ToReplay().CreateGame();
         _log.Clear();
         Result = null;

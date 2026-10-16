@@ -414,6 +414,17 @@ public static class Screenshots
             UiSelfTest.PumpUntil(() => lh.State!.Players.Any(p => p.Loadout?.Faction == "nilfgaard"), "konuk seçimi", lh, lg);
             UiSelfTest.Layout(hl);
             Save(hl, "lobby.png");
+            // Lanetli oda: host seçer, konuk görür
+            UiSelfTest.Await(() => lh.SetCursesAsync(new List<string> { GwentAI.Curses.Mirror, GwentAI.Curses.BloodPrice }));
+            UiSelfTest.PumpUntil(() => lg.State?.Curses?.Count == 2, "lanetler", lh, lg);
+            var ch = new LobbyView(hc, () => Task.CompletedTask);
+            UiSelfTest.Layout(ch);
+            Save(ch, "lobby_curses_host.png");
+            var cg = new LobbyView(gc, () => Task.CompletedTask);
+            UiSelfTest.Layout(cg);
+            Save(cg, "lobby_curses_guest.png");
+            UiSelfTest.Await(() => lh.SetCursesAsync(new List<string>()));
+            UiSelfTest.PumpUntil(() => lg.State?.Curses == null, "lanetler kapandı", lh, lg);
             // Draft odası: oda kuran açar; host 6 kart seçmiş, konuk fraksiyonunu seçmiş
             UiSelfTest.Await(() => lh.SetDraftAsync(true));
             UiSelfTest.PumpUntil(() => lh.State!.Draft && lg.State?.Draft == true, "draft", lh, lg);

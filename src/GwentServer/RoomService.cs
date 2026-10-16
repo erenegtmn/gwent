@@ -201,6 +201,30 @@ public sealed partial class RoomService
     }
 
     /// <summary>
+    /// Oda kuran, bekleme odasında lanetleri seçer (birden çok olabilir; boş = orijinal kurallar). Değişince iki oyuncunun hazırlığı sıfırlanır:
+    /// "Hazırım" demiş rakip, görmediği bir kuralla maça sokulmasın.
+    /// </summary>
+    public Reply SetCurses(ServerSession s, IEnumerable<string>? curses)
+    {
+        lock (_gate)
+        {
+            if (s.Room is not { } room) return Reply.Fail("Bir odada değilsin.");
+            if (s.Seat != 0) return Reply.Fail("Lanetleri yalnız odayı kuran seçebilir.");
+            if (room.Phase != RoomPhase.Lobby) return Reply.Fail("Lanetler yalnız bekleme odasında seçilir.");
+            if (room.Tournament != null) return Reply.Fail("Turnuva maçında lanet seçilmez.");
+            var ids = (curses ?? Enumerable.Empty<string>()).ToList();
+            if (ids.Any(id => Curses.All.All(c => c.Id != id))) return Reply.Fail("Bilinmeyen lanet.");
+            var list = Curses.All.Select(c => c.Id).Where(ids.Contains).ToList();
+            if (list.SequenceEqual(room.Curses)) return Reply.Success();
+            room.Curses = list;
+            foreach (var seat in room.Seats) if (seat != null) seat.Ready = false;
+            room.Touch();
+            room.BroadcastState();
+            return Reply.Success();
+        }
+    }
+
+    /// <summary>
     /// Draft seçimi (sunucu yürütür, teklif dışı seçim reddedilir): kind = faction | leader | card. 25 kart tamamlanınca oyuncunun destesi
     /// draft destesi olur; sonra "Hazırım" ile maç başlar. avatar: oyuncunun portresi (deste tamamlanınca loadout'a yazılır).
     /// </summary>

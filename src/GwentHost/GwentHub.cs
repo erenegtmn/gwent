@@ -107,6 +107,7 @@ public sealed class GwentHub : Hub
     public Reply SetReady(bool ready) => _rooms.SetReady(Session, ready);
     public Reply SetDraft(bool on) => _rooms.SetDraft(Session, on);
     public Reply DraftChoose(string kind, string id, string? avatar) => _rooms.DraftChoose(Session, kind, id, avatar);
+    public Reply SetCurses(List<string>? curses) => _rooms.SetCurses(Session, curses);
     public Reply SubmitAction(ReplayAction action) => _rooms.SubmitAction(Session, action);
     public Reply Resign() => _rooms.Resign(Session);
     public Reply ClaimWin() => _rooms.ClaimWin(Session);

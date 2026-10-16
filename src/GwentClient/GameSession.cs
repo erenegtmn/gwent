@@ -102,7 +102,8 @@ public sealed class GameSession
         OnlineSetup = setup;
         MySeat = setup.YourSeat;
         Config = new MatchConfig(MySeat == 0 ? setup.Seat0.Faction : setup.Seat1.Faction, MySeat == 0 ? setup.Seat0.LeaderId : setup.Seat1.LeaderId,
-            MySeat == 0 ? setup.Seat1.Faction : setup.Seat0.Faction, MySeat == 0 ? setup.Seat1.LeaderId : setup.Seat0.LeaderId, setup.NextGen, setup.Seed);
+            MySeat == 0 ? setup.Seat1.Faction : setup.Seat0.Faction, MySeat == 0 ? setup.Seat1.LeaderId : setup.Seat0.LeaderId, setup.NextGen, setup.Seed,
+            Curses: setup.Curses);
         Replay = setup.ToReplay();
         Game = Replay.CreateGame();
     }

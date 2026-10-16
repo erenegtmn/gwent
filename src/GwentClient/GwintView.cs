@@ -910,7 +910,7 @@ public sealed class GwintView : Viewbox
             var label = Txt("☠ Lanet: " + string.Join(" · ", cs.Select(c => c.Name)), 17, Theme.B("#d8b8f0"), true, TextAlignment.Left, 680);
             label.IsHitTestVisible = true;
             label.Tag = "curse-label";
-            label.ToolTip = string.Join(Environment.NewLine, cs.Select(c => c.Name + ": " + c.Text));
+            label.ToolTip = string.Join(Environment.NewLine, cs.Select(c => c.Name + ": " + GwentAI.Curses.TextFor(c.Id, _s.OnlineSetup != null)));
             Put(_board, label, 590, 1030);
         }
         // Savaş alanı (Kaer Morhen): adı ve üzerine gelince raund programı

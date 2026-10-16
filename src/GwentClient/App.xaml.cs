@@ -73,6 +73,12 @@ public partial class App : Application
             Shutdown(UiSelfTest.RunUpdateSelfTest());
             return;
         }
+        if (e.Args.Contains("--selftest-online-curses"))
+        {
+            Sfx.Enabled = false;
+            Shutdown(UiSelfTest.RunOnlineCursesCheck());
+            return;
+        }
         if (e.Args.Contains("--selftest-online-draft"))
         {
             Sfx.Enabled = false;
