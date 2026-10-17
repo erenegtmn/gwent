@@ -1577,9 +1577,9 @@ public sealed class GwintView : Viewbox
                         Fx.PlayFrames(_fx, "lightning", lc, 260, 232, 34);
                     }
                     title = $"{Texts.Who(e.Player, Me)}: lider yeteneği";
-                    sub = _s.Game.Catalog.Get(e.Detail).Name;
+                    sub = _s.Game.Catalog.Get(e.Detail).Name + Environment.NewLine + Texts.LeaderText(_s.Game.Catalog.Get(e.Detail));   // ne yaptığı da görünsün
                     color = Theme.Gold;
-                    hold = 1000;
+                    hold = 1800;   // açıklama da okunacak
                     break;
                 case "round_end":
                 {

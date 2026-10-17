@@ -330,7 +330,7 @@ public sealed class GameSession
                 return _announced.Remove(e.CardUid) ? null : $"{W(e.Player)}: {NameOf(e.CardUid)} sahaya indi.";
             case "draw": return $"{W(e.Player)} {e.Detail} kart çekti.";
             case "pass": return e.Detail == "auto" ? $"{W(e.Player)} elinde kart kalmadığı için pas geçti." : $"{W(e.Player)} pas geçti.";
-            case "leader": return $"{W(e.Player)} lider yeteneğini kullandı: {CardName(e.Detail)}.";
+            case "leader": return $"{W(e.Player)} lider yeteneğini kullandı: {CardName(e.Detail)} — {Texts.LeaderText(Game.Catalog.Get(e.Detail))}";
             case "kill":
             {
                 var k = e.Detail.Split(':');

@@ -43,6 +43,8 @@ public sealed class GuideView : Grid
             new("Yetenekler", PageAbilities),
             new("Özel kartlar", PageSpecials),
             new("Fraksiyonlar ve lider", PageFactions),
+            new("Kaer Morhen", PageKeep),
+            new("Kaer Morhen: savaş alanı", PageBattlefield),
         };
 
         var head = new StackPanel();
@@ -286,6 +288,37 @@ public sealed class GuideView : Grid
         row.Children.Add(tips);
         page.Children.Add(row);
         return page;
+    }
+
+    private static UIElement PageKeep()
+    {
+        var left = new StackPanel();
+        left.Children.Add(Lead("Ana menüdeki **Kaer Morhen** ayrı bir mod: harabe kaleyi onarır, sözleşmelere çıkar, kaleye saldıranlara karşı dayanırsın."));
+        left.Children.Add(Numbered("1", "Sözleşme al", "Panodaki işler (grifon, kocakarılar, haydutlar...) yapay zekâya karşı birer maçtır. Kazanınca **Crown** ve **mutajen** gelir."));
+        left.Children.Add(Numbered("2", "Kaleyi onar", "Altı bina: Savaş Odası, Demirci (rün), Mühendis Atölyesi (arazi), Simya (iksir), Kışla, Müttefik Salonu. Binaya tıkla, yükselt."));
+        left.Children.Add(Numbered("3", "Kuşatmaya dayan", "Her **5 sözleşmede** bir düşman kapıya dayanır; o sırada sözleşmeye çıkamazsın. Üç dalgayı püskürt, Kronik ilerlesin."));
+        var right = new StackPanel();
+        var shot = Assets.Ui("km/scene_main") ?? Assets.Ui("pano_kaer_morhen");
+        if (shot != null) right.Children.Add(Fig(new Image { Source = shot, Width = 560, Stretch = Stretch.Uniform }, "Kaleyi onardıkça pencerelerden ışık sızar."));
+        var warn = Tip("Sefer", "Kuşatmanın bir dalgasını kaybedersen **kale düşer**: binalar, Crown, müttefikler gider; yeni sefer baştan başlar. Ulaştığın en iyi bölüm kalır.");
+        warn.Margin = new Thickness(0, 18, 0, 0);
+        right.Children.Add(warn);
+        return Spread(left, right);
+    }
+
+    private static UIElement PageBattlefield()
+    {
+        var left = new StackPanel();
+        left.Children.Add(Lead("Kaer Morhen maçlarında satırların bir **arazisi** var; satırın sol altındaki rozet kuralını söyler."));
+        left.Children.Add(Bullet("**Tepe** — birimler +1 (hava varken bu bonus yok)."));
+        left.Children.Add(Bullet("**Köprü** — en fazla 4 birim; dolunca o satıra kart oynanmaz."));
+        left.Children.Add(Bullet("**Orman** — buradaki birimler yakılamaz."));
+        left.Children.Add(Bullet("**Bataklık** — birimler −1 (en az 1)."));
+        left.Children.Add(Bullet("**Harabe** — buraya konan Medic iki kez canlandırır."));
+        var right = new StackPanel();
+        right.Children.Add(Tip("Komutan", "Bulunduğu satırı **havadan korur**. Raundda bir kez başka satıra taşıyabilirsin (bir tur sayılır). Kuzey ve Nilfgaard komutanı satırına **+1** verir."));
+        right.Children.Add(Tip("Kalenin hazırlıkları", "**Rünler** (Demirci) kartları güçlendirir, **iksirler** (Simya) maça küçük üstünlükler katar, **müttefikler** elinde fazladan kart olarak başlar. Hepsini sözleşmeye çıkmadan önce seçersin."));
+        return Spread(left, right);
     }
 
     // ---------- Parçalar ----------

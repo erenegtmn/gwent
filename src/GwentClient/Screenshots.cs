@@ -237,7 +237,7 @@ public static class Screenshots
             Save(new ProfileView(() => { }, statRecs, persist: false), "stats.png");
             Save(new ProfileView(() => { }, new List<MatchRecord>(), persist: false), "stats_empty.png");
         }
-        for (var gi = 0; gi < 7; gi++) Save(new GuideView(() => { }, gi), $"guide_{gi + 1}.png");
+        for (var gi = 0; gi < new GuideView(() => { }).PageCount; gi++) Save(new GuideView(() => { }, gi), $"guide_{gi + 1}.png");
         {
             // Draft: başlangıç, lider, kart seçimi (ortası), maçlar arası, koşu sonu
             Save(new DraftView(new DraftSave { Best = 4, Runs = 3 }, () => { }, () => { }), "draft_start.png");
