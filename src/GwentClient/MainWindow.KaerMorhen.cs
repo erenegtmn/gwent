@@ -10,6 +10,8 @@ public partial class MainWindow
 {
     private KeepSave? _keep;
     private string? _keepMessage;
+    /// <summary>Yeni kale bu açılışta kuruldu: rehber bir kez kendiliğinden açılır.</summary>
+    private bool _firstKeepVisit;
 
     private void ShowKeep()
     {
@@ -20,12 +22,15 @@ public partial class MainWindow
             {
                 _keep = Keep.NewSave(Random.Shared.Next(1, int.MaxValue));
                 KeepStore.Save(_keep);
+                _firstKeepVisit = true;
                 _keepMessage = "Kaer Morhen harabe hâlinde. Sözleşmelerle Crown ve mutajen kazan, binaları onar.";
             }
         }
         var msg = _keepMessage;
+        var first = msg != null && _keep.Wins + _keep.Losses == 0 && _keep.Run == 1 && _keep.Runs.Count == 0 && _firstKeepVisit;
+        _firstKeepVisit = false;
         _keepMessage = null;
-        Host.Content = new KeepView(_keep, new KeepNav(StartContract, ShowMenu), msg);
+        Host.Content = new KeepView(_keep, new KeepNav(StartContract, ShowMenu), msg, showGuide: first);
     }
 
     private void StartContract(Contract c, Deck deck, List<CardRune> runes, List<TerrainPiece> pieces)

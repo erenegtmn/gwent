@@ -31,10 +31,13 @@ public sealed class GuideView : Grid
 
     public int PageCount => _pages.Count;
 
-    public GuideView(Action onBack, int startPage = 0)
+    /// <param name="keep">Kaer Morhen rehberi (kale ekranından açılır): yalnız modun sayfaları, dönüş kaleye.</param>
+    public GuideView(Action onBack, int startPage = 0, bool keep = false)
     {
         _back = onBack;
-        _pages = new List<Page>
+        _pages = keep
+            ? new List<Page> { new("Kaer Morhen", PageKeep), new("Kaer Morhen: savaş alanı", PageBattlefield) }
+            : new List<Page>
         {
             new("Amaç", PageGoal),
             new("Kartı tanı", PageCards),
@@ -43,8 +46,6 @@ public sealed class GuideView : Grid
             new("Yetenekler", PageAbilities),
             new("Özel kartlar", PageSpecials),
             new("Fraksiyonlar ve lider", PageFactions),
-            new("Kaer Morhen", PageKeep),
-            new("Kaer Morhen: savaş alanı", PageBattlefield),
         };
 
         var head = new StackPanel();
@@ -58,7 +59,7 @@ public sealed class GuideView : Grid
         _prev.Tag = "guide-prev";
         _next = Ui.Button("Sonraki  ›", () => Go(_page + 1), primary: true);
         _next.Tag = "guide-next";
-        var menu = Ui.Button("Menüye dön", _back);
+        var menu = Ui.Button(keep ? "Kaleye dön" : "Menüye dön", _back);
         menu.Tag = "guide-back";
         foreach (var b in new[] { _prev, _next, menu }) { b.FontSize = 19; b.Padding = new Thickness(26, 9, 26, 9); }
         menu.Margin = new Thickness(0, 0, 14, 0);
@@ -293,7 +294,7 @@ public sealed class GuideView : Grid
     private static UIElement PageKeep()
     {
         var left = new StackPanel();
-        left.Children.Add(Lead("Ana menüdeki **Kaer Morhen** ayrı bir mod: harabe kaleyi onarır, sözleşmelere çıkar, kaleye saldıranlara karşı dayanırsın."));
+        left.Children.Add(Lead("**Kaer Morhen** harabe hâlde. Kaleyi onar, sözleşmelere çık, kaleye saldıranlara karşı dayan."));
         left.Children.Add(Numbered("1", "Sözleşme al", "Panodaki işler (grifon, kocakarılar, haydutlar...) yapay zekâya karşı birer maçtır. Kazanınca **Crown** ve **mutajen** gelir."));
         left.Children.Add(Numbered("2", "Kaleyi onar", "Altı bina: Savaş Odası, Demirci (rün), Mühendis Atölyesi (arazi), Simya (iksir), Kışla, Müttefik Salonu. Binaya tıkla, yükselt."));
         left.Children.Add(Numbered("3", "Kuşatmaya dayan", "Her **5 sözleşmede** bir düşman kapıya dayanır; o sırada sözleşmeye çıkamazsın. Üç dalgayı püskürt, Kronik ilerlesin."));

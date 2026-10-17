@@ -128,6 +128,17 @@ public static partial class UiSelfTest
                 Check(ws.WinnerSeat == 0 ? s.SiegeWave == 2 : s.Run == 2 && s.Level(Keep.Forge) == 0 && s.Runs.Count == 1, "dalga sonucu işlenmedi (kayıpta sefer sıfırlanmalı)");
             }
 
+            // Kaer Morhen rehberi kale ekranından açılır ve kaleye döner; ilk girişte kendiliğinden açılır
+            Click(Tagged("keep-guide")); Layout(view);
+            var kg = FindAll<GuideView>(view, _ => true).FirstOrDefault();
+            Check(kg is { PageCount: 2 }, "kale rehberi açılmadı");
+            Click(FindAll<Button>(view, b => (b.Tag as string) == "guide-back").First()); Layout(view);
+            Check(!FindAll<GuideView>(view, _ => true).Any(), "kale rehberi kapanmadı");
+            var fresh = new KeepView(Keep.NewSave(3), new KeepNav((_, _, _, _) => { }, () => { }), "yeni", showGuide: true);
+            Layout(fresh);
+            Check(FindAll<GuideView>(fresh, _ => true).Any(), "ilk girişte rehber açılmadı");
+            Check(new GuideView(() => { }).PageCount == 7, "ana rehberde Kaer Morhen sayfaları kaldı");
+
             // Menüye dönüş
             view = new KeepView(s, new KeepNav((_, _, _, _) => { }, () => back = true));
             Layout(view);

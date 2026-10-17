@@ -27,7 +27,8 @@ public sealed class KeepView : Grid
     /// <summary>Seçili bina: kamera ona yaklaşır, solda ayrıntı paneli açılır.</summary>
     private string? _selected;
 
-    public KeepView(KeepSave save, KeepNav nav, string? message = null)
+    /// <param name="showGuide">İlk giriş: Kaer Morhen rehberi kendiliğinden açılır.</param>
+    public KeepView(KeepSave save, KeepNav nav, string? message = null, bool showGuide = false)
     {
         _s = save;
         _nav = nav;
@@ -40,6 +41,15 @@ public sealed class KeepView : Grid
         Children.Add(new Viewbox { Stretch = Stretch.Uniform, Child = stack });
         Children.Add(Ornate.Embers(18));
         Build();
+        if (showGuide) OpenGuide();
+    }
+
+    /// <summary>Kaer Morhen rehberi (kale ekranının üstünde; kapatınca kaleye dönülür).</summary>
+    private void OpenGuide()
+    {
+        GuideView? guide = null;
+        guide = new GuideView(() => Children.Remove(guide), keep: true);
+        Children.Add(guide);
     }
 
     /// <summary>Bina seçer (maketten ya da listeden): kamera yaklaşır, ayrıntı paneli açılır; null = genel görünüm.</summary>
@@ -173,6 +183,12 @@ public sealed class KeepView : Grid
         back.FontSize = 17;
         Canvas.SetLeft(back, 50); Canvas.SetTop(back, 1000);
         canvas.Children.Add(back);
+        var help = Ui.Button("Nasıl oynanır", OpenGuide);
+        help.Tag = "keep-guide";
+        help.Padding = new Thickness(24, 10, 24, 10);
+        help.FontSize = 17;
+        Canvas.SetLeft(help, 250); Canvas.SetTop(help, 1000);
+        canvas.Children.Add(help);
     }
 
     private UIElement BuildingCard(Building b)
