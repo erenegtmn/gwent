@@ -9,6 +9,7 @@ public sealed partial class Game
         var p = _players[a.Player];
         var card = p.Hand.FirstOrDefault(c => c.Uid == a.Card);
         if (card == null) return ActionResult.Fail("Bu kart elinde değil.");
+        if (!ValidFoe(a.Player, a.Side)) return ActionResult.Fail("Geçersiz hedef rakip.");
         var def = card.Def;
 
         if (def.IsUnit)
@@ -20,12 +21,12 @@ public sealed partial class Game
                 row = a.Row.Value;
             }
             else row = def.FixedRow!.Value;
-            if (RowFull(def.Has("spy") ? 1 - a.Player : a.Player, row))
+            if (RowFull(def.Has("spy") ? Foe(a.Player, a.Side) : a.Player, row))
                 return ActionResult.Fail($"Köprü dolu: bu satırda en fazla {BridgeCapacity} birim olabilir.");
 
             p.Hand.Remove(card);
             Emit("play", a.Player, card.Uid, def.Id);
-            PlayUnit(card, a.Player, row);
+            PlayUnit(card, a.Player, row, a.Side);
         }
         else if (def.IsWeather)
         {
@@ -92,22 +93,23 @@ public sealed partial class Game
     /// Bir birimi oynar: elden, mezarlıktan (Medic/Skellige) ya da desteden. Casus rakip sahaya konur.
     /// Kart zaten kaynağından çıkarılmış olmalı.
     /// </summary>
-    private void PlayUnit(CardInstance card, int actor, RowKind row)
+    /// <param name="foe">Üç kişide casusun konacağı / sıra yakmanın vuracağı rakip (null = sıradaki rakip).</param>
+    private void PlayUnit(CardInstance card, int actor, RowKind row, int? foe = null)
     {
-        var side = card.Has("spy") ? 1 - actor : actor;
+        var side = card.Has("spy") ? Foe(actor, foe) : actor;
         if (!TryPlaceUnit(card, side, row)) return;
         Emit("place", actor, card.Uid, $"{side}:{row}");
-        OnPlaced(card, actor, allowMuster: true);
+        OnPlaced(card, actor, allowMuster: true, foe);
     }
 
-    private void OnPlaced(CardInstance card, int actor, bool allowMuster)
+    private void OnPlaced(CardInstance card, int actor, bool allowMuster, int? foe = null)
     {
         foreach (var ab in card.Abilities.ToList())
         {
             switch (ab)
             {
                 case "spy":
-                    if (!BlackBloodBlocks(actor)) Draw(actor, 2);
+                    if (!BlackBloodBlocks(card.Holder)) Draw(actor, 2);
                     break;
                 case "medic":
                     StartMedic(actor);
@@ -116,14 +118,14 @@ public sealed partial class Game
                         _front.Enqueue(() => StartMedic(actor));
                     break;
                 case "muster":
-                    if (allowMuster) DoMuster(card, actor);
+                    if (allowMuster) DoMuster(card, actor, foe);
                     break;
                 case "scorch":
                     ScorchAll(exclude: card);
                     break;
-                case "scorch_c": RowScorch(1 - actor, RowKind.Close); break;
-                case "scorch_r": RowScorch(1 - actor, RowKind.Ranged); break;
-                case "scorch_s": RowScorch(1 - actor, RowKind.Siege); break;
+                case "scorch_c": RowScorch(Foe(actor, foe), RowKind.Close); break;
+                case "scorch_r": RowScorch(Foe(actor, foe), RowKind.Ranged); break;
+                case "scorch_s": RowScorch(Foe(actor, foe), RowKind.Siege); break;
                 case "berserker":
                     if (Locate(card) is { } l && MardroemePresent(_players[l.Side].Row(l.Row))) TransformBerserker(card);
                     break;
@@ -134,7 +136,7 @@ public sealed partial class Game
         }
     }
 
-    private void DoMuster(CardInstance card, int actor)
+    private void DoMuster(CardInstance card, int actor, int? foe)
     {
         var group = card.Def.MusterGroup;
         if (group == null) return;
@@ -150,7 +152,7 @@ public sealed partial class Game
             var row = c.Def.FixedRow ?? RowKind.Close;
             if (!TryPlaceUnit(c, actor, row)) continue;
             Emit("place", actor, c.Uid, $"{actor}:{row}");
-            OnPlaced(c, actor, allowMuster: false);
+            OnPlaced(c, actor, allowMuster: false, foe);
         }
     }
 
@@ -179,34 +181,34 @@ public sealed partial class Game
             Resolve = r =>
             {
                 var card = FindInZones(r.Cards[0])!;
-                ReviveFromGrave(card, actor, r.Row);
+                ReviveFromGrave(card, actor, r.Row, r.Side);
             }
         });
     }
 
     private bool AnyRandomRespawn() =>
-        Enumerable.Range(0, 2).Any(p => LeaderPassive(p, "emhyr_var_emreis_invader_of_the_north"));
+        Enumerable.Range(0, _players.Length).Any(p => LeaderPassive(p, "emhyr_var_emreis_invader_of_the_north"));
 
     /// <summary>Mezarlıktaki birimi oynar. Çevik ise sıra verilmediyse oyuncudan ayrıca sorulur.</summary>
-    private void ReviveFromGrave(CardInstance card, int actor, RowKind? row)
+    private void ReviveFromGrave(CardInstance card, int actor, RowKind? row, int? foe = null)
     {
         _players[card.Holder].Grave.Remove(card);
         if (card.Def.IsAgile)
         {
             if (row is RowKind.Close or RowKind.Ranged)
             {
-                PlayUnit(card, actor, row.Value);
+                PlayUnit(card, actor, row.Value, foe);
             }
             else
             {
                 // Rastgele geri getirmede sıra oyuncuya sorulur.
-                AskAgileRow(card, actor);
+                AskAgileRow(card, actor, foe);
             }
         }
-        else PlayUnit(card, actor, card.Def.FixedRow!.Value);
+        else PlayUnit(card, actor, card.Def.FixedRow!.Value, foe);
     }
 
-    private void AskAgileRow(CardInstance card, int actor)
+    private void AskAgileRow(CardInstance card, int actor, int? foe)
     {
         // Kart kaynağından çıkarılmış durumda; seçim bitene kadar hiçbir bölgede değildir.
         SetPending(new PendingChoice
@@ -217,7 +219,7 @@ public sealed partial class Game
             LimboCard = card,
             Rows = new[] { RowKind.Close, RowKind.Ranged },
             Prompt = $"{card.Def.Name} için sıra seç.",
-            Resolve = r => PlayUnit(card, actor, r.Row!.Value)
+            Resolve = r => PlayUnit(card, actor, r.Row!.Value, foe ?? r.Side)
         });
     }
 
@@ -226,14 +228,15 @@ public sealed partial class Game
     private void EndTurn()
     {
         if (Phase != Phase.Playing) return;
-        if (_players[0].Passed && _players[1].Passed)
+        if (_players.All(x => x.Passed))
         {
             EndRound();
             return;
         }
 
-        var other = 1 - Current;
-        if (!_players[other].Passed) Current = other;
+        // Sıra koltuk sırasıyla pas geçmemiş bir sonraki oyuncuya geçer (iki kişide: rakip pas geçtiyse sıra bende kalır).
+        foreach (var other in Opponents(Current))
+            if (!_players[other].Passed) { Current = other; break; }
 
         // Elinde kart kalmayan ve lideri de kullanılamayan oyuncu kendiliğinden pas geçer.
         var cur = _players[Current];

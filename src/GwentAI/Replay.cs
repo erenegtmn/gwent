@@ -13,6 +13,8 @@ public sealed record ReplayAction
     public string? Row { get; init; }
     public int? Target { get; init; }
     public int? First { get; init; }
+    /// <summary>Üç kişide hedef rakip (casus, sıra yakma, lider yeteneği).</summary>
+    public int? Side { get; init; }
 }
 
 /// <summary>
@@ -30,6 +32,10 @@ public sealed class ReplayData
     public List<string>? MyDeckCards { get; set; }
     /// <summary>Doluysa rakibin destesi de açıktır (online maç); boşsa rakip "önerilen" desteyle oynar (yerel oyun).</summary>
     public List<string>? OppDeckCards { get; set; }
+    /// <summary>Üç kişilik online maçta üçüncü koltuk (koltuk 2). null = iki kişilik maç.</summary>
+    public string? ThirdFaction { get; set; }
+    public string? ThirdLeaderId { get; set; }
+    public List<string>? ThirdDeckCards { get; set; }
     /// <summary>Rakip destesi oyuncu kurallarına bakılmadan kullanılır (kariyerde orijinal oyunun NPC desteleri). Oyuncunun destesi yine doğrulanır.</summary>
     public bool OppDeckUnchecked { get; set; }
     /// <summary>Etkin lanetler (<see cref="Curses"/>): motor seçenekleri ve deste dönüşümleri bunlardan kurulur.</summary>
@@ -59,6 +65,12 @@ public sealed class ReplayData
     public Game CreateGame()
     {
         var opts = Battlefields.With(GwentAI.Curses.Options(Curses, NextGen), Battlefield, Commanders, Pieces);
+        if (ThirdFaction != null)
+        {
+            // Üç kişilik online maç: üç deste de açık, lanet ve Kaer Morhen eklentisi yok.
+            Deck Open(string f, string l, List<string>? ids) => ids != null ? new Deck(f, l, ids) : DeckValidator.DefaultDeck(f, opts) with { LeaderId = l };
+            return new Game(new[] { Open(MyFaction, MyLeaderId, MyDeckCards), Open(OppFaction, OppLeaderId, OppDeckCards), Open(ThirdFaction, ThirdLeaderId!, ThirdDeckCards) }, Seed, opts);
+        }
         var mine = MyDeckCards != null
             ? new Deck(MyFaction, MyLeaderId, MyDeckCards)
             : DeckValidator.DefaultDeck(MyFaction, opts) with { LeaderId = MyLeaderId };
@@ -97,10 +109,10 @@ public sealed class ReplayData
     {
         Mulligan m => new ReplayAction { Type = "mulligan", Player = m.Player, Cards = m.Cards.ToList() },
         ChooseFirst c => new ReplayAction { Type = "choose_first", Player = c.Player, First = c.First },
-        PlayCard p => new ReplayAction { Type = "play", Player = p.Player, Card = p.Card, Row = p.Row?.ToString(), Target = p.Target },
+        PlayCard p => new ReplayAction { Type = "play", Player = p.Player, Card = p.Card, Row = p.Row?.ToString(), Target = p.Target, Side = p.Side },
         Pass p => new ReplayAction { Type = "pass", Player = p.Player },
-        UseLeader u => new ReplayAction { Type = "leader", Player = u.Player },
-        Choose c => new ReplayAction { Type = "choose", Player = c.Player, Cards = c.Cards.ToList(), Row = c.Row?.ToString() },
+        UseLeader u => new ReplayAction { Type = "leader", Player = u.Player, Side = u.Side },
+        Choose c => new ReplayAction { Type = "choose", Player = c.Player, Cards = c.Cards.ToList(), Row = c.Row?.ToString(), Side = c.Side },
         MoveCommander m => new ReplayAction { Type = "commander", Player = m.Player, Row = m.Row.ToString() },
         _ => throw new ArgumentException("Bilinmeyen eylem: " + a)
     };
@@ -112,10 +124,10 @@ public sealed class ReplayData
         {
             "mulligan" => new Mulligan(r.Player, r.Cards ?? new List<int>()),
             "choose_first" => new ChooseFirst(r.Player, r.First ?? 0),
-            "play" => new PlayCard(r.Player, r.Card ?? 0, row, r.Target),
+            "play" => new PlayCard(r.Player, r.Card ?? 0, row, r.Target, r.Side),
             "pass" => new Pass(r.Player),
-            "leader" => new UseLeader(r.Player),
-            "choose" => new Choose(r.Player, r.Cards ?? new List<int>(), row),
+            "leader" => new UseLeader(r.Player, r.Side),
+            "choose" => new Choose(r.Player, r.Cards ?? new List<int>(), row, r.Side),
             "commander" => new MoveCommander(r.Player, row ?? RowKind.Close),
             _ => throw new ArgumentException("Bilinmeyen eylem türü: " + r.Type)
         };

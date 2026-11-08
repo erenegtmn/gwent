@@ -225,6 +225,8 @@ public static class Screenshots
             Save(ogv, "online_guest.png");
         }
 
+        ThreeShots.Run(Save);
+
         {
             var d = DateTime.Now;
             var statRecs = new List<MatchRecord>

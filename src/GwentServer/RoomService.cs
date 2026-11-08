@@ -84,14 +84,16 @@ public sealed partial class RoomService
 
     private static string NewToken() => Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
 
-    public Reply CreateRoom(ServerSession s, string nick, string version, bool nextGen = false)
+    /// <param name="players">Koltuk sayısı: 2 (klasik) ya da 3 (üç kişilik maç; lanet ve draft yok).</param>
+    public Reply CreateRoom(ServerSession s, string nick, string version, bool nextGen = false, int players = 2)
     {
         lock (_gate)
         {
             if (s.Room != null) return Reply.Fail("Zaten bir odadasın.");
+            if (players is not (2 or 3)) return Reply.Fail("Oda 2 ya da 3 kişilik olur.");
             if (version != ProtocolInfo.Version) return Reply.Fail($"Sürüm uyuşmuyor (sende {version}, sunucuda {ProtocolInfo.Version}). Oyunu güncelle.");
             if (CheckNick(nick) is { } err) return Reply.Fail(err);
-            var room = new Room(NewCode(), nextGen, _clock, _seed);
+            var room = new Room(NewCode(), nextGen, _clock, _seed, players);
             Hook(room);
             _rooms[room.Code] = room;
             Attach(room, s, 0, nick.Trim());
@@ -109,9 +111,10 @@ public sealed partial class RoomService
             if (CheckNick(nick) is { } err) return Reply.Fail(err);
             if (!_rooms.TryGetValue(code.Trim(), out var room)) return Reply.Fail("Böyle bir oda yok.");
             if (room.Phase != RoomPhase.Lobby) return Reply.Fail("Bu odada maç başlamış.");
-            if (room.Seats[1] != null) return Reply.Fail("Oda dolu.");
-            if (string.Equals(room.Seats[0]!.Nick, nick.Trim(), StringComparison.OrdinalIgnoreCase)) return Reply.Fail("Odadaki oyuncuyla aynı takma ad.");
-            Attach(room, s, 1, nick.Trim());
+            var free = Array.FindIndex(room.Seats, x => x == null);
+            if (free < 0) return Reply.Fail("Oda dolu.");
+            if (room.Seats.Any(x => x != null && string.Equals(x.Nick, nick.Trim(), StringComparison.OrdinalIgnoreCase))) return Reply.Fail("Odadaki oyuncuyla aynı takma ad.");
+            Attach(room, s, free, nick.Trim());
             room.Touch();
             room.BroadcastState();
             return Reply.Success(room.Code);
@@ -132,7 +135,7 @@ public sealed partial class RoomService
         {
             if (s.Room != null) return Reply.Fail("Zaten bir odadasın.");
             if (!_rooms.TryGetValue(code.Trim(), out var room)) return Reply.Fail("Oda artık yok.");
-            var seat = Enumerable.Range(0, 2).FirstOrDefault(i => room.Seats[i]?.Token == token && token.Length > 0, -1);
+            var seat = Enumerable.Range(0, room.Capacity).FirstOrDefault(i => room.Seats[i]?.Token == token && token.Length > 0, -1);
             if (seat < 0) return Reply.Fail("Koltuk anahtarı geçersiz.");
             var st = room.Seats[seat]!;
             if (st is { Connected: true, Session: not null }) st.Session.Room = null; // eski bağlantının yerine geçer
@@ -142,7 +145,7 @@ public sealed partial class RoomService
             s.Room = room;
             s.Seat = seat;
             room.Touch();
-            room.Send(1 - seat, c => c.OnNotice("opponent_returned", $"{st.Nick} geri döndü."));
+            room.SendOthers(seat, c => c.OnNotice("opponent_returned", $"{st.Nick} geri döndü."));
             room.Resync(seat, lastSeq);
             room.BroadcastState();
             if (room.Tournament is { } t && t.Players.FindIndex(p => p.Token == token) is var ti and >= 0) Reattach(t, ti, s);
@@ -185,6 +188,7 @@ public sealed partial class RoomService
             if (s.Seat != 0) return Reply.Fail("Draft'ı yalnız odayı kuran açıp kapatabilir.");
             if (room.Phase != RoomPhase.Lobby) return Reply.Fail("Draft yalnız bekleme odasında seçilir.");
             if (room.Tournament != null) return Reply.Fail("Turnuva maçında draft yok.");
+            if (room.Capacity == 3 && on) return Reply.Fail("Üç kişilik odada draft yok.");
             if (room.Draft == on) return Reply.Success();
             room.Draft = on;
             foreach (var seat in room.Seats)
@@ -213,6 +217,7 @@ public sealed partial class RoomService
             if (room.Phase != RoomPhase.Lobby) return Reply.Fail("Lanetler yalnız bekleme odasında seçilir.");
             if (room.Tournament != null) return Reply.Fail("Turnuva maçında lanet seçilmez.");
             var ids = (curses ?? Enumerable.Empty<string>()).ToList();
+            if (room.Capacity == 3 && ids.Count > 0) return Reply.Fail("Üç kişilik odada lanet yok.");
             if (ids.Any(id => Curses.All.All(c => c.Id != id))) return Reply.Fail("Bilinmeyen lanet.");
             var list = Curses.All.Select(c => c.Id).Where(ids.Contains).ToList();
             if (list.SequenceEqual(room.Curses)) return Reply.Success();
@@ -285,7 +290,7 @@ public sealed partial class RoomService
             if (ready && seat.Loadout == null) return Reply.Fail(room.Draft ? "Önce draft'ı bitir (25 kart)." : "Önce fraksiyon, lider ve deste seç.");
             seat.Ready = ready;
             room.Touch();
-            if (room.SeatCount == 2 && room.AllReady()) room.StartMatch();
+            if (room.SeatCount == room.Capacity && room.AllReady()) room.StartMatch();
             else room.BroadcastState();
             return Reply.Success();
         }
@@ -307,7 +312,7 @@ public sealed partial class RoomService
         lock (_gate)
         {
             if (s.Room is not { Phase: RoomPhase.Playing } room) return Reply.Fail("Teslim olunacak bir maç yok.");
-            room.Finish(1 - s.Seat, "resigned");
+            room.Finish(room.WinnerWithout(s.Seat), "resigned");
             return Reply.Success();
         }
     }
@@ -318,10 +323,12 @@ public sealed partial class RoomService
         lock (_gate)
         {
             if (s.Room is not { Phase: RoomPhase.Playing } room) return Reply.Fail("Devam eden bir maç yok.");
-            var other = room.Other(s.Seat);
-            if (other is not { Connected: false, DisconnectedAt: not null }) return Reply.Fail("Rakip bağlı görünüyor.");
-            if (_clock.UtcNow - other.DisconnectedAt < DisconnectGrace) return Reply.Fail("Rakibe geri dönmesi için biraz daha süre tanı.");
-            room.Finish(s.Seat, "abandoned");
+            // Üç kişide en uzun süredir kopuk olan rakip esas alınır; maç biter, kalanlardan en çok raund kazanan alır.
+            var gone = room.OtherSeats(s.Seat).Where(i => room.Seats[i] is { Connected: false, DisconnectedAt: not null })
+                .OrderBy(i => room.Seats[i]!.DisconnectedAt).ToList();
+            if (gone.Count == 0) return Reply.Fail("Rakip bağlı görünüyor.");
+            if (_clock.UtcNow - room.Seats[gone[0]]!.DisconnectedAt < DisconnectGrace) return Reply.Fail("Rakibe geri dönmesi için biraz daha süre tanı.");
+            room.Finish(room.Capacity == 2 ? s.Seat : room.WinnerWithout(gone[0]), "abandoned");
             return Reply.Success();
         }
     }
@@ -331,10 +338,11 @@ public sealed partial class RoomService
         lock (_gate)
         {
             if (s.Room is not { Phase: RoomPhase.Finished } room) return Reply.Fail("Rövanş yalnız maç bittikten sonra istenir.");
-            if (room.Seats[1 - s.Seat] is not { Connected: true } other) return Reply.Fail("Rakip odada değil.");
+            var others = room.OtherSeats(s.Seat).Select(i => room.Seats[i]).ToList();
+            if (others.Any(o => o is not { Connected: true })) return Reply.Fail("Rakip odada değil.");
             room.Seats[s.Seat]!.Rematch = true;
-            if (other.Rematch) { room.StartMatch(); return Reply.Success(); }
-            room.Send(1 - s.Seat, c => c.OnNotice("rematch_requested", $"{room.Seats[s.Seat]!.Nick} rövanş istiyor."));
+            if (others.All(o => o!.Rematch)) { room.StartMatch(); return Reply.Success(); }
+            room.SendOthers(s.Seat, c => c.OnNotice("rematch_requested", $"{room.Seats[s.Seat]!.Nick} rövanş istiyor."));
             return Reply.Success();
         }
     }
@@ -349,7 +357,7 @@ public sealed partial class RoomService
             StopWatchingInternal(s);
             if (s.Room is { } room)
             {
-                if (room.Phase == RoomPhase.Playing) room.Finish(1 - s.Seat, "resigned");
+                if (room.Phase == RoomPhase.Playing) room.Finish(room.WinnerWithout(s.Seat), "resigned");
                 Remove(room, s);
             }
             TournamentLeft(s);
@@ -373,7 +381,7 @@ public sealed partial class RoomService
                 seat.Session = null;
                 s.Room = null;
                 room.Touch();
-                room.Send(1 - s.Seat, c => c.OnNotice("opponent_disconnected", $"{seat.Nick} bağlantısı koptu."));
+                room.SendOthers(s.Seat, c => c.OnNotice("opponent_disconnected", $"{seat.Nick} bağlantısı koptu."));
                 room.BroadcastState();
                 return;
             }
@@ -389,13 +397,15 @@ public sealed partial class RoomService
         s.Seat = -1;
         if (seat == null) return;
         if (room.Tournament != null) { seat.Connected = false; seat.Session = null; return; }   // turnuva maç odası: yalnız koltuk boşalır, oda bracket için kalır
-        var other = room.Other(seatIndex);
+        var others = room.OtherSeats(seatIndex).Where(i => room.Seats[i] != null).ToList();
         // Host (koltuk 0) ayrılırsa oda kapanır: sunucu zaten host'un kendisidir
-        if (seatIndex == 0 || other == null)
+        if (seatIndex == 0 || others.Count == 0)
         {
-            if (other?.Session != null)
+            foreach (var i in others)
             {
-                room.Send(1 - seatIndex, c => c.OnNotice("room_closed", "Oda kapandı."));
+                var other = room.Seats[i]!;
+                if (other.Session == null) continue;
+                room.Send(i, c => c.OnNotice("room_closed", "Oda kapandı."));
                 other.Session.Room = null;
                 other.Session.Seat = -1;
             }

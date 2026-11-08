@@ -13,7 +13,7 @@ namespace GwentClient;
 /// simgeler oyundan çıkarılmış görsellerdir (yoksa yer tutucuya düşer). Durum her değişiklikte baştan çizilir;
 /// kural mantığı motordadır, burada yalnız seçim, tıklama ve görünüm vardır.
 /// </summary>
-public sealed class GwintView : Viewbox
+public sealed partial class GwintView : Viewbox
 {
     private const double W = 1920, H = 1080;
     // Koltuk: yerelde ben hep 0; online'da host 0, konuk 1. Ekranda "ben" her zaman alttadır.
@@ -76,16 +76,16 @@ public sealed class GwintView : Viewbox
     private DateTime _animUntil;
 
     // Animasyon durumu: önceki çizimdeki konumlar (kartlar nereden gelip nereye gidiyor)
-    private sealed record Snap(CardDef Def, Point Pos, int Side);
+    private sealed record Snap(CardDef Def, Point Pos, int Side, double Width = CardW, double Height = CardH);
     private readonly Canvas _fx = new() { Width = W, Height = H, IsHitTestVisible = false };
     private Dictionary<int, Point> _prevHandPos = new(), _curHandPos = new();
     private Dictionary<int, Snap> _prevBoardInfo = new(), _curBoardInfo = new();
     private Dictionary<int, int> _prevGraveInfo = new();
-    private readonly int[] _prevGems = { 2, 2 };
+    private readonly int[] _prevGems = { 2, 2, 2 };
     private readonly bool[] _prevWeather = new bool[3];
     private readonly FrameworkElement?[] _wxEl = new FrameworkElement?[6]; // sıra başına canlı hava örtüsü (yeniden çizimde korunur)
     private readonly string?[] _wxType = new string?[6];
-    private readonly GwintCard?[] _leaderEl = new GwintCard?[2];
+    private readonly GwintCard?[] _leaderEl = new GwintCard?[3];
     private IReadOnlyList<GameEvent> _evs = Array.Empty<GameEvent>();
     private static readonly Point[] DeckPos = { new(1735, 830), new(1735, 70) }; // [Me, Opp]
     private static readonly Point[] GravePos = { new(1545, 828), new(1545, 70) };
@@ -157,7 +157,7 @@ public sealed class GwintView : Viewbox
         if (_opening)
         {
             // Scoia'tael'de başlangıcı seçen taraf var: yazı-tura yapılmaz
-            _dealDelay = G.FirstIsChosen ? 500 : 3300;   // Scoia'tael ya da Kışla
+            _dealDelay = G.ThreePlayer ? DiceDurationMs : G.FirstIsChosen ? 500 : 3300;   // Scoia'tael ya da Kışla; üç kişide zar
             PreviewMouseLeftButtonDown += (_, e) => { if (_opening) { e.Handled = true; FinishOpening(); } };
         }
         Refresh();
@@ -426,9 +426,20 @@ public sealed class GwintView : Viewbox
         _curHandPos = new Dictionary<int, Point>();
         _curBoardInfo = new Dictionary<int, Snap>();
 
-        for (var i = 0; i < 6; i++) BuildRow(i);
-        BuildSide(Opp);
-        BuildSide(Me);
+        if (G.ThreePlayer)
+        {
+            // Üç kişi: üst yarı iki rakibe bölünür (GwintView.Three.cs); alt yarı (ben) orijinal düzende
+            for (var i = 3; i < 6; i++) BuildRow(i);
+            BuildTopThree();
+            BuildSide(Me);
+            BuildOppPanels3();
+        }
+        else
+        {
+            for (var i = 0; i < 6; i++) BuildRow(i);
+            BuildSide(Opp);
+            BuildSide(Me);
+        }
         BuildLeaderSlots();
         BuildPiles();
         BuildWeatherBox();
@@ -446,7 +457,7 @@ public sealed class GwintView : Viewbox
         _prevHandPos = _curHandPos;
         _prevBoardInfo = _curBoardInfo;
         _prevGraveInfo = new Dictionary<int, int>();
-        for (var pl = 0; pl < 2; pl++)
+        for (var pl = 0; pl < G.PlayerCount; pl++)
         {
             foreach (var gc in G.Players[pl].Grave) _prevGraveInfo[gc.Uid] = pl;
             _prevGems[pl] = G.Players[pl].Gems;
@@ -479,8 +490,9 @@ public sealed class GwintView : Viewbox
         if (d.IsUnit)
         {
             if (d.IsAgile) return side == Me && rk is RowKind.Close or RowKind.Ranged && !G.RowFull(Me, rk);
-            var target = d.Has("spy") ? Opp : Me;
-            return side == target && rk == d.FixedRow && !G.RowFull(target, rk);
+            // Casus: iki kişide rakibin sırası; üç kişide iki rakibin de sırası (tıklanan taraf hedeftir)
+            var ok = d.Has("spy") ? side != Me && (G.ThreePlayer || side == Opp) : side == Me;
+            return ok && rk == d.FixedRow && !G.RowFull(side, rk);
         }
         if (d.Id is Ids.Horn or Ids.Mardroeme) return side == Me && G.Players[Me].Row(rk).Special == null;
         return false;
@@ -714,7 +726,7 @@ public sealed class GwintView : Viewbox
         Put(_board, Txt(ps.Hand.Count.ToString(), 24, Theme.B("#e8dcc4"), true), 282, baseY + 78);
         for (var i = 0; i < 2; i++)
         {
-            var alive = i < ps.Gems;
+            var alive = i < (G.ThreePlayer ? ps.Wins : ps.Gems);   // üç kişide mücevher boş başlar, raund kazandıkça dolar
             var gem = Pic("gem", 36, 36, alive ? 1 : 0.22);
             if (gem.Source != null) Put(_board, gem, 318 + i * 42, baseY + 76);
             else Put(_board, new Ellipse { Width = 30, Height = 30, Fill = alive ? Theme.B("#d94a4a") : Theme.B("#3a2e20"), Stroke = Theme.B("#ffb0a0"), StrokeThickness = 1.5 }, 321 + i * 42, baseY + 79);
@@ -722,7 +734,7 @@ public sealed class GwintView : Viewbox
 
         // Toplam (öndeki oyuncuda defne). Orijinalden küçük tutuldu: sıra rozetine taşmasın.
         var total = G.PlayerTotal(p);
-        var other = G.PlayerTotal(1 - p);
+        var other = G.Opponents(p).Max(G.PlayerTotal);
         var holder = new Grid { Width = 100, Height = 80, IsHitTestVisible = false };
         if (total > other)
         {
@@ -742,7 +754,7 @@ public sealed class GwintView : Viewbox
 
     private void BuildLeaderSlots()
     {
-        foreach (var p in new[] { Opp, Me })
+        foreach (var p in G.ThreePlayer ? new[] { Me } : new[] { Opp, Me })
         {
             var ps = G.Players[p];
             var y = p == Opp ? 75.0 : 828.0;
@@ -767,7 +779,7 @@ public sealed class GwintView : Viewbox
 
     private void BuildPiles()
     {
-        foreach (var p in new[] { Opp, Me })
+        foreach (var p in G.ThreePlayer ? new[] { Me } : new[] { Opp, Me })
         {
             var ps = G.Players[p];
             var y = p == Opp ? 70.0 : 828.0;
@@ -879,6 +891,7 @@ public sealed class GwintView : Viewbox
         {
             if (d.IsAgile) return "Yakın dövüş ya da Menzilli sırasını seç.";
             if (d.Has("spy")) return "Casus rakibin sahasına konur ve 2 kart çekersin. Vurgulu sıraya tıkla ya da “Oyna”.";
+            if (d.Has("scorch_c") || d.Has("scorch_r") || d.Has("scorch_s")) return "Vurgulu sıraya tıkla ya da “Oyna”; üç kişide yakacağı rakibi sorulur.";
             return "Vurgulu sıraya tıkla ya da “Oyna”.";
         }
         if (d.Id is Ids.Horn) return "Güçlendireceğin sırayı seç.";
@@ -991,9 +1004,17 @@ public sealed class GwintView : Viewbox
         label.MouseLeftButtonUp += (_, e) => { e.Handled = true; OnPass(); };
         Put(_board, label, 125, 612);
 
-        // Durum / ipucu
-        Put(_board, Txt(StatusText(), 17, Theme.B("#e8dcc4"), false, TextAlignment.Left, 320), 125, 238);
-        if (!string.IsNullOrEmpty(_hint)) Put(_board, Txt(_hint, 14, Theme.B("#b8ad94"), false, TextAlignment.Left, 320, true), 125, 262);
+        // Durum / ipucu (üç kişide sol üst rakip panellerine ayrıldı: durum sol altta, liderin yanında)
+        if (G.ThreePlayer)
+        {
+            Put(_board, Txt(StatusText(), 17, Theme.B("#e8dcc4"), false, TextAlignment.Left, 190), 258, 836);
+            if (!string.IsNullOrEmpty(_hint)) Put(_board, Txt(_hint, 14, Theme.B("#b8ad94"), false, TextAlignment.Left, 190, true), 258, 900);
+        }
+        else
+        {
+            Put(_board, Txt(StatusText(), 17, Theme.B("#e8dcc4"), false, TextAlignment.Left, 320), 125, 238);
+            if (!string.IsNullOrEmpty(_hint)) Put(_board, Txt(_hint, 14, Theme.B("#b8ad94"), false, TextAlignment.Left, 320, true), 125, 262);
+        }
 
         // Alt şerit: Oyna düğmesi, ses ve çıkış
         if (_selected != null && MyTurn && NeedsNoTarget(_selected.Def))
@@ -1045,10 +1066,10 @@ public sealed class GwintView : Viewbox
             return who == "" ? $"👁 İzliyorsun · Raund {G.Round}" : $"👁 İzliyorsun · Raund {G.Round} · sıra: {who}";
         }
         if (_s.IsOver) return "Oyun bitti.";
-        if (G.Phase == Phase.Mulligan) return G.PlayersToAct().Contains(Me) ? "Kartlarını değiştir." : "Rakibin kart değiştirmesi bekleniyor…";
-        if (G.Pending is { } p) return p.Player == Me ? "Bir seçim yapman gerekiyor." : "Rakip seçim yapıyor…";
+        if (G.Phase == Phase.Mulligan) return G.PlayersToAct().Contains(Me) ? "Kartlarını değiştir." : G.ThreePlayer ? "Rakiplerin kart değiştirmesi bekleniyor…" : "Rakibin kart değiştirmesi bekleniyor…";
+        if (G.Pending is { } p) return p.Player == Me ? "Bir seçim yapman gerekiyor." : $"{_s.Who(p.Player)} seçim yapıyor…";
         if (G.Players[Me].Passed) return "Pas geçtin. Rakip oynuyor…";
-        if (_aiRunning || G.Current == Opp) return "Rakip düşünüyor…";
+        if (_aiRunning || G.Current != Me) return G.ThreePlayer ? $"{_s.SeatName(G.Current)} düşünüyor…" : "Rakip düşünüyor…";
         return $"Raund {G.Round} · senin sıran";
     }
 
@@ -1059,13 +1080,21 @@ public sealed class GwintView : Viewbox
         if (_selected == null || !MyTurn) return;
         var d = _selected.Def;
         if (d.IsUnit && d.IsAgile) DoPlay(_selected, rk);
+        else if (d.IsUnit && d.Has("spy") && G.ThreePlayer) DoPlay(_selected, null, null, side);   // tıklanan rakibin sırası
         else if (d.IsUnit) DoPlay(_selected);
         else if (d.Id is Ids.Horn or Ids.Mardroeme) DoPlay(_selected, rk);
     }
 
-    private void DoPlay(CardInstance c, RowKind? row = null, int? target = null)
+    private void DoPlay(CardInstance c, RowKind? row = null, int? target = null, int? foe = null)
     {
-        var r = _s.Apply(new PlayCard(Me, c.Uid, row, target));
+        // Üç kişi: casus ve sıra yakan birim hedef rakip ister (casusta sıraya tıklamak hedefi verir)
+        if (G.ThreePlayer && foe == null && c.Def.IsUnit && Game.UnitNeedsFoe(c))
+        {
+            AskFoe(c.Def.Has("spy") ? $"{c.Def.Name}: hangi rakibin sahasına?" : $"{c.Def.Name}: hangi rakibin sırasını yaksın?",
+                G.Opponents(Me).ToList(), f => DoPlay(c, row, target, f));
+            return;
+        }
+        var r = _s.Apply(new PlayCard(Me, c.Uid, row, target, foe));
         if (!r.Ok) { _hint = r.Error ?? "Bu hamle yapılamaz."; Refresh(); return; }
         AfterHumanAction();
     }
@@ -1083,6 +1112,24 @@ public sealed class GwintView : Viewbox
         if (!MyTurn) return;
         var reason = G.LeaderBlockedReason(Me);
         if (reason != null) { _hint = reason; Refresh(); return; }
+        if (G.ThreePlayer && G.LeaderNeedsFoe(Me))
+        {
+            var foes = G.Opponents(Me).Where(o => G.LeaderBlockedReason(Me, o) == null).ToList();
+            if (foes.Count > 1)
+            {
+                AskFoe("Lider yeteneği: hangi rakibe?", foes, f =>
+                {
+                    var rf = _s.Apply(new UseLeader(Me, f));
+                    if (!rf.Ok) { _hint = rf.Error ?? ""; Refresh(); return; }
+                    AfterHumanAction();
+                });
+                return;
+            }
+            var r1 = _s.Apply(new UseLeader(Me, foes.Count == 1 ? foes[0] : null));
+            if (!r1.Ok) { _hint = r1.Error ?? ""; Refresh(); return; }
+            AfterHumanAction();
+            return;
+        }
         var r = _s.Apply(new UseLeader(Me));
         if (!r.Ok) { _hint = r.Error ?? ""; Refresh(); return; }
         AfterHumanAction();
@@ -1102,7 +1149,8 @@ public sealed class GwintView : Viewbox
     {
         _dealStarted = true;
         var coin = _dealDelay > 1000;
-        if (coin) PlayCoin(G.CoinFirst);
+        if (G.ThreePlayer) PlayDice();
+        else if (coin) PlayCoin(G.CoinFirst);
         Fx.After(_dealDelay + G.Players[Me].Hand.Count * 110 + 700, FinishOpening);
     }
 
@@ -1189,13 +1237,13 @@ public sealed class GwintView : Viewbox
             if (e.Kind == "play")
             {
                 var d = G.Catalog.Get(e.Detail);
-                if (!d.IsUnit && d.Id != Ids.Decoy) return (e.Player, d, $"{Texts.Who(e.Player, Me)} oynadı");
+                if (!d.IsUnit && d.Id != Ids.Decoy) return (e.Player, d, $"{_s.Who(e.Player)} oynadı");
             }
             else if (e.Kind == "leader_card")
             {
                 var leader = evs.FirstOrDefault(x => x.Kind == "leader" && x.Player == e.Player);
                 var name = leader != null ? G.Catalog.Get(leader.Detail).Name : "lider";
-                return (e.Player, G.Catalog.Get(e.Detail), $"{Texts.Who(e.Player, Me)}: lider yeteneği — {name}");
+                return (e.Player, G.Catalog.Get(e.Detail), $"{_s.Who(e.Player)}: lider yeteneği — {name}");
             }
         }
         return null;
@@ -1350,9 +1398,12 @@ public sealed class GwintView : Viewbox
     {
         Point? from = null;
         if (_prevHandPos.TryGetValue(card.Uid, out var hp)) from = hp;
-        else if (_prevGraveInfo.TryGetValue(card.Uid, out var gs)) from = GravePos[Side(gs)];
+        else if (_prevGraveInfo.TryGetValue(card.Uid, out var gs)) from = GravePosOf(gs);
         else if (!card.Def.Token)
-            from = side == Opp || _evs.Any(e => e.Kind == "play" && e.Player == Opp) ? new Point(CardsX + 200, -150) : DeckPos[0];
+        {
+            var actor = _evs.FirstOrDefault(e => e.Kind == "play" && e.Player != Me)?.Player;
+            from = side != Me || actor != null ? OppEntry(actor ?? side) : DeckPos[0];
+        }
 
         if (from == null) { Fx.CardIn(gc, side == Me ? 90 : -90); Landing(card.Def, Center(pos), 0); return; }
         Fx.FlyIn(gc, from.Value, pos, 520);
@@ -1381,13 +1432,13 @@ public sealed class GwintView : Viewbox
         foreach (var (uid, snap) in _prevBoardInfo)
         {
             if (_curBoardInfo.ContainsKey(uid)) continue;
-            var ghost = new GwintCard(snap.Def, CardW, null, null, height: CardH) { IsHitTestVisible = false };
+            var ghost = new GwintCard(snap.Def, snap.Width, null, null, height: snap.Height) { IsHitTestVisible = false };
             Put(_fx, ghost, snap.Pos.X, snap.Pos.Y);
             Action remove = () => _fx.Children.Remove(ghost);
             if (killed.Contains(uid))
             {
-                Fx.PlayFrames(_fx, "fire", new Point(snap.Pos.X + CardW / 2, snap.Pos.Y + CardH / 2 - 8), 150, 190, 30);
-                var soot = new Rectangle { Width = CardW, Height = CardH, Fill = Theme.B("#000000"), Opacity = 0, IsHitTestVisible = false };
+                Fx.PlayFrames(_fx, "fire", new Point(snap.Pos.X + snap.Width / 2, snap.Pos.Y + snap.Height / 2 - 8), 150, 190, 30);
+                var soot = new Rectangle { Width = snap.Width, Height = snap.Height, Fill = Theme.B("#000000"), Opacity = 0, IsHitTestVisible = false };
                 Put(_fx, soot, snap.Pos.X, snap.Pos.Y);
                 soot.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 0.55, TimeSpan.FromMilliseconds(700)) { BeginTime = TimeSpan.FromMilliseconds(250) });
                 Fx.FadeOut(soot, 700, 1000, () => _fx.Children.Remove(soot));
@@ -1395,13 +1446,13 @@ public sealed class GwintView : Viewbox
             }
             else if (decoyed.Contains(uid))
             {
-                var target = snap.Side != Me ? new Point(CardsX + 200, -150)
+                var target = snap.Side != Me ? OppEntry(snap.Side)
                     : _curHandPos.TryGetValue(uid, out var hp) ? hp : new Point(950, 842);
                 Fx.FlyAway(ghost, target, 560, 0, remove);
             }
             else if (roundEnd)
             {
-                Fx.FlyAway(ghost, new Point(GravePos[Side(snap.Side)].X + 10, GravePos[Side(snap.Side)].Y + 10), 650, Math.Min(500, k * 35), remove);
+                Fx.FlyAway(ghost, new Point(GravePosOf(snap.Side).X + 10, GravePosOf(snap.Side).Y + 10), 650, Math.Min(500, k * 35), remove);
             }
             else Fx.FadeOut(ghost, 400, 0, remove);
             k++;
@@ -1410,7 +1461,7 @@ public sealed class GwintView : Viewbox
         if (killed.Count > 0) Fx.Shake(_board, 6, 360);
 
         // Kaybedilen mücevher: kırılır
-        for (var p = 0; p < 2; p++)
+        for (var p = 0; p < (G.ThreePlayer ? 0 : 2); p++)   // üç kişide mücevher kırılmaz (kazandıkça dolar)
         {
             if (G.Players[p].Gems >= _prevGems[p]) continue;
             var baseY = p == Opp ? 280.0 : 665.0;
@@ -1467,7 +1518,7 @@ public sealed class GwintView : Viewbox
     {
         var ps = G.Players[side];
         var sp = new StackPanel { MinWidth = 900 };
-        sp.Children.Add(Title($"{(side == Me ? "Senin" : "Rakibin")} mezarlığı — {ps.Grave.Count} kart"));
+        sp.Children.Add(Title($"{(side == Me ? "Senin" : G.ThreePlayer ? _s.SeatName(side) + " —" : "Rakibin")} mezarlığı — {ps.Grave.Count} kart"));
         sp.Children[0].SetValue(MarginProperty, new Thickness(0, 0, 0, 18));
 
         var row = new StackPanel { Orientation = Orientation.Horizontal };
@@ -1563,20 +1614,21 @@ public sealed class GwintView : Viewbox
                     }
                     break;
                 case "coin_toss":
+                case "dice":
                 case "first_chosen": sounds.Add("coin_toss"); break;
                 case "pass":
                     sounds.Add("lock_in");
-                    if (title == null) { title = e.Player == Me ? "Pas geçtin" : "Rakip pas geçti"; color = Theme.TextDim; hold = 700; icon = "msg_round_pass"; }
+                    if (title == null) { title = e.Player == Me ? "Pas geçtin" : $"{_s.Who(e.Player)} pas geçti"; color = Theme.TextDim; hold = 700; icon = "msg_round_pass"; }
                     break;
                 case "leader":
                     sounds.Add("leader_change");
                     if (_leaderEl[e.Player] is { } le)
                     {
                         Fx.Pulse(le);
-                        var lc = new Point(133 + 56, (e.Player == Opp ? 75.0 : 828.0) + 73);
+                        var lc = LeaderCenter(e.Player);
                         Fx.PlayFrames(_fx, "lightning", lc, 260, 232, 34);
                     }
-                    title = $"{Texts.Who(e.Player, Me)}: lider yeteneği";
+                    title = $"{_s.Who(e.Player)}: lider yeteneği";
                     sub = _s.Game.Catalog.Get(e.Detail).Name + Environment.NewLine + Texts.LeaderText(_s.Game.Catalog.Get(e.Detail));   // ne yaptığı da görünsün
                     color = Theme.Gold;
                     hold = 1800;   // açıklama da okunacak
@@ -1585,9 +1637,11 @@ public sealed class GwintView : Viewbox
                 {
                     var parts = e.Detail.Split(':');
                     if (e.Player == Me) { title = "Raundu kazandın!"; color = Theme.Good; sounds.Add("battle_won"); icon = "msg_round_victory"; }
-                    else if (e.Player == Opp) { title = "Raundu rakip kazandı"; color = Theme.Bad; sounds.Add("battle_lost"); icon = "msg_round_defeat"; }
-                    else { title = "Raund berabere"; color = Theme.Gold; sounds.Add("battle_draw"); icon = "msg_round_draw"; }
-                    sub = $"Sen {parts[Me]}  –  Rakip {parts[Opp]}";
+                    else if (e.Player >= 0) { title = G.ThreePlayer ? $"Raundu {_s.SeatName(e.Player)} kazandı" : "Raundu rakip kazandı"; color = Theme.Bad; sounds.Add("battle_lost"); icon = "msg_round_defeat"; }
+                    else { title = G.ThreePlayer ? "Raundu kimse kazanamadı" : "Raund berabere"; color = Theme.Gold; sounds.Add("battle_draw"); icon = "msg_round_draw"; }
+                    sub = G.ThreePlayer
+                        ? $"Sen {parts[Me]}  –  " + string.Join("  –  ", G.Opponents(Me).Select(o => $"{_s.SeatName(o)} {parts[o]}"))
+                        : $"Sen {parts[Me]}  –  Rakip {parts[Opp]}";
                     hold = 1500;
                     _pauseAfterMs = 2000;
                     sounds.Add("gem_destruction");
@@ -1596,13 +1650,13 @@ public sealed class GwintView : Viewbox
                 case "round_start":
                     if (G.Round > 1)
                     {
-                        var starter = $"Raund {G.Round}: {(e.Player == Me ? "sen başlıyorsun" : "rakip başlıyor")}";
+                        var starter = $"Raund {G.Round}: {(e.Player == Me ? "sen başlıyorsun" : G.ThreePlayer ? _s.SeatName(e.Player) + " başlıyor" : "rakip başlıyor")}";
                         if (title == null) { title = starter; color = Theme.Gold; hold = 900; icon = "msg_round_start"; }
                         else sub = (sub == null ? "" : sub + "\n") + starter;
                     }
                     break;
                 case "game_end":
-                    sounds.Add(e.Player == Me ? "clash_victory" : e.Player == Opp ? "clash_defeat" : "battle_draw");
+                    sounds.Add(e.Player == Me ? "clash_victory" : e.Player >= 0 ? "clash_defeat" : "battle_draw");
                     break;
             }
         }
@@ -1669,6 +1723,7 @@ public sealed class GwintView : Viewbox
         }
         if (_s.IsOver) { RecordStats(); content = GameOverPanel(); }
         else if (_confirm != null) content = ConfirmPanel();
+        else if (_foeAsk != null && MyTurn) content = FoePanel();
         else if (G.Phase == Phase.Mulligan && G.PlayersToAct().Contains(Me) && !_s.IsSpectator) content = MulliganPanel();
         else if (G.Phase == Phase.ChooseFirst && G.Current == Me && !_s.IsSpectator) content = ChooseFirstPanel();
         else if (G.Pending is { } pc && pc.Player == Me && !_aiRunning && !_s.IsSpectator) content = ChoicePanel(pc);
@@ -1785,6 +1840,7 @@ public sealed class GwintView : Viewbox
 
     private UIElement ChooseFirstPanel()
     {
+        if (G.ThreePlayer) return ChooseFirstPanel3();
         var sp = new StackPanel { MinWidth = 600 };
         sp.Children.Add(Title(G.Players[Me].Faction == "scoiatael" ? "Scoia'tael yeteneği" : "Kışla: kim başlasın?"));
         var sub = Txt("İlk turu kimin oynayacağını sen seçersin.", 22, Theme.TextDim, false, TextAlignment.Center);
@@ -1865,10 +1921,34 @@ public sealed class GwintView : Viewbox
             sp.Children.Add(rows);
         }
 
-        var ready = _choiceSel.Count >= pc.Min && _choiceSel.Count <= pc.Max && (!needRow || _choiceRow != null);
+        // Üç kişi: Medic casus geri getirirse hangi rakibe konacağı
+        var needFoe = G.ThreePlayer && pc.Kind == ChoiceKind.Medic && _choiceSel.Count == 1 && FindCard(_choiceSel[0]) is { } pickedCard && Game.UnitNeedsFoe(pickedCard);
+        if (needFoe)
+        {
+            var q = Txt(FindCard(_choiceSel[0])!.Def.Has("spy") ? "Hangi rakibin sahasına?" : "Hangi rakibin sırasını yaksın?", 20, Theme.TextDim, false, TextAlignment.Center);
+            q.Margin = new Thickness(0, 18, 0, 6);
+            sp.Children.Add(q);
+            var foes = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+            foreach (var o in G.Opponents(Me))
+            {
+                var f = o;
+                var tb = new System.Windows.Controls.Primitives.ToggleButton
+                {
+                    Style = (Style)Application.Current.FindResource("GToggle"),
+                    Content = Ui.Text(_s.SeatName(o), 18, Theme.Text, true, TextAlignment.Center),
+                    IsChecked = _choiceFoe == o, Margin = new Thickness(5), MinWidth = 200, Tag = "choice-foe"
+                };
+                tb.Click += (_, _) => { _choiceFoe = f; Refresh(); };
+                foes.Children.Add(tb);
+            }
+            sp.Children.Add(foes);
+        }
+        else _choiceFoe = null;
+
+        var ready = _choiceSel.Count >= pc.Min && _choiceSel.Count <= pc.Max && (!needRow || _choiceRow != null) && (!needFoe || _choiceFoe != null);
         var confirm = Ui.Button(pc.Max > 1 ? $"Onayla ({_choiceSel.Count}/{pc.Max})" : "Onayla", () =>
         {
-            var r = _s.Apply(new Choose(Me, _choiceSel.ToList(), _choiceRow));
+            var r = _s.Apply(new Choose(Me, _choiceSel.ToList(), _choiceRow, needFoe ? _choiceFoe : null));
             if (!r.Ok) { _hint = r.Error ?? ""; Refresh(); return; }
             _lastPending = null;
             AfterHumanAction();
@@ -1888,7 +1968,7 @@ public sealed class GwintView : Viewbox
         _statsRecorded = true;
         var win = _s.WinnerSeat;
         var online = _s.OnlineSetup;
-        var opp = online != null ? (_s.MySeat == 0 ? online.Nick1 : online.Nick0)
+        var opp = online != null ? string.Join(" & ", G.Opponents(_s.MySeat).Select(online.NickOf))
             : _s.OppNameOverride != null ? (_s.ModeLabel ?? "Collect 'Em All") + ": " + _s.OppNameOverride
             : "Yapay zekâ (" + _s.Config.Difficulty switch { GwentAI.Difficulty.Easy => "Kolay", GwentAI.Difficulty.Hard => "Zor", _ => "Normal" } + ")";
         Stats.Record(new MatchRecord(DateTime.Now, online != null, opp, _s.Config.MyFaction, _s.Config.OppFaction, win == null ? 0 : win == Me ? 1 : -1));
@@ -1923,6 +2003,7 @@ public sealed class GwintView : Viewbox
     private UIElement GameOverPanel()
     {
         if (_s.IsSpectator) return SpectatorOverPanel();
+        if (G.ThreePlayer) return GameOverPanel3();
         var sp = new StackPanel { MinWidth = 900, HorizontalAlignment = HorizontalAlignment.Center };
         var winner = _s.WinnerSeat;
         // Sönük, antik bir palet: kazanınca eski altın, kaybedince paslı kızıl, beraberlikte gri

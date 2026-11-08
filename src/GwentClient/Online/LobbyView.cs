@@ -22,7 +22,8 @@ public sealed class LobbyView : Grid
     private readonly Func<Task> _leave;
     private readonly Border _host = new();
     private bool _revealed;
-    private bool _meReadyShown, _oppReadyShown;
+    private bool _meReadyShown;
+    private readonly HashSet<int> _oppReadyShownSeats = new();
     private readonly LoadoutPicker _picker;
     private string _error = "";
     private bool _leaving;
@@ -196,6 +197,10 @@ public sealed class LobbyView : Grid
 
     private PlayerInfo? Me => State?.Players.FirstOrDefault(p => p.Seat == State.YourSeat);
     private PlayerInfo? Opp => State?.Players.FirstOrDefault(p => p.Seat != State.YourSeat);
+    private int Capacity => State?.Capacity ?? 2;
+    /// <summary>Rakip koltukları koltuk sırasıyla (üç kişide: masada sol üst, sağ üst).</summary>
+    private List<int> OppSeats => State == null ? new List<int> { 1 } : Enumerable.Range(1, Capacity - 1).Select(k => (State.YourSeat + k) % Capacity).ToList();
+    private PlayerInfo? At(int seat) => State?.Players.FirstOrDefault(p => p.Seat == seat);
 
     private void Rebuild()
     {
@@ -210,8 +215,18 @@ public sealed class LobbyView : Grid
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var titleCol = new StackPanel();
-        titleCol.Children.Add(Ornate.Heading("Bekleme odası", Draft ? "Draft maçı: desteler masada kurulur" : NextGen ? "Yeni nesil içerik açık" : "Standart kartlar", 46));
-        if (st != null && st.Phase == RoomPhase.Lobby) titleCol.Children.Add(RulesBar(st));
+        titleCol.Children.Add(Ornate.Heading("Bekleme odası", (Capacity == 3 ? "Üç kişilik · " : "") + (Draft ? "Draft maçı: desteler masada kurulur" : NextGen ? "Yeni nesil içerik açık" : "Standart kartlar"), 46));
+        if (st != null && st.Phase == RoomPhase.Lobby && Capacity == 3)
+        {
+            var three = Ui.Text("Üç kişilik maç: herkes herkese · raundu en yüksek skor alır, mücevher dolar · 2 raund kazanan maçı alır · sırayı zar belirler · 2. raunddan itibaren herkes 1 kart çeker · casus ve sıra yakmada hedef rakibi sen seçersin.",
+                15, Theme.B("#d8c890"), false, TextAlignment.Left, true);
+            three.MaxWidth = 1100;
+            three.HorizontalAlignment = HorizontalAlignment.Left;
+            three.Margin = new Thickness(0, 10, 0, 0);
+            three.Tag = "lobby-three";
+            titleCol.Children.Add(three);
+        }
+        else if (st != null && st.Phase == RoomPhase.Lobby) titleCol.Children.Add(RulesBar(st));
         head.Children.Add(titleCol);
 
         var code = LobbyParts.CodePanel(st?.Code, _c, "ODA KODU");
@@ -229,7 +244,19 @@ public sealed class LobbyView : Grid
         var vs = VersusMark();
         Grid.SetColumn(vs, 1);
         body.Children.Add(vs);
-        var theirs = Ornate.Panel(OppPanel(), new Thickness(36, 30, 36, 30), 20, 58);
+        FrameworkElement theirs;
+        if (Capacity == 3)
+        {
+            var stack = new StackPanel();
+            foreach (var seat in OppSeats)
+            {
+                var p = Ornate.Panel(OppPanel(At(seat), seat, compact: true), new Thickness(30, 18, 30, 18), 16, 44);
+                p.Margin = new Thickness(0, 0, 0, 12);
+                stack.Children.Add(p);
+            }
+            theirs = stack;
+        }
+        else theirs = Ornate.Panel(OppPanel(Opp, OppSeats[0]), new Thickness(36, 30, 36, 30), 20, 58);
         Grid.SetColumn(theirs, 2);
         body.Children.Add(theirs);
         Grid.SetRow(body, 1);
@@ -320,6 +347,15 @@ public sealed class LobbyView : Grid
 
     private string FootMessage()
     {
+        if (Capacity == 3)
+        {
+            var opps = OppSeats.Select(At).ToList();
+            var missing = opps.Count(o => o == null);
+            if (missing > 0) return (_c.Invites.Count > 0 ? "Sağ üstteki davet kodunu iki arkadaşına da gönder. " : "") + $"Rakipler bekleniyor… ({2 - missing}/2 geldi)";
+            if (opps.Any(o => !o!.Connected)) return "Bir rakibin bağlantısı koptu.";
+            if (Me?.Ready == true) return opps.All(o => o!.Ready) ? "Maç başlıyor…" : "Rakiplerin hazır olması bekleniyor…";
+            return "Seçimini yap ve hazır ol. Üçünüz de hazır olunca maç başlar.";
+        }
         if (Opp == null) return _c.Invites.Count > 0 ? "Rakip bekleniyor… Sağ üstteki davet kodunu kopyalayıp arkadaşına gönder." : "Rakip bekleniyor…";
         if (!Opp.Connected) return "Rakibin bağlantısı koptu.";
         if (Me?.Ready == true && Opp.Ready != true) return "Rakibin hazır olması bekleniyor…";
@@ -493,37 +529,38 @@ public sealed class LobbyView : Grid
         };
     }
 
-    private UIElement OppPanel()
+    /// <summary>Rakibin koltuk kartı. Üç kişide iki rakip alt alta, küçük (lider kartı küçülür).</summary>
+    private UIElement OppPanel(PlayerInfo? opp, int seat, bool compact = false)
     {
-        var oppReady = Opp?.Ready == true;
-        var stamp = oppReady && !_oppReadyShown;
-        _oppReadyShown = oppReady;
+        var oppReady = opp?.Ready == true;
+        var stamp = oppReady && !_oppReadyShownSeats.Contains(seat);
+        if (oppReady) _oppReadyShownSeats.Add(seat); else _oppReadyShownSeats.Remove(seat);
         var sp = new StackPanel();
-        sp.Children.Add(SeatHeader("RAKİP", Opp?.Nick ?? "—", Seal(oppReady, stamp), Opp?.Loadout?.Avatar ?? Opp?.Avatar ?? Opp?.Loadout?.LeaderId));
-        sp.Children.Add(Ornate.Rule(430, 10));
-        if (Opp == null)
+        sp.Children.Add(SeatHeader(compact ? "RAKİP " + (seat == (State!.YourSeat + 1) % 3 ? "(sol üst)" : "(sağ üst)") : "RAKİP", opp?.Nick ?? "—", Seal(oppReady, stamp), opp?.Loadout?.Avatar ?? opp?.Avatar ?? opp?.Loadout?.LeaderId));
+        sp.Children.Add(Ornate.Rule(compact ? 400 : 430, compact ? 6 : 10));
+        if (opp == null)
         {
-            var w = Ui.Text("Rakip bekleniyor…", 28, Theme.B("#c9c0aa"), false, TextAlignment.Left, true);
-            w.Margin = new Thickness(0, 24, 0, 0);
+            var w = Ui.Text("Rakip bekleniyor…", compact ? 22 : 28, Theme.B("#c9c0aa"), false, TextAlignment.Left, true);
+            w.Margin = new Thickness(0, compact ? 8 : 24, 0, 0);
             w.FontStyle = FontStyles.Italic;
             sp.Children.Add(w);
             sp.Children.Add(Ui.Text("Davet kodunu paylaş; arkadaşın katılınca burada belirir.", 16, Theme.TextDim, false, TextAlignment.Left, true));
             return sp;
         }
-        sp.Children.Add(Ui.Text(Opp.Connected ? "● bağlı" : "● bağlantısı koptu", 15, Opp.Connected ? Theme.Good : Theme.Bad));
+        sp.Children.Add(Ui.Text(opp.Connected ? "● bağlı" : "● bağlantısı koptu", 15, opp.Connected ? Theme.Good : Theme.Bad));
         if (Mirror) sp.Children.Add(MirrorHint("Ayna: aşağıdaki desteyle SEN oynayacaksın.", 430));
 
-        if (Draft && Opp.Loadout == null)
+        if (Draft && opp.Loadout == null)
         {
             // Rakibin draft ilerlemesi (teklifleri görünmez)
-            var picks = Math.Max(0, Opp.DraftPicks);
-            if (Opp.DraftFaction is { } df && Assets.Ui("shield_" + df) is { } sh)
+            var picks = Math.Max(0, opp.DraftPicks);
+            if (opp.DraftFaction is { } df && Assets.Ui("shield_" + df) is { } sh)
                 sp.Children.Add(new System.Windows.Controls.Image { Source = sh, Width = 70, Height = 70, Margin = new Thickness(0, 16, 0, 0), HorizontalAlignment = HorizontalAlignment.Left });
-            sp.Children.Add(Ui.Text(Opp.DraftPicks < 0 ? "Fraksiyon seçiyor…" : $"Draft: {picks} / {GwentAI.Draft.DraftLogic.DeckSize} kart", 22, Theme.Text, true));
+            sp.Children.Add(Ui.Text(opp.DraftPicks < 0 ? "Fraksiyon seçiyor…" : $"Draft: {picks} / {GwentAI.Draft.DraftLogic.DeckSize} kart", 22, Theme.Text, true));
             sp.Children.Add(Progress(picks, GwentAI.Draft.DraftLogic.DeckSize, 420));
             return sp;
         }
-        if (Opp.Loadout is { } lo)
+        if (opp.Loadout is { } lo)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 14, 0, 0) };
             var shield = Assets.Ui("shield_" + lo.Faction);
@@ -533,10 +570,14 @@ public sealed class LobbyView : Grid
             info.Children.Add(Ui.Text(CardCatalog.Default.Get(lo.LeaderId).Name, 15, Theme.TextDim));
             row.Children.Add(info);
             sp.Children.Add(row);
-            var leaderCard = new GwintCard(CardCatalog.Default.Get(lo.LeaderId), 250, null, null, height: 250 * GwintCard.Aspect) { IsHitTestVisible = false, HorizontalAlignment = HorizontalAlignment.Center };
+            var lw = compact ? 0 : 250;
+            if (lw > 0)
+            {
+            var leaderCard = new GwintCard(CardCatalog.Default.Get(lo.LeaderId), lw, null, null, height: lw * GwintCard.Aspect) { IsHitTestVisible = false, HorizontalAlignment = HorizontalAlignment.Center };
             leaderCard.Margin = new Thickness(0, 18, 0, 0);
             leaderCard.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 28, ShadowDepth = 5, Opacity = 0.9 };
             sp.Children.Add(leaderCard);
+            }
         }
         else sp.Children.Add(Ui.Text("Henüz seçim yapmadı.", 18, Theme.TextDim, false, TextAlignment.Left, true));
         return sp;

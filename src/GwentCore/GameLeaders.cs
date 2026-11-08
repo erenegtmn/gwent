@@ -44,9 +44,33 @@ public sealed partial class Game
         ["king_bran"] = (LeaderKind.Passive, null, RowKind.Close),
     };
 
-    /// <summary>Rakibin lideri White Flame ise bu oyuncunun lider yeteneği iptaldir.</summary>
+    /// <summary>Bir rakibin lideri White Flame ise bu oyuncunun lider yeteneği iptaldir (üç kişide iki rakibi de iptal eder).</summary>
     public bool LeaderCancelled(int player) =>
-        Opp(player).Leader.Id == "emhyr_var_emreis_the_white_flame";
+        Opponents(player).Any(o => _players[o].Leader.Id == "emhyr_var_emreis_the_white_flame");
+
+    /// <summary>Lider yeteneği rakip seçtirir mi (üç kişide hedef sorulur): sıra yakma ve el görme.</summary>
+    public bool LeaderNeedsFoe(int player) =>
+        LeaderTable.TryGetValue(_players[player].Leader.Id, out var e) && e.Kind is LeaderKind.ScorchRow or LeaderKind.PeekHand;
+
+    /// <summary>Hedef verilmemişse yeteneğin işe yaradığı ilk rakip (koltuk sırasıyla); hiçbiri yoksa sıradaki rakip.</summary>
+    private int LeaderFoe(int player, int? side)
+    {
+        if (side != null) return Foe(player, side);
+        foreach (var o in Opponents(player))
+            if (FoeBlockedReason(player, o) == null) return o;
+        return Foe(player, null);
+    }
+
+    private string? FoeBlockedReason(int player, int foe)
+    {
+        var e = LeaderTable[_players[player].Leader.Id];
+        return e.Kind switch
+        {
+            LeaderKind.ScorchRow when RowTotal(foe, e.Row) < 10 => "Rakibin o sıradaki toplam gücü 10'dan az.",
+            LeaderKind.PeekHand when _players[foe].Hand.Count == 0 => "Rakibin elinde kart yok.",
+            _ => null
+        };
+    }
 
     /// <summary>Lider yeteneği kullanılabilir durumda mı (kullanılmamış, iptal edilmemiş, etkin tipte)?</summary>
     public bool LeaderAvailable(int player)
@@ -60,8 +84,9 @@ public sealed partial class Game
         _players[player].Leader.Id == leaderId && !LeaderCancelled(player);
 
     /// <summary>Lider şu an gerçekten işe yarar bir hedefe sahip mi? Boşa harcamayı engellemek için.</summary>
-    public string? LeaderBlockedReason(int player)
+    public string? LeaderBlockedReason(int player, int? side = null)
     {
+        if (!ValidFoe(player, side)) return "Geçersiz hedef rakip.";
         var p = _players[player];
         if (!LeaderTable.TryGetValue(p.Leader.Id, out var e)) return "Bu liderin yeteneği tanımlı değil.";
         if (e.Kind == LeaderKind.Passive) return "Bu liderin yeteneği otomatiktir, kullanılmaz.";
@@ -76,13 +101,14 @@ public sealed partial class Game
                 if (p.Row(e.Row).Special != null) return "Bu sırada zaten bir Boynuz veya Mardroeme var.";
                 break;
             case LeaderKind.ScorchRow:
-                if (RowTotal(1 - player, e.Row) < 10) return "Rakibin o sıradaki toplam gücü 10'dan az.";
-                break;
             case LeaderKind.PeekHand:
-                if (Opp(player).Hand.Count == 0) return "Rakibin elinde kart yok.";
+            {
+                var why = FoeBlockedReason(player, LeaderFoe(player, side));
+                if (why != null) return why;
                 break;
+            }
             case LeaderKind.Relentless:
-                if (!MedicCandidates(1 - player).Any()) return "Rakibin mezarlığında alınabilecek birim yok.";
+                if (!Opponents(player).Any(o => MedicCandidates(o).Any())) return "Rakibin mezarlığında alınabilecek birim yok.";
                 break;
             case LeaderKind.BringerOfDeath:
                 if (!MedicCandidates(player).Any()) return "Mezarlığında geri alınabilecek birim yok.";
@@ -102,8 +128,9 @@ public sealed partial class Game
     {
         var err = CheckTurn(a.Player);
         if (err != null) return ActionResult.Fail(err);
-        var reason = LeaderBlockedReason(a.Player);
+        var reason = LeaderBlockedReason(a.Player, a.Side);
         if (reason != null) return ActionResult.Fail(reason);
+        var foe = LeaderFoe(a.Player, a.Side);
 
         var p = _players[a.Player];
         var e = LeaderTable[p.Leader.Id];
@@ -141,11 +168,11 @@ public sealed partial class Game
                 break;
             }
             case LeaderKind.ScorchRow:
-                RowScorch(1 - a.Player, e.Row);
+                RowScorch(foe, e.Row);
                 break;
             case LeaderKind.PeekHand:
             {
-                var hand = Opp(a.Player).Hand.ToList();
+                var hand = _players[foe].Hand.ToList();
                 var picks = new List<CardInstance>();
                 while (picks.Count < 3 && hand.Count > 0)
                 {
@@ -161,7 +188,7 @@ public sealed partial class Game
                 {
                     Player = a.Player,
                     Kind = ChoiceKind.RelentlessPick,
-                    Candidates = MedicCandidates(1 - a.Player).Select(c => c.Uid).ToList(),
+                    Candidates = Opponents(a.Player).SelectMany(MedicCandidates).Select(c => c.Uid).ToList(),
                     Prompt = "Rakibin mezarlığından eline alacağın kartı seç.",
                     Resolve = r =>
                     {

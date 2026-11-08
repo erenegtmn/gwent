@@ -12,7 +12,7 @@ namespace GwentNet;
 public static class ProtocolInfo
 {
     /// <summary>Mesaj biçimi değişince artırılır.</summary>
-    public const int Number = 4;   // 2: online draft (RoomState.Draft, PlayerInfo.DraftPicks, SetDraft/DraftChoose); 3: oda lanetleri (RoomState/MatchSetup.Curses, SetCurses); 4: Kaer Morhen motoru (Deck rün/müttefik/avantaj alanları, yakma olayı "kimlik:güç")
+    public const int Number = 5;   // 5: üç kişilik oda (RoomState.Capacity, MatchSetup.Seat2/Nick2, RoomSnapshot.Token2, eylemde Side); 2: online draft (RoomState.Draft, PlayerInfo.DraftPicks, SetDraft/DraftChoose); 3: oda lanetleri (RoomState/MatchSetup.Curses, SetCurses); 4: Kaer Morhen motoru (Deck rün/müttefik/avantaj alanları, yakma olayı "kimlik:güç")
 
     /// <summary>
     /// Sürüm kimliği = protokol numarası + kart verisinin özeti. Kart/kural farkı olan istemci odaya girmesin
@@ -44,21 +44,29 @@ public enum RoomPhase { Lobby, Playing, Finished }
 
 /// <summary>Odanın herkese görünen durumu. YourSeat/YourToken her oyuncuya kendine özel doldurulur (token yeniden bağlanma anahtarıdır).</summary>
 /// <summary>Draft: oda draft maçı (desteler masada kurulur); YourDraft oyuncunun kendi draft durumu. Curses: oda kuranın seçtiği lanetler.</summary>
+/// <summary>Capacity: odadaki koltuk sayısı (2 klasik, 3 = üç kişilik maç, KURALLAR §24).</summary>
 public sealed record RoomState(string Code, RoomPhase Phase, List<PlayerInfo> Players, int YourSeat, string YourToken, bool NextGen, int ActionCount,
-    bool Draft = false, DraftDto? YourDraft = null, List<string>? Curses = null);
+    bool Draft = false, DraftDto? YourDraft = null, List<string>? Curses = null, int Capacity = 2);
 
 /// <summary>
 /// Maçın kurulumu: iki açık deste + tohum + lanetler. Aynı paket iki istemcide aynı <c>Game</c>'i kurar.
 /// Ayna laneti online'da <b>deste takasıdır</b> ve sunucu kurulumu yazarken uygular (Seat0/Seat1 zaten takaslı gelir);
 /// motora yalnız öteki lanetler gider, yoksa yerel Ayna (rakip = benim destem) bir de üstüne uygulanırdı.
 /// </summary>
-public sealed record MatchSetup(int Seed, bool NextGen, LoadoutDto Seat0, LoadoutDto Seat1, string Nick0, string Nick1, int YourSeat, List<string>? Curses = null)
+/// <remarks>Seat2/Nick2: üç kişilik maçta üçüncü koltuk (iki kişide null).</remarks>
+public sealed record MatchSetup(int Seed, bool NextGen, LoadoutDto Seat0, LoadoutDto Seat1, string Nick0, string Nick1, int YourSeat, List<string>? Curses = null,
+    LoadoutDto? Seat2 = null, string? Nick2 = null)
 {
-    /// <summary>Koltuk sırası (0, 1) korunur: koltuk takası karıştırma sırasını değiştirir ve kopyaları ayrıştırır.</summary>
+    public int PlayerCount => Seat2 != null ? 3 : 2;
+    public LoadoutDto SeatOf(int seat) => seat switch { 0 => Seat0, 1 => Seat1, 2 => Seat2 ?? throw new ArgumentOutOfRangeException(nameof(seat)), _ => throw new ArgumentOutOfRangeException(nameof(seat)) };
+    public string NickOf(int seat) => seat switch { 0 => Nick0, 1 => Nick1, 2 => Nick2 ?? "", _ => "" };
+
+    /// <summary>Koltuk sırası (0, 1, 2) korunur: koltuk takası karıştırma sırasını değiştirir ve kopyaları ayrıştırır.</summary>
     public ReplayData ToReplay() => new()
     {
         MyFaction = Seat0.Faction, MyLeaderId = Seat0.LeaderId, MyDeckCards = Seat0.CardIds,
         OppFaction = Seat1.Faction, OppLeaderId = Seat1.LeaderId, OppDeckCards = Seat1.CardIds,
+        ThirdFaction = Seat2?.Faction, ThirdLeaderId = Seat2?.LeaderId, ThirdDeckCards = Seat2?.CardIds,
         NextGen = NextGen, Seed = Seed, Curses = EngineCurses()
     };
 
@@ -74,7 +82,7 @@ public sealed record ActionBroadcast(int Seq, int Player, ReplayAction Action);
 /// Devam eden bir maçın diske yazılabilen özeti (host tarafında): kurulum + o ana dek doğrulanmış eylemler + koltuk anahtarları.
 /// Uygulama kapanıp açılınca oda bundan yeniden kurulur; iki oyuncu da aynı anahtarlarla geri döner.
 /// </summary>
-public sealed record RoomSnapshot(string Code, bool NextGen, MatchSetup Setup, List<ReplayAction> Actions, string Token0, string Token1, DateTime SavedAtUtc);
+public sealed record RoomSnapshot(string Code, bool NextGen, MatchSetup Setup, List<ReplayAction> Actions, string Token0, string Token1, DateTime SavedAtUtc, string? Token2 = null);
 
 public sealed record MatchResult(int? WinnerSeat, string Reason);
 

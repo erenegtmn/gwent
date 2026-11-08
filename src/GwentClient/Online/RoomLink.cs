@@ -107,7 +107,7 @@ public abstract class RoomLinkBase : IMatchLink
 
     // ---------- İstekler ----------
 
-    public abstract Task<Reply> CreateRoomAsync(string nick, bool nextGen = false);
+    public abstract Task<Reply> CreateRoomAsync(string nick, bool nextGen = false, int players = 2);
     public abstract Task<Reply> JoinRoomAsync(string code, string nick);
     public abstract Task<Reply> SetLoadoutAsync(LoadoutDto loadout);
     public abstract Task<Reply> SetReadyAsync(bool ready);
@@ -135,7 +135,7 @@ public abstract class RoomLinkBase : IMatchLink
     public abstract void ClaimWin();
 
     // Bloklayan sarmalayıcılar (sınama / konsol)
-    public Reply CreateRoom(string nick, bool nextGen = false) => CreateRoomAsync(nick, nextGen).GetAwaiter().GetResult();
+    public Reply CreateRoom(string nick, bool nextGen = false, int players = 2) => CreateRoomAsync(nick, nextGen, players).GetAwaiter().GetResult();
     public Reply JoinRoom(string code, string nick) => JoinRoomAsync(code, nick).GetAwaiter().GetResult();
     public Reply SetLoadout(LoadoutDto l) => SetLoadoutAsync(l).GetAwaiter().GetResult();
     public Reply SetReady(bool ready) => SetReadyAsync(ready).GetAwaiter().GetResult();
@@ -167,7 +167,7 @@ public sealed class RoomLink : RoomLinkBase, IGwentClient
     public void OnSpectateAction(ActionBroadcast action) => ReceiveSpectateAction(action);
     public void OnSpectateEnded(MatchResult result) => ReceiveSpectateEnded(result);
 
-    public override Task<Reply> CreateRoomAsync(string nick, bool nextGen = false) => Task.FromResult(_svc.CreateRoom(Session, nick, ProtocolInfo.Version, nextGen));
+    public override Task<Reply> CreateRoomAsync(string nick, bool nextGen = false, int players = 2) => Task.FromResult(_svc.CreateRoom(Session, nick, ProtocolInfo.Version, nextGen, players));
     public override Task<Reply> JoinRoomAsync(string code, string nick) => Task.FromResult(_svc.JoinRoom(Session, code, nick, ProtocolInfo.Version));
     public override Task<Reply> SetLoadoutAsync(LoadoutDto loadout) => Task.FromResult(_svc.SetLoadout(Session, loadout));
     public override Task<Reply> SetReadyAsync(bool ready) => Task.FromResult(_svc.SetReady(Session, ready));

@@ -96,6 +96,7 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
                 1 => await _conn.InvokeAsync<Reply>(method, args[0]).ConfigureAwait(false),
                 2 => await _conn.InvokeAsync<Reply>(method, args[0], args[1]).ConfigureAwait(false),
                 3 => await _conn.InvokeAsync<Reply>(method, args[0], args[1], args[2]).ConfigureAwait(false),
+                4 => await _conn.InvokeAsync<Reply>(method, args[0], args[1], args[2], args[3]).ConfigureAwait(false),
                 _ => await _conn.InvokeAsync<Reply>(method, args[0], args[1], args[2], args[3], args[4]).ConfigureAwait(false)
             };
         }
@@ -105,7 +106,7 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
         }
     }
 
-    public override Task<Reply> CreateRoomAsync(string nick, bool nextGen = false) => InvokeAsync("CreateRoom", nick, ProtocolInfo.Version, nextGen);
+    public override Task<Reply> CreateRoomAsync(string nick, bool nextGen = false, int players = 2) => InvokeAsync("CreateRoomN", nick, ProtocolInfo.Version, nextGen, players);
     public override Task<Reply> JoinRoomAsync(string code, string nick) => InvokeAsync("JoinRoom", code, nick, ProtocolInfo.Version);
     /// <summary>Koltuk anahtarıyla odaya geri dön (yarım kalan maç): sunucu kurulumu ve tüm eylem geçmişini yeniden gönderir.</summary>
     public Task<Reply> RejoinAsync(string code, string token) => InvokeAsync("Rejoin", code, token, -1);

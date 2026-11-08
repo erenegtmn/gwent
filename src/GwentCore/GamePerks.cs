@@ -42,9 +42,9 @@ public static class PotionIds
 
 public sealed partial class Game
 {
-    private readonly Perks?[] _perks = new Perks?[2];
+    private readonly Perks?[] _perks;
     /// <summary>Kara Kan bir kez işler: hangi oyuncunun iksiri kullanıldı.</summary>
-    private readonly bool[] _blackBloodUsed = new bool[2];
+    private readonly bool[] _blackBloodUsed;
 
     public Perks? PerksOf(int player) => _perks[player];
 
@@ -58,15 +58,15 @@ public sealed partial class Game
 
     /// <summary>Raund başlarken kimin seçeceği: Scoia'tael ya da Kışla (2. seviye). Tam bir oyuncu seçebiliyorsa o seçer.</summary>
     private List<int> FirstChoosers() =>
-        Enumerable.Range(0, 2).Where(i => _players[i].Faction == "scoiatael" || _perks[i]?.ChoosesFirst == true).ToList();
+        Enumerable.Range(0, _players.Length).Where(i => _players[i].Faction == "scoiatael" || _perks[i]?.ChoosesFirst == true).ToList();
 
     /// <summary>Kedi: 1. raund başında rakibin elinden rastgele 3 kart (yalnız iksiri içen görür).</summary>
     private void CatPeek()
     {
-        for (var p = 0; p < 2; p++)
+        for (var p = 0; p < _players.Length; p++)
         {
             if (!HasPotion(p, PotionIds.Cat)) continue;
-            var hand = _players[1 - p].Hand.ToList();
+            var hand = _players[Foe(p, null)].Hand.ToList();
             _rng.Shuffle(hand);
             var picks = hand.Take(3).ToList();
             if (picks.Count > 0) Emit("peek", p, 0, string.Join(",", picks.Select(c => c.Def.Id)), visible: p);
@@ -74,9 +74,8 @@ public sealed partial class Game
     }
 
     /// <summary>Kara Kan: rakibin ilk casusu ona kart çektirmez. true = çekiliş engellendi.</summary>
-    private bool BlackBloodBlocks(int spyPlayer)
+    private bool BlackBloodBlocks(int victim)
     {
-        var victim = 1 - spyPlayer;
         if (!HasPotion(victim, PotionIds.BlackBlood) || _blackBloodUsed[victim]) return false;
         _blackBloodUsed[victim] = true;
         Emit("potion_black_blood", victim, 0);

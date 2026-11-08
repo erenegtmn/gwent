@@ -7,7 +7,8 @@ using GwentNet;
 namespace GwentClient;
 
 /// <summary>Oda kurarken seçenekler: yerel ağ, UPnP (modemde port açma), tünel (cloudflared yolu; null = tünel yok).</summary>
-public sealed record HostOptions(bool NextGen, bool Lan, bool Upnp, string? CloudflaredPath);
+/// <summary>Players: oda koltuk sayısı (3 = üç kişilik maç, KURALLAR §24).</summary>
+public sealed record HostOptions(bool NextGen, bool Lan, bool Upnp, string? CloudflaredPath, int Players = 2);
 
 /// <summary>Host'un arkadaşına verebileceği bir davet: <c>Kind</c> lan | upnp | tunnel.</summary>
 public sealed record InviteOption(string Kind, string Label, string Url, string Invite);
@@ -99,7 +100,7 @@ public sealed class OnlineController : IAsyncDisposable
             server.Rooms.TournamentPersisted += ResumeStore.OnHostTournamentChanged;   // sürmekte olan turnuva da
             Reply r;
             if (create != null) r = await create(link, server.Rooms).ConfigureAwait(false);
-            else if (resume == null) r = await link.CreateRoomAsync(nick, opts.NextGen).ConfigureAwait(false);
+            else if (resume == null) r = await link.CreateRoomAsync(nick, opts.NextGen, opts.Players).ConfigureAwait(false);
             else
             {
                 r = server.Rooms.RestoreRoom(resume);

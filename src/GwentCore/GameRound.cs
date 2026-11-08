@@ -14,9 +14,12 @@ public sealed partial class Game
         if (Round == 1) CatPeek();
         if (Options.RoundWeather) CurseWeather(first);
 
-        for (var p = 0; p < 2; p++)
+        for (var p = 0; p < _players.Length; p++)
         {
             var player = p;
+            // Üç kişi: 2. raunddan itibaren herkes 1 kart çeker (raund sayısı arttığı için; KURALLAR §24).
+            if (ThreePlayer && Round > 1)
+                _work.Enqueue(() => Draw(player, 1));
             // Northern Realms: bir önceki raundu kazandıysa 1 kart çeker.
             if (Round > 1 && _lastRoundWinner == player && _players[player].Faction == "northern_realms")
                 _work.Enqueue(() => Draw(player, 1));
@@ -53,20 +56,22 @@ public sealed partial class Game
 
     private void EndRound()
     {
-        var s0 = PlayerTotal(0);
-        var s1 = PlayerTotal(1);
-        int? winner = s0 > s1 ? 0 : s1 > s0 ? 1 : null;
+        var scores = Enumerable.Range(0, _players.Length).Select(PlayerTotal).ToArray();
+        var max = scores.Max();
+        var top = Enumerable.Range(0, _players.Length).Where(p => scores[p] == max).ToList();
+        int? winner = top.Count == 1 ? top[0] : null;
         if (winner == null)
         {
-            // Nilfgaard beraberlikte kazanır (ikisi de Nilfgaard ise beraberlik kalır).
-            var n0 = _players[0].Faction == "nilfgaard";
-            var n1 = _players[1].Faction == "nilfgaard";
-            if (n0 && !n1) winner = 0;
-            else if (n1 && !n0) winner = 1;
+            // Nilfgaard beraberlikte kazanır (tepede birden çok Nilfgaard varsa beraberlik kalır).
+            var nilf = top.Where(p => _players[p].Faction == "nilfgaard").ToList();
+            if (nilf.Count == 1) winner = nilf[0];
         }
+        var s0 = scores[0];
+        var s1 = scores[1];
 
-        History.Add(new RoundResult(Round, s0, s1, winner));
-        Emit("round_end", winner ?? -1, 0, $"{s0}:{s1}");
+        History.Add(new RoundResult(Round, s0, s1, winner, ThreePlayer ? scores : null));
+        Emit("round_end", winner ?? -1, 0, string.Join(":", scores));
+        if (winner is { } rw) _players[rw].Wins++;
 
         // "Kan Bedeli" laneti: raundu kazanan elinden rastgele bir kart kaybeder
         if (Options.BloodPrice && winner is { } w && _players[w].Hand.Count > 0)
@@ -77,8 +82,11 @@ public sealed partial class Game
             Emit("curse_discard", w, lost.Uid, lost.Def.Id);
         }
 
-        if (winner == null) { _players[0].Gems--; _players[1].Gems--; }
-        else _players[1 - winner.Value].Gems--;
+        if (!ThreePlayer)
+        {
+            if (winner == null) { _players[0].Gems--; _players[1].Gems--; }
+            else _players[1 - winner.Value].Gems--;
+        }
 
         // Monsters: sahadaki birimlerden biri bir sonraki raunda kalır.
         foreach (var p in _players.Where(x => x.Faction == "monsters"))
@@ -95,9 +103,28 @@ public sealed partial class Game
         MoranaKeeps();
         ClearBoard();
 
+        if (ThreePlayer)
+        {
+            // İki raund kazanan alır; 6. raund sonunda en çok kazanan (eşitse beraberlik).
+            var champ = _players.FirstOrDefault(x => x.Wins >= 2);
+            if (champ != null || Round >= MaxRoundsThree)
+            {
+                int? champion = champ?.Index;
+                if (champion == null)
+                {
+                    var best = _players.Max(x => x.Wins);
+                    var leaders = _players.Where(x => x.Wins == best).ToList();
+                    champion = leaders.Count == 1 ? leaders[0].Index : null;
+                }
+                Outcome = new GameOutcome(champion);
+                Phase = Phase.GameOver;
+                Emit("game_end", champion ?? -1, 0);
+                return;
+            }
+        }
         var g0 = _players[0].Gems;
         var g1 = _players[1].Gems;
-        if (g0 <= 0 || g1 <= 0)
+        if (!ThreePlayer && (g0 <= 0 || g1 <= 0))
         {
             Outcome = new GameOutcome(g0 > 0 ? 0 : g1 > 0 ? 1 : null);
             Phase = Phase.GameOver;

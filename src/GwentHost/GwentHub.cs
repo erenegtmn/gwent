@@ -101,6 +101,8 @@ public sealed class GwentHub : Hub
     }
 
     public Reply CreateRoom(string nick, string version, bool nextGen) => _rooms.CreateRoom(Session, nick, version, nextGen);
+    /// <summary>Koltuk sayılı oda (3 = üç kişilik maç). Eski istemciler yukarıdakini çağırır, sürüm uyarısını yine alır.</summary>
+    public Reply CreateRoomN(string nick, string version, bool nextGen, int players) => _rooms.CreateRoom(Session, nick, version, nextGen, players);
     public Reply JoinRoom(string code, string nick, string version) => _rooms.JoinRoom(Session, code, nick, version);
     public Reply Rejoin(string code, string token, int lastSeq) => _rooms.Rejoin(Session, code, token, lastSeq);
     public Reply SetLoadout(LoadoutDto loadout) => _rooms.SetLoadout(Session, loadout);

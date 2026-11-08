@@ -39,13 +39,26 @@ public sealed class GameSession
 
     /// <summary>İzleyici bakışını öbür oyuncuya çevirir (o oyuncunun eli altta görünür).</summary>
     public void FlipView() { if (IsSpectator) MySeat = 1 - MySeat; }
-    public int OppSeat => 1 - MySeat;
+    /// <summary>Sıradaki rakip (iki kişide tek rakip; üç kişide ekranın sol üstündeki).</summary>
+    public int OppSeat => (MySeat + 1) % Game.PlayerCount;
+    public bool ThreePlayer => Game.ThreePlayer;
+
+    /// <summary>Ekrandaki rakipler, koltuk sırasıyla: üç kişide [sol üst, sağ üst].</summary>
+    public IReadOnlyList<int> OppSeats => Game.Opponents(MySeat).ToList();
+
+    /// <summary>Bir koltuğun ekrandaki adı ve portresi (online kurulumdan; yerelde ben / rakip).</summary>
+    public string SeatName(int seat) => seat == MySeat ? MyName : OnlineSetup is { } s && seat < s.PlayerCount ? s.NickOf(seat) : OppName;
+    public string SeatAvatar(int seat) => seat == MySeat ? MyAvatar
+        : OnlineSetup is { } s && seat < s.PlayerCount ? s.SeatOf(seat).Avatar ?? Portraits.Default : OppAvatar;
+
+    /// <summary>Günlük/bildirim öznesi: "Sen", iki kişide "Rakip", üç kişide rakibin adı.</summary>
+    public string Who(int seat) => seat == MySeat ? "Sen" : ThreePlayer ? SeatName(seat) : "Rakip";
 
     /// <summary>Ekranda gösterilen ad ve portreler: online'da kurulumdan, yerelde profilden (rakip yapay zekâ lider yüzüyle).</summary>
-    public string MyName => OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Nick0 : OnlineSetup.Nick1) : (string.IsNullOrWhiteSpace(Settings.Nick) ? "Sen" : Settings.Nick);
-    public string OppName => OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Nick1 : OnlineSetup.Nick0) : OppNameOverride ?? "Rakip";
-    public string MyAvatar => OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Seat0 : OnlineSetup.Seat1).Avatar ?? Portraits.Default : Settings.Portrait;
-    public string OppAvatar => (OnlineSetup != null ? (MySeat == 0 ? OnlineSetup.Seat1 : OnlineSetup.Seat0).Avatar : null) ?? OppAvatarOverride ?? Config.OppLeaderId;
+    public string MyName => OnlineSetup != null ? OnlineSetup.NickOf(MySeat) : (string.IsNullOrWhiteSpace(Settings.Nick) ? "Sen" : Settings.Nick);
+    public string OppName => OnlineSetup != null ? OnlineSetup.NickOf(OppSeat) : OppNameOverride ?? "Rakip";
+    public string MyAvatar => OnlineSetup != null ? OnlineSetup.SeatOf(MySeat).Avatar ?? Portraits.Default : Settings.Portrait;
+    public string OppAvatar => (OnlineSetup != null ? OnlineSetup.SeatOf(OppSeat).Avatar : null) ?? OppAvatarOverride ?? Config.OppLeaderId;
 
     /// <summary>Kariyer maçı: rakibin adı ve portresi (ör. "Kanlı Baron", "face_baron").</summary>
     public string? OppNameOverride { get; init; }
@@ -101,9 +114,9 @@ public sealed class GameSession
         _ai = new RandomAgent(); // kullanılmaz
         OnlineSetup = setup;
         MySeat = setup.YourSeat;
-        Config = new MatchConfig(MySeat == 0 ? setup.Seat0.Faction : setup.Seat1.Faction, MySeat == 0 ? setup.Seat0.LeaderId : setup.Seat1.LeaderId,
-            MySeat == 0 ? setup.Seat1.Faction : setup.Seat0.Faction, MySeat == 0 ? setup.Seat1.LeaderId : setup.Seat0.LeaderId, setup.NextGen, setup.Seed,
-            Curses: setup.Curses);
+        var mine = setup.SeatOf(MySeat);
+        var opp = setup.SeatOf((MySeat + 1) % setup.PlayerCount);
+        Config = new MatchConfig(mine.Faction, mine.LeaderId, opp.Faction, opp.LeaderId, setup.NextGen, setup.Seed, Curses: setup.Curses);
         Replay = setup.ToReplay();
         Game = Replay.CreateGame();
     }
@@ -303,7 +316,7 @@ public sealed class GameSession
 
     private string? Translate(GameEvent e)
     {
-        string W(int p) => Texts.Who(p, MySeat);
+        string W(int p) => Who(p);
         // Raund puanları oyuncu numarasına göredir (0, 1); günlükte "Sen / Rakip" sırasına çevrilir
         string? TerrainChange(TerrainMap tm)
         {
@@ -321,7 +334,20 @@ public sealed class GameSession
         switch (e.Kind)
         {
             case "coin_toss": return $"Yazı-tura: {W(e.Player)} başlıyor.";
-            case "first_chosen": return $"{(Game.Players[e.Player].Faction == "scoiatael" ? "Scoia'tael" : "Kışla")}: {W(e.Player)} {(int.Parse(e.Detail) == e.Player ? "kendisinin başlamasını" : "rakibin başlamasını")} seçti.";
+            case "dice":
+            {
+                // "4,2,6|0,5,5": her atış koltuk sırasıyla; 0 = o atışa katılmadı
+                var rolls = e.Detail.Split('|').Select(r => r.Split(',').Select(int.Parse).ToArray()).ToList();
+                var parts = rolls.Select((r, i) => (i == 0 ? "Zar: " : "Yeniden: ") + string.Join(", ",
+                    Enumerable.Range(0, r.Length).Where(p => r[p] > 0).Select(p => $"{W(p)} {r[p]}")));
+                return string.Join(" · ", parts) + $" — {W(e.Player)} başlıyor.";
+            }
+            case "first_chosen":
+            {
+                var first = int.Parse(e.Detail);
+                var whom = first == e.Player ? "kendisinin başlamasını" : ThreePlayer ? $"{W(first)} başlamasını" : "rakibin başlamasını";
+                return $"{(Game.Players[e.Player].Faction == "scoiatael" ? "Scoia'tael" : "Kışla")}: {W(e.Player)} {whom} seçti.";
+            }
             case "round_start": return $"— Raund {e.Detail} —";
             case "play":
                 _announced.Add(e.CardUid);
@@ -355,10 +381,12 @@ public sealed class GameSession
             case "round_end":
             {
                 var parts = e.Detail.Split(':');
-                var res = e.Player < 0 ? "Berabere." : $"Kazanan: {W(e.Player)}.";
+                var res = e.Player < 0 ? (ThreePlayer ? "Kimse kazanamadı." : "Berabere.") : $"Kazanan: {W(e.Player)}.";
+                if (ThreePlayer)
+                    return $"Raund bitti — Sen {Mine(parts)}, " + string.Join(", ", OppSeats.Select(o => $"{W(o)} {parts[o]}")) + $". {res}";
                 return $"Raund bitti — Sen {Mine(parts)}, Rakip {Theirs(parts)}. {res}";
             }
-            case "game_end": return e.Player < 0 ? "Oyun berabere bitti." : $"Oyun bitti — {(e.Player == MySeat ? "kazandın!" : "rakip kazandı.")}";
+            case "game_end": return e.Player < 0 ? "Oyun berabere bitti." : $"Oyun bitti — {(e.Player == MySeat ? "kazandın!" : ThreePlayer ? $"{W(e.Player)} kazandı." : "rakip kazandı.")}";
             default: return null;
         }
     }

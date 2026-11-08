@@ -136,16 +136,18 @@ public partial class MainWindow : Window
     {
         var setup = session.OnlineSetup!;
         var me = session.MySeat;
-        string Nick(int seat) => seat == 0 ? setup.Nick0 : setup.Nick1;
-        var mine = me == 0 ? setup.Seat0 : setup.Seat1;
-        var theirs = me == 0 ? setup.Seat1 : setup.Seat0;
+        string Nick(int seat) => setup.NickOf(seat);
+        var mine = setup.SeatOf(me);
+        var theirs = setup.SeatOf((me + 1) % setup.PlayerCount);
+        // Üç kişide VS'nin karşı tarafı iki rakibin adını birlikte taşır (görsel sol üstteki rakibin)
+        var theirName = setup.PlayerCount == 3 ? $"{Nick((me + 1) % 3)} & {Nick((me + 2) % 3)}" : Nick(1 - me);
         _pendingNotices.Clear();
         if (_online is { IsHost: false, IsTournament: false } && _online.Link is { State: { } st })
-            ResumeStore.SaveGuest(new GuestResume(st.Code, st.YourToken, _online.Nick, Nick(1 - me), DateTime.UtcNow));
+            ResumeStore.SaveGuest(new GuestResume(st.Code, st.YourToken, _online.Nick, Nick(0), DateTime.UtcNow));
         Music.Start();
         Host.Content = new VsScreen(
             new VsSideInfo(Nick(me), mine.Faction, mine.LeaderId, true, mine.Avatar),
-            new VsSideInfo(Nick(1 - me), theirs.Faction, theirs.LeaderId, false, theirs.Avatar ?? theirs.LeaderId),
+            new VsSideInfo(theirName, theirs.Faction, theirs.LeaderId, false, theirs.Avatar ?? theirs.LeaderId),
             () => ShowOnlineGame(session), animate: true);
     }
 

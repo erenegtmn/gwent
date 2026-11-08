@@ -18,6 +18,7 @@ public sealed class OnlineMenuView : Grid
     private readonly ToggleButton _lan;
     private readonly ToggleButton _tunnel;
     private readonly ToggleButton _upnp;
+    private readonly ToggleButton _three;
     private readonly TextBox _invite = new() { Tag = "online-invite", AcceptsReturn = false };
     private readonly TextBlock _status = new() { FontFamily = Theme.Serif, FontSize = 17 * Theme.FontScale, TextWrapping = TextWrapping.Wrap, MinHeight = 28, HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center };
     private readonly Button _create;
@@ -49,6 +50,8 @@ public sealed class OnlineMenuView : Grid
         _tunnel = Ornate.Option("İnternetten bağlanılsın", "Tünel — önerilir; arkadaşın hiçbir şey kurmaz", true);
         _lan = Ornate.Option("Yerel ağdakiler bağlanabilsin", "Aynı modemdeki arkadaşlar için", true);
         _upnp = Ornate.Option("Modemde port aç (UPnP)", "Gelişmiş; her modemde çalışmaz", false);
+        _three = Ornate.Option("Üç kişilik maç", "Herkes herkese; ilk 2 raundu kazanan alır, sırayı zar belirler", false);
+        _three.Tag = "online-three";
 
         // ---- Sol kapı: oda kur ----
         var host = new StackPanel { Width = 480 };
@@ -58,6 +61,7 @@ public sealed class OnlineMenuView : Grid
         host.Children.Add(_lan);
         host.Children.Add(_upnp);
         host.Children.Add(_nextGen);
+        host.Children.Add(_three);
         _create = Ui.Button("Oda kur", () => CreateClicked(), primary: true);
         _create.FontSize = 24;
         _create.Padding = new Thickness(0, 12, 0, 12);
@@ -269,7 +273,7 @@ public sealed class OnlineMenuView : Grid
         var (cloudflared, terr) = await PrepareTunnelAsync();
         if (terr != null) { Error(terr); return; }
 
-        var opts = new HostOptions(_nextGen.IsChecked == true, _lan.IsChecked == true, _upnp.IsChecked == true, cloudflared);
+        var opts = new HostOptions(_nextGen.IsChecked == true, _lan.IsChecked == true, _upnp.IsChecked == true, cloudflared, _three.IsChecked == true ? 3 : 2);
         var statusProgress = new Progress<string>(m => _status.Text = m);
         var (c, err) = await OnlineController.HostAsync(nick, opts, statusProgress);
         if (c == null) { Error(err ?? "Oda kurulamadı."); return; }
@@ -342,7 +346,7 @@ public sealed class OnlineMenuView : Grid
     private UIElement ResumeStrip(GwentNet.RoomSnapshot snap)
     {
         var box = new StackPanel { Margin = new Thickness(0, 4, 0, 10) };
-        box.Children.Add(Ui.Text($"Yarım kalan maç: {snap.Setup.Nick0} – {snap.Setup.Nick1} ({snap.Actions.Count} hamle)", 17, Theme.B("#e8c970"), true, TextAlignment.Left, true));
+        box.Children.Add(Ui.Text($"Yarım kalan maç: {snap.Setup.Nick0} – {snap.Setup.Nick1}{(snap.Setup.Nick2 != null ? " – " + snap.Setup.Nick2 : "")} ({snap.Actions.Count} hamle)", 17, Theme.B("#e8c970"), true, TextAlignment.Left, true));
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
         var go = Ui.Button("Maça devam et", () => ResumeClicked(snap), primary: true);
         go.Tag = "online-resume";

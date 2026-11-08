@@ -51,10 +51,12 @@ public sealed class Room
 {
     private readonly IClock _clock;
     private readonly Func<int> _seed;
-    internal readonly Seat?[] Seats = new Seat?[2];
+    internal readonly Seat?[] Seats;
 
-    internal Room(string code, bool nextGen, IClock clock, Func<int> seed)
+    internal Room(string code, bool nextGen, IClock clock, Func<int> seed, int capacity = 2)
     {
+        if (capacity is not (2 or 3)) throw new ArgumentOutOfRangeException(nameof(capacity));
+        Seats = new Seat?[capacity];
         Code = code;
         NextGen = nextGen;
         _clock = clock;
@@ -64,6 +66,8 @@ public sealed class Room
 
     public string Code { get; }
     public bool NextGen { get; }
+    /// <summary>Koltuk sayısı: 2 ya da 3 (üç kişilik maç, KURALLAR §24).</summary>
+    public int Capacity => Seats.Length;
     public RoomPhase Phase { get; private set; } = RoomPhase.Lobby;
 
     /// <summary>Draft maçı: iki oyuncu da desteyi bekleme odasında draft ile kurar (oda kuran açar/kapatır).</summary>
@@ -119,8 +123,9 @@ public sealed class Room
     internal Action<Room, MatchResult>? Finished { get; set; }
 
     internal RoomSnapshot? ExportSnapshot() =>
-        Phase == RoomPhase.Playing && Setup != null && Seats[0] != null && Seats[1] != null
-            ? new RoomSnapshot(Code, NextGen, Setup with { YourSeat = 0 }, _log.Select(m => m.Action).ToList(), Seats[0]!.Token, Seats[1]!.Token, _clock.UtcNow)
+        Phase == RoomPhase.Playing && Setup != null && Seats.All(s => s != null)
+            ? new RoomSnapshot(Code, NextGen, Setup with { YourSeat = 0 }, _log.Select(m => m.Action).ToList(), Seats[0]!.Token, Seats[1]!.Token, _clock.UtcNow,
+                Capacity == 3 ? Seats[2]!.Token : null)
             : null;
 
     /// <summary>
@@ -131,7 +136,8 @@ public sealed class Room
     {
         try
         {
-            var room = new Room(snap.Code, snap.NextGen, clock, seed);
+            var room = new Room(snap.Code, snap.NextGen, clock, seed, snap.Setup.Seat2 != null ? 3 : 2);
+            if (room.Capacity == 3 && string.IsNullOrEmpty(snap.Token2)) return null;
             room.Setup = snap.Setup with { YourSeat = 0 };
             room.Curses = room.Setup.Curses?.ToList() ?? new();
             room.Game = room.Setup.ToReplay().CreateGame();
@@ -146,24 +152,43 @@ public sealed class Room
             var now = clock.UtcNow;
             room.Seats[0] = new Seat { Nick = room.Setup.Nick0, Token = snap.Token0, Loadout = room.Setup.Seat0, Ready = true, Connected = false, DisconnectedAt = now };
             room.Seats[1] = new Seat { Nick = room.Setup.Nick1, Token = snap.Token1, Loadout = room.Setup.Seat1, Ready = true, Connected = false, DisconnectedAt = now };
+            if (room.Capacity == 3)
+                room.Seats[2] = new Seat { Nick = room.Setup.Nick2 ?? "", Token = snap.Token2!, Loadout = room.Setup.Seat2, Ready = true, Connected = false, DisconnectedAt = now };
             return room;
         }
         catch (Exception ex) when (ex is ArgumentException or FormatException or OverflowException or InvalidOperationException) { return null; }
     }
 
     internal int SeatCount => Seats.Count(s => s != null);
+    /// <summary>Öteki koltukların numaraları (iki kişide tek rakip).</summary>
+    internal IEnumerable<int> OtherSeats(int seat) => Enumerable.Range(0, Seats.Length).Where(i => i != seat);
     internal Seat? Other(int seat) => Seats[1 - seat];
+
+    /// <summary>Bir oyuncu teslim olur/ayrılırsa kazanan: iki kişide rakip; üç kişide kalanlardan en çok raund kazanan (eşitse beraberlik).</summary>
+    internal int? WinnerWithout(int leaver)
+    {
+        if (Capacity == 2) return 1 - leaver;
+        var rest = OtherSeats(leaver).ToList();
+        var wins = rest.Select(i => Game?.Players[i].Wins ?? 0).ToList();
+        var best = wins.Max();
+        return wins.Count(w => w == best) == 1 ? rest[wins.IndexOf(best)] : null;
+    }
+
+    internal void SendOthers(int seat, Action<IGwentClient> send)
+    {
+        foreach (var i in OtherSeats(seat)) Send(i, send);
+    }
 
     // ---------- Durum ve gönderim ----------
 
     internal RoomState Snapshot(int seat) => new(
         Code, Phase,
-        Enumerable.Range(0, 2).Where(i => Seats[i] != null)
+        Enumerable.Range(0, Seats.Length).Where(i => Seats[i] != null)
             .Select(i => new PlayerInfo(Seats[i]!.Nick, i, Seats[i]!.Connected, Seats[i]!.Ready, Seats[i]!.Loadout,
                 Seats[i]!.Draft?.Picks.Count ?? -1, Seats[i]!.Draft?.Faction, Seats[i]!.Loadout?.Avatar ?? Seats[i]!.Avatar)).ToList(),
         seat, Seats[seat]?.Token ?? "", NextGen, _log.Count, Draft,
         Seats[seat]?.Draft is { } d ? new DraftDto(d.Faction, d.LeaderOffer.ToList(), d.LeaderId, d.Picks.ToList(), d.Offer.ToList()) : null,
-        Curses.Count > 0 ? Curses.ToList() : null);
+        Curses.Count > 0 ? Curses.ToList() : null, Capacity);
 
     internal void Send(int seat, Action<IGwentClient> send)
     {
@@ -173,7 +198,7 @@ public sealed class Room
 
     internal void BroadcastState()
     {
-        for (var i = 0; i < 2; i++)
+        for (var i = 0; i < Seats.Length; i++)
         {
             var seat = i;
             if (Seats[seat] != null) Send(seat, c => c.OnRoomState(Snapshot(seat)));
@@ -222,7 +247,7 @@ public sealed class Room
 
     // ---------- Maç ----------
 
-    internal bool AllReady() => Seats[0] is { Ready: true, Loadout: not null } && Seats[1] is { Ready: true, Loadout: not null };
+    internal bool AllReady() => Seats.All(s => s is { Ready: true, Loadout: not null });
 
     internal void StartMatch()
     {
@@ -232,14 +257,15 @@ public sealed class Room
         var lb = Resolve(b.Loadout!);
         // Ayna (online): desteler takas edilir, portre oyuncuda kalır. Rövanşta oyuncuların kendi seçiminden yeniden takaslanır.
         if (Curses.Contains(GwentAI.Curses.Mirror)) (la, lb) = (lb with { Avatar = la.Avatar }, la with { Avatar = lb.Avatar });
-        Setup = new MatchSetup(_seed(), NextGen, la, lb, a.Nick, b.Nick, 0, Curses.Count > 0 ? Curses.ToList() : null);
+        Setup = new MatchSetup(_seed(), NextGen, la, lb, a.Nick, b.Nick, 0, Curses.Count > 0 ? Curses.ToList() : null,
+            Capacity == 3 ? Resolve(Seats[2]!.Loadout!) : null, Capacity == 3 ? Seats[2]!.Nick : null);
         Game = Setup.ToReplay().CreateGame();
         _log.Clear();
         Result = null;
         Phase = RoomPhase.Playing;
         foreach (var s in Seats) if (s != null) s.Rematch = false;
         Touch();
-        for (var i = 0; i < 2; i++)
+        for (var i = 0; i < Seats.Length; i++)
         {
             var seat = i;
             Send(seat, c => c.OnMatchStarted(Setup! with { YourSeat = seat }));
@@ -269,7 +295,7 @@ public sealed class Room
         var msg = new ActionBroadcast(_log.Count, seat, action);
         _log.Add(msg);
         Touch();
-        for (var i = 0; i < 2; i++) Send(i, c => c.OnActionApplied(msg));
+        for (var i = 0; i < Seats.Length; i++) Send(i, c => c.OnActionApplied(msg));
         SendSpectators(c => c.OnSpectateAction(msg));
         if (Game.Phase == GwentCore.Phase.GameOver) Finish(Game.Outcome?.Winner, "normal");
         else Changed?.Invoke(this);
@@ -288,7 +314,7 @@ public sealed class Room
         Phase = RoomPhase.Finished;
         Result = new MatchResult(winner, reason);
         Touch();
-        for (var i = 0; i < 2; i++) Send(i, c => c.OnMatchEnded(Result));
+        for (var i = 0; i < Seats.Length; i++) Send(i, c => c.OnMatchEnded(Result));
         SendSpectators(c => c.OnSpectateEnded(Result!));
         BroadcastState();
         Changed?.Invoke(this);

@@ -101,6 +101,8 @@ public sealed class PlayerState
     public List<CardInstance> Grave { get; } = new();
     public BoardRow[] Rows { get; } = { new(), new(), new() };
     public int Gems { get; internal set; } = 2;
+    /// <summary>Kazanılan raund sayısı. Üç kişilik maçta mücevherler bununla dolar (2 = maç biter); iki kişide yalnız bilgi.</summary>
+    public int Wins { get; internal set; }
     public bool Passed { get; internal set; }
     public bool MulliganDone { get; internal set; }
     /// <summary>Komutan figürünün satırı (<see cref="GameOptions.Commanders"/> kapalıysa null).</summary>
@@ -118,14 +120,18 @@ public sealed class PlayerState
     public BoardRow Row(RowKind k) => Rows[(int)k];
 }
 
-public sealed record RoundResult(int Round, int Score0, int Score1, int? Winner);
+/// <summary>Raund sonucu. Scores: her oyuncunun skoru (üç kişide dolu; iki kişide null, Score0/Score1 yeter).</summary>
+public sealed record RoundResult(int Round, int Score0, int Score1, int? Winner, IReadOnlyList<int>? Scores = null)
+{
+    public int Score(int player) => Scores != null ? Scores[player] : player == 0 ? Score0 : Score1;
+}
 
 public sealed record GameOutcome(int? Winner); // null = beraberlik
 
 /// <summary>Arayüz, kayıt ve ağ için olay günlüğü. Visible != null ise yalnız o oyuncu görür.</summary>
 public sealed record GameEvent(int Seq, string Kind, int Player, int CardUid, string Detail, int? Visible = null);
 
-public sealed record ChoiceResponse(IReadOnlyList<int> Cards, RowKind? Row = null);
+public sealed record ChoiceResponse(IReadOnlyList<int> Cards, RowKind? Row = null, int? Side = null);
 
 public sealed class PendingChoice
 {
@@ -151,10 +157,13 @@ public readonly record struct ActionResult(bool Ok, string? Error)
 public abstract record GameAction(int Player);
 public sealed record Mulligan(int Player, IReadOnlyList<int> Cards) : GameAction(Player);
 public sealed record ChooseFirst(int Player, int First) : GameAction(Player);
-public sealed record PlayCard(int Player, int Card, RowKind? Row = null, int? Target = null) : GameAction(Player);
+/// <summary>Target: Yem'in birimi. Side: üç kişide casusun konacağı / sıra yakmanın vuracağı rakip (null = sıradaki rakip).</summary>
+public sealed record PlayCard(int Player, int Card, RowKind? Row = null, int? Target = null, int? Side = null) : GameAction(Player);
 public sealed record Pass(int Player) : GameAction(Player);
-public sealed record UseLeader(int Player) : GameAction(Player);
-public sealed record Choose(int Player, IReadOnlyList<int> Cards, RowKind? Row = null) : GameAction(Player);
+/// <summary>Side: üç kişide rakibe dönük yeteneğin hedefi (sıra yakma, el görme); null = uygun ilk rakip.</summary>
+public sealed record UseLeader(int Player, int? Side = null) : GameAction(Player);
+/// <summary>Side: Medic casus geri getirirse üç kişide hangi rakibe konacağı (null = sıradaki rakip).</summary>
+public sealed record Choose(int Player, IReadOnlyList<int> Cards, RowKind? Row = null, int? Side = null) : GameAction(Player);
 
 /// <summary>Seri hâle getirilebilir deste tanımı. Kartlar tekrarlı yazılır (3 kopya = 3 kez).</summary>
 /// <summary>Runes: Kaer Morhen rünleri (<see cref="CardRune"/>); Allies: maça elde başlayan müttefik kartları (<see cref="AllyRules"/>). null = klasik.</summary>

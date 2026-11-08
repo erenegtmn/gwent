@@ -30,8 +30,7 @@ public sealed partial class Game
 
         if (Phase == Phase.ChooseFirst)
         {
-            yield return new ChooseFirst(Current, Current);
-            yield return new ChooseFirst(Current, 1 - Current);
+            for (var p = 0; p < _players.Length; p++) yield return new ChooseFirst(Current, p);
             yield break;
         }
 
@@ -45,6 +44,9 @@ public sealed partial class Game
         if (me.Passed) yield break;
         yield return new Pass(Current);
         if (LeaderBlockedReason(Current) == null) yield return new UseLeader(Current);
+        if (ThreePlayer && LeaderNeedsFoe(Current))
+            foreach (var o in Opponents(Current))
+                if (LeaderBlockedReason(Current, o) == null) yield return new UseLeader(Current, o);
         foreach (var mc in CommanderActions()) yield return mc;
 
         foreach (var card in me.Hand)
@@ -52,13 +54,18 @@ public sealed partial class Game
             var def = card.Def;
             if (def.IsUnit)
             {
-                var side = def.Has("spy") ? 1 - Current : Current;
-                if (def.IsAgile)
+                // Üç kişide casus ve sıra yakan birimler her rakip için ayrı eylemdir.
+                var foes = ThreePlayer && UnitNeedsFoe(card) ? Opponents(Current).Select(o => (int?)o).ToList() : new List<int?> { null };
+                foreach (var foe in foes)
                 {
-                    if (!RowFull(side, RowKind.Close)) yield return new PlayCard(Current, card.Uid, RowKind.Close);
-                    if (!RowFull(side, RowKind.Ranged)) yield return new PlayCard(Current, card.Uid, RowKind.Ranged);
+                    var side = def.Has("spy") ? Foe(Current, foe) : Current;
+                    if (def.IsAgile)
+                    {
+                        if (!RowFull(side, RowKind.Close)) yield return new PlayCard(Current, card.Uid, RowKind.Close, null, foe);
+                        if (!RowFull(side, RowKind.Ranged)) yield return new PlayCard(Current, card.Uid, RowKind.Ranged, null, foe);
+                    }
+                    else if (!RowFull(side, def.FixedRow!.Value)) yield return new PlayCard(Current, card.Uid, null, null, foe);
                 }
-                else if (!RowFull(side, def.FixedRow!.Value)) yield return new PlayCard(Current, card.Uid);
             }
             else if (def.IsWeather || def.Id == Ids.Scorch)
             {
@@ -76,6 +83,10 @@ public sealed partial class Game
             }
         }
     }
+
+    /// <summary>Kart üç kişide hedef rakip ister mi: casus ya da sıra yakan birim.</summary>
+    public static bool UnitNeedsFoe(CardInstance card) =>
+        card.Has("spy") || card.Has("scorch_c") || card.Has("scorch_r") || card.Has("scorch_s");
 
     private IEnumerable<GameAction> PendingActions(PendingChoice pc)
     {
@@ -97,12 +108,17 @@ public sealed partial class Game
         foreach (var uid in uids)
         {
             var c = FindInZones(uid);
-            if (pc.Kind == ChoiceKind.Medic && c != null && c.Def.IsAgile)
+            var foes = ThreePlayer && pc.Kind == ChoiceKind.Medic && c != null && UnitNeedsFoe(c)
+                ? Opponents(pc.Player).Select(o => (int?)o).ToList() : new List<int?> { null };
+            foreach (var foe in foes)
             {
-                yield return new Choose(pc.Player, new[] { uid }, RowKind.Close);
-                yield return new Choose(pc.Player, new[] { uid }, RowKind.Ranged);
+                if (pc.Kind == ChoiceKind.Medic && c != null && c.Def.IsAgile)
+                {
+                    yield return new Choose(pc.Player, new[] { uid }, RowKind.Close, foe);
+                    yield return new Choose(pc.Player, new[] { uid }, RowKind.Ranged, foe);
+                }
+                else yield return new Choose(pc.Player, new[] { uid }, null, foe);
             }
-            else yield return new Choose(pc.Player, new[] { uid });
         }
     }
 }

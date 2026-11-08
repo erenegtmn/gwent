@@ -23,10 +23,14 @@ public sealed class FakeClient : IGwentClient
     private bool _awaitingOwn;
 
     public FakeClient(RoomService svc, string nick, Difficulty difficulty = Difficulty.Hard, int seed = 1)
+        : this(svc, nick, AgentFactory.Create(difficulty, seed)) { }
+
+    /// <summary>Belirli bir ajanla (üç kişilik maçta yapay zekâ yok: rastgele ajan).</summary>
+    public FakeClient(RoomService svc, string nick, IAgent agent)
     {
         _svc = svc;
         Nick = nick;
-        _agent = AgentFactory.Create(difficulty, seed);
+        _agent = agent;
         Session = svc.Connect(this);
     }
 
@@ -99,7 +103,7 @@ public sealed class FakeClient : IGwentClient
         return true;
     }
 
-    public Reply Create(bool nextGen = false) => _svc.CreateRoom(Session, Nick, ProtocolInfo.Version, nextGen);
+    public Reply Create(bool nextGen = false, int players = 2) => _svc.CreateRoom(Session, Nick, ProtocolInfo.Version, nextGen, players);
     public Reply Join(string code) => _svc.JoinRoom(Session, code, Nick, ProtocolInfo.Version);
 
     public Reply Choose(string faction, string? leader = null, List<string>? cards = null)

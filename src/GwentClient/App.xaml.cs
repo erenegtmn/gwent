@@ -73,6 +73,14 @@ public partial class App : Application
             Shutdown(UiSelfTest.RunUpdateSelfTest());
             return;
         }
+        var t3 = Array.IndexOf(e.Args, "--selftest-online-three");
+        if (t3 >= 0)
+        {
+            var games = t3 + 1 < e.Args.Length && int.TryParse(e.Args[t3 + 1], out var n3) ? n3 : 8;
+            Sfx.Enabled = false;
+            Shutdown(UiSelfTest.RunOnlineThree(games, e.Args.Contains("--net")) == 0 ? 0 : 1);
+            return;
+        }
         if (e.Args.Contains("--selftest-online-curses"))
         {
             Sfx.Enabled = false;
@@ -172,6 +180,16 @@ public partial class App : Application
             Sfx.Enabled = false;
             var viaNet = e.Args.Contains("--net");
             Shutdown(UiSelfTest.RunOnline(games, viaNet) == 0 ? 0 : 1);
+            return;
+        }
+        var i3 = Array.IndexOf(e.Args, "--shot-three");
+        if (i3 >= 0 && i3 + 1 < e.Args.Length)
+        {
+            // Yalnız üç kişilik masa ekranları (hızlı görsel doğrulama); tam --shot da bunları içerir
+            Sfx.Enabled = false;
+            System.IO.Directory.CreateDirectory(e.Args[i3 + 1]);
+            ThreeShots.Run((el, name) => Ui.RenderToPng(el, 1920, 1080, System.IO.Path.Combine(e.Args[i3 + 1], name)));
+            Shutdown();
             return;
         }
         var i = Array.IndexOf(e.Args, "--shot");

@@ -12,7 +12,7 @@ public sealed partial class Game
             (c.Has("storm") && row is RowKind.Ranged or RowKind.Siege));
 
     private bool DoubleSpy =>
-        Enumerable.Range(0, 2).Any(p => LeaderPassive(p, "eredin_breacc_glas_the_treacherous"));
+        Enumerable.Range(0, _players.Length).Any(p => LeaderPassive(p, "eredin_breacc_glas_the_treacherous"));
 
     /// <summary>
     /// Bir kartın nihai gücü. Sıra: taban (+Svarog) → hava (Perun muaf) (1'e ya da King Bran ile yarıya; komutanın satırı korunur) → arazi → casus çarpanı
@@ -64,7 +64,7 @@ public sealed partial class Game
 
     internal (int Side, RowKind Row, int Index)? Locate(CardInstance card)
     {
-        for (var s = 0; s < 2; s++)
+        for (var s = 0; s < _players.Length; s++)
             for (var r = 0; r < 3; r++)
             {
                 var i = _players[s].Rows[r].Cards.IndexOf(card);
