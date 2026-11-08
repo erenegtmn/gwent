@@ -256,9 +256,15 @@ public sealed class Room
         var la = Resolve(a.Loadout!);
         var lb = Resolve(b.Loadout!);
         // Ayna (online): desteler takas edilir, portre oyuncuda kalır. Rövanşta oyuncuların kendi seçiminden yeniden takaslanır.
-        if (Curses.Contains(GwentAI.Curses.Mirror)) (la, lb) = (lb with { Avatar = la.Avatar }, la with { Avatar = lb.Avatar });
+        var lc = Capacity == 3 ? Resolve(Seats[2]!.Loadout!) : null;
+        if (Curses.Contains(GwentAI.Curses.Mirror))
+        {
+            // Üç kişide desteler döner: her oyuncu sıradakinin (koltuk +1) destesiyle oynar; portre oyuncuda kalır
+            if (lc != null) (la, lb, lc) = (lb with { Avatar = la.Avatar }, lc with { Avatar = lb.Avatar }, la with { Avatar = lc.Avatar });
+            else (la, lb) = (lb with { Avatar = la.Avatar }, la with { Avatar = lb.Avatar });
+        }
         Setup = new MatchSetup(_seed(), NextGen, la, lb, a.Nick, b.Nick, 0, Curses.Count > 0 ? Curses.ToList() : null,
-            Capacity == 3 ? Resolve(Seats[2]!.Loadout!) : null, Capacity == 3 ? Seats[2]!.Nick : null);
+            lc, Capacity == 3 ? Seats[2]!.Nick : null);
         Game = Setup.ToReplay().CreateGame();
         _log.Clear();
         Result = null;

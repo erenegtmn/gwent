@@ -49,15 +49,16 @@ public class ThreePlayerRoomTests
     }
 
     [Fact]
-    public void Match_waits_for_all_three_and_curses_draft_are_refused()
+    public void Match_waits_for_all_three_and_curses_are_refused()
     {
         var svc = new RoomService();
         var host = new FakeClient(svc, "Geralt");
         var b = new FakeClient(svc, "Yennefer");
         var code = host.Create(players: 3).Value!;
         Assert.True(b.Join(code).Ok);
-        Assert.False(svc.SetCurses(host.Session, new[] { Curses.All[0].Id }).Ok);
-        Assert.False(svc.SetDraft(host.Session, true).Ok);
+        Assert.False(svc.SetCurses(host.Session, new[] { Curses.BloodPrice }).Ok);
+        Assert.True(svc.SetCurses(host.Session, new[] { Curses.Mirror }).Ok);
+        Assert.True(svc.SetCurses(host.Session, Array.Empty<string>()).Ok);
         Assert.True(host.Choose("northern_realms").Ok);
         Assert.True(b.Choose("monsters").Ok);
         Assert.True(host.Ready().Ok);
@@ -163,5 +164,59 @@ public class ThreePlayerRoomTests
         var room = svc2.Find(code)!;
         Assert.Equal(3, room.Capacity);
         Assert.Equal(svc.Find(code)!.Game!.Events.Count, room.Game!.Events.Count);
+    }
+
+    [Fact]
+    public void Three_player_draft_builds_three_decks_and_plays_to_the_end()
+    {
+        var svc = new RoomService(null, () => 321);
+        var c = new[] { new FakeClient(svc, "Geralt", new RandomAgent(1)), new FakeClient(svc, "Yennefer", new RandomAgent(2)), new FakeClient(svc, "Ciri", new RandomAgent(3)) };
+        var code = c[0].Create(players: 3).Value!;
+        Assert.True(c[1].Join(code).Ok);
+        Assert.True(c[2].Join(code).Ok);
+        Assert.True(svc.SetDraft(c[0].Session, true).Ok);
+        Assert.False(svc.SetDraft(c[1].Session, false).Ok);   // yalnız oda kuran
+        var factions = new[] { "monsters", "nilfgaard", "skellige" };
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.True(svc.DraftChoose(c[i].Session, "faction", factions[i]).Ok);
+            FakeClient.Pump(c);
+            Assert.True(svc.DraftChoose(c[i].Session, "leader", c[i].State!.YourDraft!.LeaderOffer[0]).Ok);
+            for (var k = 0; k < GwentAI.Draft.DraftLogic.DeckSize; k++)
+            {
+                FakeClient.Pump(c);
+                Assert.True(svc.DraftChoose(c[i].Session, "card", c[i].State!.YourDraft!.Offer[0]).Ok);
+            }
+            Assert.True(c[i].Ready().Ok);
+        }
+        FakeClient.Pump(c);
+        Assert.Equal(RoomPhase.Playing, svc.Find(code)!.Phase);
+        Assert.Equal(new[] { "monsters", "nilfgaard", "skellige" }, new[] { c[0].Setup!.Seat0.Faction, c[0].Setup.Seat1.Faction, c[0].Setup.Seat2!.Faction });
+        FakeClient.RunToEnd(20000, c);
+        Assert.Equal(Phase.GameOver, svc.Find(code)!.Game!.Phase);
+    }
+
+    [Fact]
+    public void Three_player_mirror_rotates_decks_and_keeps_portraits()
+    {
+        var svc = new RoomService(null, () => 55);
+        var c = new[] { new FakeClient(svc, "Geralt", new RandomAgent(1)), new FakeClient(svc, "Yennefer", new RandomAgent(2)), new FakeClient(svc, "Ciri", new RandomAgent(3)) };
+        var code = c[0].Create(players: 3).Value!;
+        Assert.True(c[1].Join(code).Ok);
+        Assert.True(c[2].Join(code).Ok);
+        Assert.True(svc.SetCurses(c[0].Session, new[] { Curses.Mirror }).Ok);
+        var f = new[] { "monsters", "nilfgaard", "skellige" };
+        for (var i = 0; i < 3; i++)
+        {
+            var leader = CardCatalog.Default.Leaders(f[i]).First(l => l.Edition != "nextgen").Id;
+            Assert.True(svc.SetLoadout(c[i].Session, new LoadoutDto(f[i], leader, null, "av" + i)).Ok);
+            Assert.True(c[i].Ready().Ok);
+        }
+        FakeClient.Pump(c);
+        var s = c[0].Setup!;
+        Assert.Equal(new[] { "nilfgaard", "skellige", "monsters" }, new[] { s.Seat0.Faction, s.Seat1.Faction, s.Seat2!.Faction });
+        Assert.Equal(new[] { "av0", "av1", "av2" }, new[] { s.Seat0.Avatar, s.Seat1.Avatar, s.Seat2.Avatar });
+        FakeClient.RunToEnd(20000, c);
+        Assert.Equal(Phase.GameOver, svc.Find(code)!.Game!.Phase);
     }
 }

@@ -225,6 +225,14 @@ public sealed class LobbyView : Grid
             three.Margin = new Thickness(0, 10, 0, 0);
             three.Tag = "lobby-three";
             titleCol.Children.Add(three);
+            // Üç kişide de draft: oda kuran açar, herkes kendi destesini 25 seçimle kurar
+            var chip = RuleChip("Draft maçı", "Üçünüz de desteyi 25 kez 3 karttan birini seçerek kurarsınız.", Draft, st.YourSeat == 0, "lobby-draft", on => SetDraft(on));
+            if (chip is FrameworkElement fe) { fe.HorizontalAlignment = HorizontalAlignment.Left; fe.Margin = new Thickness(0, 6, 0, 0); }
+            titleCol.Children.Add(chip);
+            var mirror = RuleChip(GwentAI.Curses.Get(GwentAI.Curses.Mirror).Name, "Desteler döner: herkes sol üstteki rakibinin (sıradakinin) destesiyle oynar; senin desteni sağ üstteki oynar.",
+                Mirror, st.YourSeat == 0, "lobby-curse:" + GwentAI.Curses.Mirror, on => ToggleCurse(GwentAI.Curses.Mirror, on));
+            if (mirror is FrameworkElement mf) { mf.HorizontalAlignment = HorizontalAlignment.Left; mf.Margin = new Thickness(0, 6, 0, 0); }
+            titleCol.Children.Add(mirror);
         }
         else if (st != null && st.Phase == RoomPhase.Lobby) titleCol.Children.Add(RulesBar(st));
         head.Children.Add(titleCol);
@@ -399,7 +407,7 @@ public sealed class LobbyView : Grid
         rule.HorizontalAlignment = HorizontalAlignment.Left;
         root.Children.Add(rule);
 
-        if (Mirror) root.Children.Add(MirrorHint("Ayna: burada kurduğun desteyle RAKİBİN oynayacak; sen onun destesiyle.", 560));
+        if (Mirror) root.Children.Add(MirrorHint(Capacity == 3 ? "Ayna: burada kurduğun desteyle SAĞ ÜSTTEKİ rakip oynayacak; sen sol üsttekinin destesiyle." : "Ayna: burada kurduğun desteyle RAKİBİN oynayacak; sen onun destesiyle.", 560));
         (_picker.Parent as Panel)?.Children.Remove(_picker);   // önceki çizimin kökünden ayır
         if (Draft) root.Children.Add(DraftPanel());
         else
@@ -548,7 +556,8 @@ public sealed class LobbyView : Grid
             return sp;
         }
         sp.Children.Add(Ui.Text(opp.Connected ? "● bağlı" : "● bağlantısı koptu", 15, opp.Connected ? Theme.Good : Theme.Bad));
-        if (Mirror) sp.Children.Add(MirrorHint("Ayna: aşağıdaki desteyle SEN oynayacaksın.", 430));
+        if (Mirror && (Capacity == 2 || seat == (State!.YourSeat + 1) % 3)) sp.Children.Add(MirrorHint("Ayna: aşağıdaki desteyle SEN oynayacaksın.", compact ? 400 : 430));
+        else if (Mirror) sp.Children.Add(MirrorHint("Ayna: bu oyuncu SENİN desteni oynayacak.", 400));
 
         if (Draft && opp.Loadout == null)
         {

@@ -188,7 +188,6 @@ public sealed partial class RoomService
             if (s.Seat != 0) return Reply.Fail("Draft'ı yalnız odayı kuran açıp kapatabilir.");
             if (room.Phase != RoomPhase.Lobby) return Reply.Fail("Draft yalnız bekleme odasında seçilir.");
             if (room.Tournament != null) return Reply.Fail("Turnuva maçında draft yok.");
-            if (room.Capacity == 3 && on) return Reply.Fail("Üç kişilik odada draft yok.");
             if (room.Draft == on) return Reply.Success();
             room.Draft = on;
             foreach (var seat in room.Seats)
@@ -217,7 +216,7 @@ public sealed partial class RoomService
             if (room.Phase != RoomPhase.Lobby) return Reply.Fail("Lanetler yalnız bekleme odasında seçilir.");
             if (room.Tournament != null) return Reply.Fail("Turnuva maçında lanet seçilmez.");
             var ids = (curses ?? Enumerable.Empty<string>()).ToList();
-            if (room.Capacity == 3 && ids.Count > 0) return Reply.Fail("Üç kişilik odada lanet yok.");
+            if (room.Capacity == 3 && ids.Any(id => id != Curses.Mirror)) return Reply.Fail("Üç kişilik odada yalnız Ayna laneti var.");
             if (ids.Any(id => Curses.All.All(c => c.Id != id))) return Reply.Fail("Bilinmeyen lanet.");
             var list = Curses.All.Select(c => c.Id).Where(ids.Contains).ToList();
             if (list.SequenceEqual(room.Curses)) return Reply.Success();
