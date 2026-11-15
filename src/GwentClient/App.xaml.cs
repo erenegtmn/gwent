@@ -182,6 +182,14 @@ public partial class App : Application
             Shutdown(UiSelfTest.RunOnline(games, viaNet) == 0 ? 0 : 1);
             return;
         }
+        var hon = Array.IndexOf(e.Args, "--selftest-online-han");
+        if (hon >= 0)
+        {
+            var games = hon + 1 < e.Args.Length && int.TryParse(e.Args[hon + 1], out var hn2) ? hn2 : 3;
+            Sfx.Enabled = false;
+            Shutdown(UiSelfTest.RunOnlineHan(games, e.Args.Contains("--net")) == 0 ? 0 : 1);
+            return;
+        }
         if (e.Args.Contains("--perf-han"))
         {
             Sfx.Enabled = false;

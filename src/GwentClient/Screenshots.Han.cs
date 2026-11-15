@@ -27,8 +27,8 @@ public static class HanShots
         s.ChooseSchool(s.Player.SchoolOptions[0]);
         save(new HanView(s, () => { }, () => { }, animate: false), "han_2a_tezgah.png");
         // erken hazırlık: marketten alınabilenleri al, sahaya sür
-        for (var i = 0; i < Tuning.ShopSize; i++) s.M.Buy(HanSession.Me, i);
-        foreach (var c in s.Player.Cards.ToList()) s.M.Move(HanSession.Me, c.Uid, Match.ZonesFor(c.Def).First());
+        for (var i = 0; i < Tuning.ShopSize; i++) s.Act(HanActKind.Buy, i);
+        foreach (var c in s.Player.Cards.ToList()) s.Act(HanActKind.Move, c.Uid, (int)Match.ZonesFor(c.Def).First());
         v = new HanView(s, () => { }, () => { }, animate: false);
         save(v, "han_2_hazirlik_erken.png");
         // kart incelemesi (fare kartın üstünde): yalnız bilgi penceresi
@@ -46,8 +46,8 @@ public static class HanShots
         {
             v = new HanView(s, () => { }, () => { }, animate: false);
             save(v, "han_4_hazirlik_gec.png");
-            if (s.Player.RewardOptions.Length > 0) s.M.PickReward(HanSession.Me, 0);
-            if (s.Player.PotionOptions.Length > 0) s.M.ChoosePotion(HanSession.Me, 0);
+            if (s.Player.RewardOptions.Length > 0) s.Act(HanActKind.Reward, 0);
+            if (s.Player.PotionOptions.Length > 0) s.Act(HanActKind.Potion, 0);
             v = new HanView(s, () => { }, () => { }, animate: false);
             Click(v, "han-ready");
             save(v, "han_5_aktivasyon.png");
@@ -124,8 +124,8 @@ public static class HanShots
         s.ChooseSchool(s.Player.SchoolOptions[0]);
         for (var i = 0; i < 40 && s.M.Round < 9 && s.Player.Alive && !s.Over; i++) s.AutoRound(rng);
         if (s.Over || !s.Player.Alive) return;
-        if (s.Player.RewardOptions.Length > 0) s.M.PickReward(HanSession.Me, 0);
-        if (s.Player.PotionOptions.Length > 0) s.M.ChoosePotion(HanSession.Me, 0);
+        if (s.Player.RewardOptions.Length > 0) s.Act(HanActKind.Reward, 0);
+        if (s.Player.PotionOptions.Length > 0) s.Act(HanActKind.Potion, 0);
         var v = new HanView(s, () => { }, () => { }, animate: true);
         UiSelfTest.Layout(v);
         Pump(300);

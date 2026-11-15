@@ -103,6 +103,13 @@ public partial class MainWindow : Window
         c.Link.SpectateStarted += OnSpectateStarted;
         c.Link.SpectateEnded += OnSpectateEnded;
         c.Link.Pump();   // bağlanırken kuyrukta kalan iletiler (ör. yarım kalan maçın kurulumu) hemen işlensin
+        if (c.IsHan)
+        {
+            c.Link.HanStarted += OnHanStarted;
+            if (c.Link.Han is { } running) OnHanStarted(running);
+            else Host.Content = new HanLigi.HanLobbyView(c, LeaveOnlineAsync);
+            return;
+        }
         if (c.IsTournament && c.Link.TState is { Phase: GwentNet.TournamentPhase.Running }) { if (c.Link.Match == null) ShowBracket(); }   // yarım kalan turnuva: doğrudan bracket (sürmekte olan maç varsa VS ekranı açılmıştır)
         else if (c.IsTournament) Host.Content = new TournamentLobbyView(c, LeaveOnlineAsync);
         else if (c.Link.Match == null) Host.Content = new LobbyView(c, LeaveOnlineAsync);
@@ -117,6 +124,7 @@ public partial class MainWindow : Window
         if (c is { IsTournament: true, Link.TState: { Phase: GwentNet.TournamentPhase.Lobby } lobby }) TournamentEconomy.Refund(lobby.Code);   // başlamadan ayrılana ücret iade
         if (c != null)
         {
+            c.Link.HanStarted -= OnHanStarted;
             c.Link.TournamentChanged -= OnTournamentChanged;
             c.Link.SpectateStarted -= OnSpectateStarted;
             c.Link.SpectateEnded -= OnSpectateEnded;

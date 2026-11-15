@@ -41,6 +41,9 @@ public sealed class BattleSide
     public List<BattleUnit> Units { get; } = new();
     public List<BattleUnit> Ambush { get; } = new();
     public List<Special> Specials { get; } = new();
+    /// <summary>Hazırlıkta seçilmiş Boynuz / Kalkan satırları (aktivasyonun varsayılanı).</summary>
+    public List<Row> HornAims { get; } = new();
+    public List<Row> ShieldAims { get; } = new();
     /// <summary>Depodaki kartlar (Çağrı için).</summary>
     public List<(CardDef Def, int Star)> Bench { get; } = new();
     public List<Potion> Potions { get; } = new();
@@ -90,6 +93,8 @@ public sealed class Battle
     public int Window { get; private set; }
     public bool Started { get; private set; }
     public bool Done => Window >= 3;
+    /// <summary>Sonucu maça işlendi mi (can, altın, seri, eleme): savaş biter bitmez işlenir (<see cref="Match.Settle"/>).</summary>
+    public bool Settled { get; set; }
     public List<WindowOutcome> Outcomes { get; } = new();
     public List<string> PreLog { get; } = new();
     /// <summary>Savaş öncesi olaylar (hava: Target = satır; Kavurma: Target = satır, Side = birimin tarafı).</summary>
@@ -166,8 +171,8 @@ public sealed class Battle
         var s = Sides[side];
         var a = new Activation();
         var byPower = Enum.GetValues<Row>().OrderByDescending(r => s.In(r).Sum(u => u.Power)).ToArray();
-        for (var i = 0; i < s.Count(Special.Horn); i++) a.Horns.Add(byPower[Math.Min(i, 2)]);
-        for (var i = 0; i < s.Count(Special.Shield); i++) a.Shields.Add(byPower[Math.Min(i, 2)]);
+        for (var i = 0; i < s.Count(Special.Horn); i++) a.Horns.Add(i < s.HornAims.Count ? s.HornAims[i] : byPower[Math.Min(i, 2)]);
+        for (var i = 0; i < s.Count(Special.Shield); i++) a.Shields.Add(i < s.ShieldAims.Count ? s.ShieldAims[i] : byPower[Math.Min(i, 2)]);
         foreach (var m in s.Units.Where(u => u.Def.Ability == Ability.Morale))
             a.Morale[m.Uid] = Enum.GetValues<Row>().OrderByDescending(r => s.In(r).Count(u => u != m)).First();
         return a;

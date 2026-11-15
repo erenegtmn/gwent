@@ -164,7 +164,10 @@ public static class HanBot
     // ---------- savaş ----------
 
     /// <summary>Pencere kararı: açık bilgiye dayalı, gürültülü bir sezgisel.</summary>
-    public static WindowChoice Window(Battle b, int side, Random rng)
+    public static WindowChoice Window(Battle b, int side, Random rng) => Window(b, side, rng, 1.0);
+
+    /// <param name="noiseScale">Karar gürültüsü (1 = klasik bot; güçlü bot daha keskin oynar).</param>
+    public static WindowChoice Window(Battle b, int side, Random rng, double noiseScale)
     {
         // öğretici canavar (R1-2) hiçbir şeye müdahale etmez
         if (b.Pve && b.NoDamage && b.Sides[side].PlayerId < 0) return WindowChoice.None;
@@ -174,7 +177,7 @@ public static class HanBot
         double own = b.PlainRow(side, row);
         var seen = Enumerable.Range(0, b.Window).Select(i => (double)op.RowValues[i]).ToList();
         var est = seen.Count > 0 ? seen.Average() : Enum.GetValues<Row>().Sum(r => b.PlainRow(side, r)) / 3.0;
-        est = Math.Max(1, est * (0.75 + rng.NextDouble() * 0.5));
+        est = Math.Max(1, est * (1 + (rng.NextDouble() - 0.5) * 0.5 * noiseScale));
         var margin = (own - est) / est;
         var last = b.Window == 2;
         var decisive = (last && me.Points == op.Points) || (b.Window == 1 && (me.Points == 1 || op.Points == 1));
@@ -184,7 +187,7 @@ public static class HanBot
         var pi = op.Focus >= 2 ? 0.35 : 0;
         var rem = 3 - b.Window;
         var c = 0.05 * est * Math.Max(0, 1 - me.Focus / (rem * 1.2));
-        var noise = 0.05 * est;
+        var noise = 0.05 * est * noiseScale;
         double Noise() { var u1 = 1 - rng.NextDouble(); var u2 = rng.NextDouble(); return Math.Sqrt(-2 * Math.Log(u1)) * Math.Cos(2 * Math.PI * u2) * noise; }
 
         Sign? sign = null;
@@ -201,7 +204,7 @@ public static class HanBot
         Consider(Sign.Igni, w * 0.22 * est * (1 - pq) - 2 * c);
 
         Potion? potion = null;
-        if (me.Potions.Count > 0 && (w > 0.5 || last) && rng.Next(10) < 7)
+        if (me.Potions.Count > 0 && (w > 0.5 || last) && rng.NextDouble() < 0.7 + 0.3 * (1 - noiseScale))
         {
             var opts = me.Potions.Where(x => x != Potion.Swallow || b.Weather.Contains(row)).Where(x => x != Potion.BlackBlood || op.Focus >= 2).ToList();
             if (opts.Count > 0) potion = opts[rng.Next(opts.Count)];

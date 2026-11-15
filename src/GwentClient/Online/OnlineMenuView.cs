@@ -19,6 +19,7 @@ public sealed class OnlineMenuView : Grid
     private readonly ToggleButton _tunnel;
     private readonly ToggleButton _upnp;
     private readonly ToggleButton _three;
+    private readonly ToggleButton _han;
     private readonly TextBox _invite = new() { Tag = "online-invite", AcceptsReturn = false };
     private readonly TextBlock _status = new() { FontFamily = Theme.Serif, FontSize = 17 * Theme.FontScale, TextWrapping = TextWrapping.Wrap, MinHeight = 28, HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center };
     private readonly Button _create;
@@ -52,6 +53,10 @@ public sealed class OnlineMenuView : Grid
         _upnp = Ornate.Option("Modemde port aç (UPnP)", "Gelişmiş; her modemde çalışmaz", false);
         _three = Ornate.Option("Üç kişilik maç", "Herkes herkese; ilk 2 raundu kazanan alır, sırayı zar belirler", false);
         _three.Tag = "online-three";
+        _han = Ornate.Option("Han Ligi", "Gwent × auto chess, 2-8 kişi; boş koltukları güçlü botlar doldurur", false);
+        _han.Tag = "online-han";
+        _han.Checked += (_, _) => _three.IsChecked = false;
+        _three.Checked += (_, _) => _han.IsChecked = false;
 
         // ---- Sol kapı: oda kur ----
         var host = new StackPanel { Width = 480 };
@@ -62,6 +67,7 @@ public sealed class OnlineMenuView : Grid
         host.Children.Add(_upnp);
         host.Children.Add(_nextGen);
         host.Children.Add(_three);
+        host.Children.Add(_han);
         _create = Ui.Button("Oda kur", () => CreateClicked(), primary: true);
         _create.FontSize = 24;
         _create.Padding = new Thickness(0, 12, 0, 12);
@@ -275,7 +281,9 @@ public sealed class OnlineMenuView : Grid
 
         var opts = new HostOptions(_nextGen.IsChecked == true, _lan.IsChecked == true, _upnp.IsChecked == true, cloudflared, _three.IsChecked == true ? 3 : 2);
         var statusProgress = new Progress<string>(m => _status.Text = m);
-        var (c, err) = await OnlineController.HostAsync(nick, opts, statusProgress);
+        var (c, err) = _han.IsChecked == true
+            ? await OnlineController.HostHanAsync(nick, opts with { Players = 2 }, 8, statusProgress)
+            : await OnlineController.HostAsync(nick, opts, statusProgress);
         if (c == null) { Error(err ?? "Oda kurulamadı."); return; }
         Settings.Nick = nick;
         Settings.Save();

@@ -89,7 +89,7 @@ public static partial class UiSelfTest
                     }
                     var p = s.Player;
                     Check(p.Gold >= 0, "altın eksiye düştü");
-                    Check(p.Fielded.Count() <= p.Slots, "saha slot sınırı aşıldı");
+                    Check(p.Used <= p.Slots && p.Cards.Count(c => c.Zone == Zone.Ambush) <= p.AmbushCap, "saha slot sınırı aşıldı");
                     Check(p.Bench.Count() <= Tuning.BenchSize, "depo sınırı aşıldı");
                     if (s.MyBattle is { } b) Check(b.Sides[s.MySide].Focus >= 0, "Odak eksiye düştü");
                 }

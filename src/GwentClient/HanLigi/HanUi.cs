@@ -302,3 +302,42 @@ public sealed class HanButton : Button
         _lift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(IsPressed ? 1.5 : IsMouseOver ? -2 : 0, TimeSpan.FromMilliseconds(70)));
     }
 }
+
+/// <summary>Düğme ikonları (vektör, altın): kilit açık/kapalı ve yenile oku. Her boyutta keskin.</summary>
+public static class HanGlyph
+{
+    private static FrameworkElement Box(double size, params System.Windows.Shapes.Shape[] parts)
+    {
+        var c = new Canvas { Width = 24, Height = 24 };
+        foreach (var p in parts) c.Children.Add(p);
+        return new Viewbox { Width = size, Height = size, Child = c, IsHitTestVisible = false };
+    }
+
+    private static Brush Ink(bool on) => on ? HanUi.GoldText : HanUi.Br(Color.FromRgb(0xd8, 0xcc, 0xb4));
+
+    /// <summary>Asma kilit; <paramref name="closed"/> değilse halka açık.</summary>
+    public static FrameworkElement Lock(double size, bool closed)
+    {
+        var shackle = new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M7.5,11 L7.5,7.5 A4.5,4.5 0 0 1 16.5,7.5 L16.5," + (closed ? "11" : "8.5")),
+            Stroke = Ink(closed), StrokeThickness = 2.4, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round
+        };
+        if (!closed) shackle.RenderTransform = new TranslateTransform(4.5, -1.5);
+        var body = new System.Windows.Shapes.Path { Data = Geometry.Parse("M5,11 L19,11 Q20,11 20,12 L20,20 Q20,21 19,21 L5,21 Q4,21 4,20 L4,12 Q4,11 5,11 Z"), Fill = Ink(closed) };
+        var hole = new System.Windows.Shapes.Path { Data = Geometry.Parse("M10.4,15.2 A1.6,1.6 0 1 1 13.6,15.2 A1.6,1.6 0 1 1 10.4,15.2 Z M11.3,16 L12.7,16 L12.9,18.8 L11.1,18.8 Z"), Fill = HanUi.Br(Color.FromRgb(0x1a, 0x12, 0x09)) };
+        return Box(size, shackle, body, hole);
+    }
+
+    /// <summary>Yenile: iki ok halkası.</summary>
+    public static FrameworkElement Reroll(double size)
+    {
+        var arcs = new System.Windows.Shapes.Path
+        {
+            Data = Geometry.Parse("M19.5,10 A7.8,7.8 0 0 0 5.6,7.4 M4.5,14 A7.8,7.8 0 0 0 18.4,16.6"),
+            Stroke = HanUi.GoldText, StrokeThickness = 2.4, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round
+        };
+        var heads = new System.Windows.Shapes.Path { Data = Geometry.Parse("M3.2,3.6 L4.4,9.6 L10,7.6 Z M20.8,20.4 L19.6,14.4 L14,16.4 Z"), Fill = HanUi.GoldText };
+        return Box(size, arcs, heads);
+    }
+}

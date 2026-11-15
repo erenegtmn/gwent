@@ -13,6 +13,10 @@ public sealed class OwnedCard
     public Zone Zone { get; set; } = Zone.Bench;
     public int Power => Tuning.Power(Def, Star);
     public bool Fielded => Zone != Zone.Bench;
+    /// <summary>Masa yeri kaplar mı: satırlar ve özel kartlar evet, pusu ve depo hayır (pusu kendi sınırıyla sayılır).</summary>
+    public bool TakesSlot => Zone != Zone.Bench && (Zone != Zone.Ambush || Tuning.AmbushTakesSlot);
+    /// <summary>Boynuz/Kalkan gibi hedefli özel kartın hazırlıkta seçilen satırı (savaşta varsayılan hedef).</summary>
+    public Row? Aim { get; set; }
     public Row? Row => Zone switch { Zone.Close => HanLigi.Row.Close, Zone.Ranged => HanLigi.Row.Ranged, Zone.Siege => HanLigi.Row.Siege, _ => null };
 }
 
@@ -50,10 +54,14 @@ public sealed class PlayerState
     public int Losses { get; set; }
     /// <summary>Seri: art arda PvP galibiyeti (+) ya da yenilgisi (−). PvE ve gölge savaşın karşı tarafı saymaz; beraberlik sıfırlar.</summary>
     public int Streak { get; set; }
+    /// <summary>Tezgâh kilitli: sonraki round'un başında tezgâh yenilenmez, kalan kartlar aynen durur (bir kez).</summary>
+    public bool ShopLocked { get; set; }
 
     public int Slots => Tuning.Slots(Level);
     public int PotionCap => School == HanLigi.School.Viper ? 3 : 2;
     public IEnumerable<OwnedCard> Fielded => Cards.Where(c => c.Fielded);
+    /// <summary>Masa sınırına sayılan kart sayısı (pusu hariç).</summary>
+    public int Used => Cards.Count(c => c.TakesSlot);
     public IEnumerable<OwnedCard> Bench => Cards.Where(c => !c.Fielded);
     public int XpNeeded => Level >= Tuning.MaxLevel ? 0 : Tuning.XpThresholds[Level - 1];
 
@@ -140,8 +148,8 @@ public sealed class Match
             p.Gold += noble >= 3 ? 2 : noble >= 1 ? 1 : 0;
             p.Xp += Tuning.XpPerRound;
             LevelUp(p);
-            ReturnShop(p);
-            RollShop(p);
+            if (p.ShopLocked) p.ShopLocked = false;   // kilitli tezgâh aynen kalır (alınanların yeri boş)
+            else { ReturnShop(p); RollShop(p); }
             p.PotionOptions = Array.Empty<Potion>();
             if (Round >= Tuning.PotionsFromRound && p.Potions.Count < p.PotionCap)
                 p.PotionOptions = Enum.GetValues<Potion>().OrderBy(_ => _misc.Next()).Take(p.School == School.Manticore ? 3 : 2).ToArray();
@@ -237,6 +245,15 @@ public sealed class Match
         return true;
     }
 
+    /// <summary>Tezgâhı kilitler ya da kilidi açar: kilitliyse sonraki round tezgâh yenilenmez.</summary>
+    public bool ToggleShopLock(int pid)
+    {
+        var p = Players[pid];
+        if (!InPrep(p)) return false;
+        p.ShopLocked = !p.ShopLocked;
+        return true;
+    }
+
     public bool BuyXp(int pid)
     {
         var p = Players[pid];
@@ -309,21 +326,36 @@ public sealed class Match
         if (d.Ability == Ability.Ambush) yield return Zone.Ambush;
     }
 
-    public bool CanMove(int pid, int uid, Zone to)
+    /// <summary>Özel kartın hedef satırı seçilebilir mi (Boynuz, Kalkan).</summary>
+    public static bool Aimable(CardDef d) => d.Special is Special.Horn or Special.Shield;
+
+    /// <summary>Hava kartının etkilediği satır (Ayaz yakın, Sis menzilli, Yağmur kuşatma); yoksa null.</summary>
+    public static Row? WeatherRow(Special s) => s switch { Special.Frost => HanLigi.Row.Close, Special.Fog => HanLigi.Row.Ranged, Special.Rain => HanLigi.Row.Siege, _ => null };
+
+    /// <summary>
+    /// Kart taşınabilir mi. Masa sınırı (<see cref="PlayerState.Slots"/>) satırları ve özel kartları sayar; <b>pusu sayılmaz</b>
+    /// (yalnız kendi sınırı vardır), böylece pusu/casus düzeni masadan yer yemez. <paramref name="aim"/>: hedefli özel kartın satırı;
+    /// yerindeki özel kartın yalnız satırı da değiştirilebilir.
+    /// </summary>
+    public bool CanMove(int pid, int uid, Zone to, Row? aim = null)
     {
         var p = Players[pid];
-        if (!InPrep(p) || p.Cards.FirstOrDefault(c => c.Uid == uid) is not { } c || c.Zone == to) return false;
+        if (!InPrep(p) || p.Cards.FirstOrDefault(c => c.Uid == uid) is not { } c) return false;
+        if (aim != null && (to != Zone.Special || !Aimable(c.Def) || !Enum.IsDefined(aim.Value))) return false;
+        if (c.Zone == to) return to == Zone.Special && aim != null && aim != c.Aim;
         if (to == Zone.Bench) return p.Bench.Count() < Tuning.BenchSize;
         if (!ZonesFor(c.Def).Contains(to)) return false;
-        if (!c.Fielded && p.Fielded.Count() >= p.Slots) return false;
+        if (to != Zone.Ambush && !c.TakesSlot && p.Used >= p.Slots) return false;
         if (to == Zone.Ambush && p.Cards.Count(x => x.Zone == Zone.Ambush) >= p.AmbushCap) return false;
         return true;
     }
 
-    public bool Move(int pid, int uid, Zone to)
+    public bool Move(int pid, int uid, Zone to, Row? aim = null)
     {
-        if (!CanMove(pid, uid, to)) return false;
-        Players[pid].Cards.First(c => c.Uid == uid).Zone = to;
+        if (!CanMove(pid, uid, to, aim)) return false;
+        var c = Players[pid].Cards.First(c => c.Uid == uid);
+        c.Zone = to;
+        c.Aim = to == Zone.Special && Aimable(c.Def) ? aim ?? c.Aim : null;
         return true;
     }
 
@@ -388,11 +420,18 @@ public sealed class Match
         var s = new BattleSide { PlayerId = p.Id, Name = nameOverride ?? p.Name, Level = p.Level, School = p.School };
         // Pusu sınırı aşıldıysa (eşik kaybı) fazlası kendi satırına döner
         var amb = p.Cards.Where(c => c.Zone == Zone.Ambush).ToList();
-        for (var i = p.AmbushCap; i < amb.Count; i++) amb[i].Zone = ZonesFor(amb[i].Def).First();
+        // (masada yer yoksa depoya)
+        for (var i = p.AmbushCap; i < amb.Count; i++) amb[i].Zone = p.Used < p.Slots ? ZonesFor(amb[i].Def).First() : Zone.Bench;
         foreach (var c in p.Cards)
         {
             if (!c.Fielded) { s.Bench.Add((c.Def, c.Star)); continue; }
-            if (c.Zone == Zone.Special) { s.Specials.Add(c.Def.Special); continue; }
+            if (c.Zone == Zone.Special)
+            {
+                s.Specials.Add(c.Def.Special);
+                if (c.Aim is { } r && c.Def.Special == Special.Horn) s.HornAims.Add(r);
+                if (c.Aim is { } r2 && c.Def.Special == Special.Shield) s.ShieldAims.Add(r2);
+                continue;
+            }
             var u = new BattleUnit { Uid = c.Uid, Def = c.Def, Star = c.Star, Power = c.Power, Row = c.Row ?? Row.Close };
             if (c.Zone == Zone.Ambush) s.Ambush.Add(u); else s.Units.Add(u);
         }
@@ -496,55 +535,60 @@ public sealed class Match
 
     public int SideOf(Battle b, int pid) => b.Sides[0].PlayerId == pid ? 0 : 1;
 
-    /// <summary>Tüm savaşlar bitince round'u kapatır: hasar, altın, ödüller, elemeler; sonra yeni round ya da bitiş.</summary>
+    /// <summary>
+    /// Biten bir savaşın sonucunu hemen işler: hasar, altın, seri, harcanan simya, PvE ödülü ve <b>eleme</b>. Savaşlar farklı
+    /// anlarda biter (online'da her ikili kendi hızında oynar); erken biten savaşın kaybedeni canını erken kaybeder, elenirse
+    /// sırası o anda kalan oyuncu sayısıdır (sonra elenen daha iyi sıra alır). İkinci kez çağrılırsa bir şey yapmaz.
+    /// </summary>
+    public bool Settle(Battle b)
+    {
+        if (Phase != Phase.Battle || !b.Done || b.Settled || !Battles.Contains(b)) return false;
+        b.Settled = true;
+        var (sa, sb) = (b.Sides[0], b.Sides[1]);
+        var w = b.Winner;
+        var dmg = b.Damage;
+        History.Add(new BattleRecord(Round, sa.PlayerId, sa.Name, sb.Name, b.Pve ? -1 : sb.PlayerId, sa.Points, sb.Points, w, dmg, b.Pve, b.Ghost));
+        for (var i = 0; i < 2; i++)
+        {
+            var side = b.Sides[i];
+            if (side.PlayerId < 0 || (i == 1 && b.Ghost)) continue;
+            var p = Players[side.PlayerId];
+            // kullanılan simya kartları harcanır
+            p.Potions.Clear();
+            p.Potions.AddRange(side.Potions);
+            if (w == i) { p.Gold += Tuning.WinGold; p.Wins++; }
+            else if (w == 1 - i) { p.Hp -= dmg; p.Losses++; }
+            if (!b.Pve) p.Streak = w == i ? Math.Max(0, p.Streak) + 1 : w == 1 - i ? Math.Min(0, p.Streak) - 1 : 0;
+            // PvE ödülü: R1-2'de her durumda, sonra yalnız kazanana
+            if (b.Pve && (Round <= 2 || w == i)) p.RewardOptions = RewardCards(p);
+            if (p.Alive && p.Hp <= 0) Eliminate(p);
+        }
+        return true;
+    }
+
+    private void Eliminate(PlayerState p)
+    {
+        p.Place = Alive.Count();
+        p.Alive = false;
+        p.EliminatedRound = Round;
+        foreach (var c in p.Cards) Pool[c.Def.Id] += c.Def.IsHero ? 1 : c.Star == 1 ? 1 : c.Star == 2 ? 3 : 9;
+        p.Cards.Clear();
+        ReturnShop(p);
+        p.ShopLocked = false;
+        foreach (var r in p.RewardOptions) Pool[r.Id]++;
+        p.RewardOptions = Array.Empty<CardDef>();
+    }
+
+    /// <summary>Tüm savaşlar bitince round'u kapatır (işlenmemiş savaş kaldıysa önce işlenir); sonra yeni round ya da bitiş.</summary>
     public bool EndRound()
     {
         if (Phase != Phase.Battle || Battles.Any(b => !b.Done)) return false;
-        foreach (var b in Battles)
-        {
-            var (sa, sb) = (b.Sides[0], b.Sides[1]);
-            var ghost = b.Ghost;
-            var w = b.Winner;
-            var dmg = b.Damage;
-            History.Add(new BattleRecord(Round, sa.PlayerId, sa.Name, sb.Name, b.Pve ? -1 : sb.PlayerId, sa.Points, sb.Points, w, dmg, b.Pve, ghost));
-            for (var i = 0; i < 2; i++)
-            {
-                var side = b.Sides[i];
-                if (side.PlayerId < 0 || (i == 1 && ghost)) continue;
-                var p = Players[side.PlayerId];
-                // kullanılan simya kartları harcanır
-                p.Potions.Clear();
-                p.Potions.AddRange(side.Potions);
-                if (w == i) { p.Gold += Tuning.WinGold; p.Wins++; }
-                else if (w == 1 - i) { p.Hp -= dmg; p.Losses++; }
-                if (!b.Pve) p.Streak = w == i ? Math.Max(0, p.Streak) + 1 : w == 1 - i ? Math.Min(0, p.Streak) - 1 : 0;
-                // PvE ödülü: R1-2'de her durumda, sonra yalnız kazanana
-                if (b.Pve && (Round <= 2 || w == i)) p.RewardOptions = RewardCards(p);
-            }
-        }
-        var dead = Alive.Where(p => p.Hp <= 0).OrderBy(p => p.Hp).ToList();
-        var place = Alive.Count();
-        foreach (var grp in dead.GroupBy(p => p.Hp).OrderBy(g => g.Key))
-        {
-            var cnt = grp.Count();
-            foreach (var p in grp)
-            {
-                p.Alive = false;
-                p.Place = place - cnt + 1;
-                p.EliminatedRound = Round;
-                foreach (var c in p.Cards) Pool[c.Def.Id] += c.Def.IsHero ? 1 : c.Star == 1 ? 1 : c.Star == 2 ? 3 : 9;
-                p.Cards.Clear();
-                ReturnShop(p);
-                foreach (var r in p.RewardOptions) Pool[r.Id]++;
-                p.RewardOptions = Array.Empty<CardDef>();
-            }
-            place -= cnt;
-        }
+        foreach (var b in Battles.ToList()) Settle(b);
         var alive = Alive.ToList();
         if (alive.Count <= 1)
         {
+            // tek kalan kazanır; hepsi elendiyse en son elenen zaten 1. sıradadır
             if (alive.Count == 1) alive[0].Place = 1;
-            else foreach (var p in dead.Where(p => p.Hp == dead.Max(x => x.Hp))) p.Place = 1;   // hepsi aynı anda elendi: canı en yüksek olan
             Phase = Phase.Finished;
             Battles.Clear();
             return true;

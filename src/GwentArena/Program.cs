@@ -104,6 +104,21 @@ if (args.Length > 0 && args[0] == "runes")
     return;
 }
 
+if (args.Length > 0 && args[0] == "han-meta")
+{
+    // dotnet run --project src/GwentArena -c Release -- han-meta [maç] [tohum] [çıktı.md]
+    HanLigi.Tuning.AmbushTakesSlot = args.Contains("--ambush-slot");   // karşılaştırma: eski kural
+    var mg = args.Length > 1 ? int.Parse(args[1]) : 1000;
+    var ms = args.Length > 2 ? int.Parse(args[2]) : 1;
+    var rep = HanLigi.Meta.Run(mg, ms, d => Console.Error.Write($"\r{d}/{mg}"));
+    Console.Error.WriteLine($"\r{mg} maç, {rep.Seconds:F0} sn");
+    var md = HanLigi.Meta.Markdown(rep, $"Meta ölçümü ({DateTime.Now:yyyy-MM-dd})");
+    Console.OutputEncoding = System.Text.Encoding.UTF8;
+    Console.WriteLine(md);
+    if (args.Length > 3) File.WriteAllText(args[3], md);
+    return;
+}
+
 if (args.Length > 0 && args[0] == "sweep")
 {
     // dotnet run --project src/GwentArena -c Release -- sweep [oyun/eşleşme]

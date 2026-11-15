@@ -25,6 +25,7 @@ public sealed class ServerSession
     internal Tournament? Tournament { get; set; }
     internal int TIndex { get; set; } = -1;
     internal Room? Watching { get; set; }
+    internal HanRoom? Han { get; set; }
 }
 
 internal sealed class Seat

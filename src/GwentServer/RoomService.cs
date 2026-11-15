@@ -77,7 +77,7 @@ public sealed partial class RoomService
             var chars = new char[5];
             for (var i = 0; i < chars.Length; i++) chars[i] = CodeAlphabet[RandomNumberGenerator.GetInt32(CodeAlphabet.Length)];
             var code = new string(chars);
-            if (!_rooms.ContainsKey(code) && !_tournaments.ContainsKey(code)) return code;
+            if (!_rooms.ContainsKey(code) && !_tournaments.ContainsKey(code) && !_han.ContainsKey(code)) return code;
         }
         throw new InvalidOperationException("Oda kodu üretilemedi.");
     }
@@ -89,7 +89,7 @@ public sealed partial class RoomService
     {
         lock (_gate)
         {
-            if (s.Room != null) return Reply.Fail("Zaten bir odadasın.");
+            if (s.Room != null || s.Han != null) return Reply.Fail("Zaten bir odadasın.");
             if (players is not (2 or 3)) return Reply.Fail("Oda 2 ya da 3 kişilik olur.");
             if (version != ProtocolInfo.Version) return Reply.Fail($"Sürüm uyuşmuyor (sende {version}, sunucuda {ProtocolInfo.Version}). Oyunu güncelle.");
             if (CheckNick(nick) is { } err) return Reply.Fail(err);
@@ -102,13 +102,17 @@ public sealed partial class RoomService
         }
     }
 
-    public Reply JoinRoom(ServerSession s, string code, string nick, string version)
+    public Reply JoinRoom(ServerSession s, string code, string nick, string version) => JoinRoom(s, code, nick, version, null);
+
+    /// <summary>Odaya katılır. Kod bir Han Ligi odasınınsa ona katılır ve dönen değer "han:KOD" olur (istemci ekranı buna göre seçer).</summary>
+    public Reply JoinRoom(ServerSession s, string code, string nick, string version, string? avatar)
     {
         lock (_gate)
         {
-            if (s.Room != null) return Reply.Fail("Zaten bir odadasın.");
+            if (s.Room != null || s.Han != null) return Reply.Fail("Zaten bir odadasın.");
             if (version != ProtocolInfo.Version) return Reply.Fail($"Sürüm uyuşmuyor (sende {version}, sunucuda {ProtocolInfo.Version}). Oyunu güncelle.");
             if (CheckNick(nick) is { } err) return Reply.Fail(err);
+            if (_han.TryGetValue(code.Trim(), out var han)) return JoinHan(s, han, nick, avatar);
             if (!_rooms.TryGetValue(code.Trim(), out var room)) return Reply.Fail("Böyle bir oda yok.");
             if (room.Phase != RoomPhase.Lobby) return Reply.Fail("Bu odada maç başlamış.");
             var free = Array.FindIndex(room.Seats, x => x == null);
@@ -133,7 +137,8 @@ public sealed partial class RoomService
     {
         lock (_gate)
         {
-            if (s.Room != null) return Reply.Fail("Zaten bir odadasın.");
+            if (s.Room != null || s.Han != null) return Reply.Fail("Zaten bir odadasın.");
+            if (_han.TryGetValue(code.Trim(), out var han)) return RejoinHan(s, han, token, lastSeq);
             if (!_rooms.TryGetValue(code.Trim(), out var room)) return Reply.Fail("Oda artık yok.");
             var seat = Enumerable.Range(0, room.Capacity).FirstOrDefault(i => room.Seats[i]?.Token == token && token.Length > 0, -1);
             if (seat < 0) return Reply.Fail("Koltuk anahtarı geçersiz.");
@@ -354,6 +359,7 @@ public sealed partial class RoomService
         lock (_gate)
         {
             StopWatchingInternal(s);
+            LeaveHan(s);
             if (s.Room is { } room)
             {
                 if (room.Phase == RoomPhase.Playing) room.Finish(room.WinnerWithout(s.Seat), "resigned");
@@ -370,6 +376,7 @@ public sealed partial class RoomService
         {
             StopWatchingInternal(s);
             TournamentDisconnected(s);
+            DisconnectHan(s);
             if (s.Room is not { } room) return;
             var seat = room.Seats[s.Seat];
             if (seat == null || seat.Session != s) return;
@@ -425,7 +432,7 @@ public sealed partial class RoomService
                 _clock.UtcNow - r.LastActivity > idle
                 || (r.Phase != RoomPhase.Playing && r.Seats.All(x => x == null || !x.Connected))).Select(r => r.Code).ToList();
             foreach (var code in dead) _rooms.Remove(code);
-            return dead.Count + SweepTournaments(idle);
+            return dead.Count + SweepTournaments(idle) + SweepHan(idle);
         }
     }
 }

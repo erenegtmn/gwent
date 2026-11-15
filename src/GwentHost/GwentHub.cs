@@ -12,7 +12,7 @@ namespace GwentHost;
 /// görev tarafından sırayla gönderilir; böylece eylemler ağda da sıra numarasıyla aynı sırada varır. Sunucu kilidi altında
 /// çağrıldığı için asla beklemez (yalnız kuyruğa yazar).
 /// </summary>
-public sealed class HubClientProxy : IGwentClient
+public sealed class HubClientProxy : IGwentClient, IHanClient
 {
     private readonly Channel<Func<Task>> _queue = Channel.CreateUnbounded<Func<Task>>(new UnboundedChannelOptions { SingleReader = true });
     private readonly IClientProxy _client;
@@ -46,6 +46,9 @@ public sealed class HubClientProxy : IGwentClient
     public void OnSpectateStarted(SpectateSetup setup) => Send(HubMethods.OnSpectateStarted, setup);
     public void OnSpectateAction(ActionBroadcast action) => Send(HubMethods.OnSpectateAction, action);
     public void OnSpectateEnded(MatchResult result) => Send(HubMethods.OnSpectateEnded, result);
+    public void OnHanState(HanRoomState state) => Send(HubMethods.OnHanState, state);
+    public void OnHanStarted(HanSetup setup) => Send(HubMethods.OnHanStarted, setup);
+    public void OnHanAction(HanBroadcast action) => Send(HubMethods.OnHanAction, action);
 }
 
 /// <summary>Bağlantı kimliği → sunucu oturumu.</summary>
@@ -104,6 +107,14 @@ public sealed class GwentHub : Hub
     /// <summary>Koltuk sayılı oda (3 = üç kişilik maç). Eski istemciler yukarıdakini çağırır, sürüm uyarısını yine alır.</summary>
     public Reply CreateRoomN(string nick, string version, bool nextGen, int players) => _rooms.CreateRoom(Session, nick, version, nextGen, players);
     public Reply JoinRoom(string code, string nick, string version) => _rooms.JoinRoom(Session, code, nick, version);
+    /// <summary>Portreli katılma (Han Ligi odaları portreyi bekleme odasında gösterir). Değer "han:KOD" ise oda Han Ligi odasıdır.</summary>
+    public Reply JoinRoomA(string code, string nick, string version, string? avatar) => _rooms.JoinRoom(Session, code, nick, version, avatar);
+
+    // Han Ligi
+    public Reply CreateHanRoom(string nick, string version, int size, string? avatar) => _rooms.CreateHanRoom(Session, nick, version, size, avatar);
+    public Reply HanSetSize(int size) => _rooms.HanSetSize(Session, size);
+    public Reply HanSetReady(bool ready) => _rooms.HanSetReady(Session, ready);
+    public Reply HanSubmit(HanLigi.HanAction action) => _rooms.HanSubmit(Session, action);
     public Reply Rejoin(string code, string token, int lastSeq) => _rooms.Rejoin(Session, code, token, lastSeq);
     public Reply SetLoadout(LoadoutDto loadout) => _rooms.SetLoadout(Session, loadout);
     public Reply SetReady(bool ready) => _rooms.SetReady(Session, ready);

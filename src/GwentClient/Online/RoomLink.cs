@@ -20,7 +20,42 @@ public abstract class RoomLinkBase : IMatchLink
     public TournamentState? TState { get; private set; }
     public GameSession? Spectate { get; private set; }
     public MatchResult? Result { get; private set; }
-    public string? RoomCode => State?.Code;
+    public string? RoomCode => State?.Code ?? HanState?.Code;
+
+    // ---------- Han Ligi ----------
+    public HanRoomState? HanState { get; private set; }
+    public GwentClient.HanLigi.HanSession? Han { get; private set; }
+    public event Action? HanStateChanged;
+    public event Action<GwentClient.HanLigi.HanSession>? HanStarted;
+    /// <summary>Alınan son Han eyleminin sıra numarası (yeniden bağlanınca eksikleri istemek için).</summary>
+    public int HanLastSeq => Volatile.Read(ref _hanSeq);
+    private int _hanSeq = -1;
+
+    protected void ReceiveHanState(HanRoomState s) => Enqueue(() => { HanState = s; HanStateChanged?.Invoke(); });
+
+    protected void ReceiveHanStarted(HanSetup s)
+    {
+        Volatile.Write(ref _hanSeq, -1);   // kurulum (ilk ya da yeniden bağlanınca baştan): eylemler 0'dan
+        Enqueue(() =>
+        {
+            Han = new GwentClient.HanLigi.HanSession(s, HanSubmit);
+            HanStarted?.Invoke(Han);
+        });
+    }
+
+    protected void ReceiveHanAction(HanBroadcast b)
+    {
+        // aynı eylem iki kez gelirse (yeniden bağlanma) yok sayılır; sıra korunur
+        if (b.Seq <= Volatile.Read(ref _hanSeq)) return;
+        Volatile.Write(ref _hanSeq, b.Seq);
+        Enqueue(() => Han?.Receive(b.Action));
+    }
+
+    public abstract Task<Reply> CreateHanRoomAsync(string nick, int size, string? avatar);
+    public abstract Task<Reply> JoinRoomAvatarAsync(string code, string nick, string? avatar);
+    public abstract Task<Reply> HanSetSizeAsync(int size);
+    public abstract Task<Reply> HanSetReadyAsync(bool ready);
+    public abstract void HanSubmit(global::HanLigi.HanAction action);
     public int Seat => State?.YourSeat ?? -1;
 
     /// <summary>Doluysa iletiler bunun üzerinden arayüz iş parçacığına aktarılır (<c>Dispatcher.BeginInvoke</c>); boşsa <see cref="Pump"/> elle çağrılır.</summary>
@@ -143,7 +178,7 @@ public abstract class RoomLinkBase : IMatchLink
 }
 
 /// <summary>Aynı süreçteki sunucuya doğrudan bağlanan bağlantı (ağ yok); sınamalar ve tek bilgisayarda hızlı deneme için.</summary>
-public sealed class RoomLink : RoomLinkBase, IGwentClient
+public sealed class RoomLink : RoomLinkBase, IGwentClient, IHanClient
 {
     private readonly RoomService _svc;
 
@@ -166,6 +201,17 @@ public sealed class RoomLink : RoomLinkBase, IGwentClient
     public void OnSpectateStarted(SpectateSetup setup) => ReceiveSpectateStarted(setup);
     public void OnSpectateAction(ActionBroadcast action) => ReceiveSpectateAction(action);
     public void OnSpectateEnded(MatchResult result) => ReceiveSpectateEnded(result);
+    public void OnHanState(HanRoomState state) => ReceiveHanState(state);
+    public void OnHanStarted(HanSetup setup) => ReceiveHanStarted(setup);
+    public void OnHanAction(HanBroadcast action) => ReceiveHanAction(action);
+
+    public override Task<Reply> CreateHanRoomAsync(string nick, int size, string? avatar) => Task.FromResult(_svc.CreateHanRoom(Session, nick, ProtocolInfo.Version, size, avatar));
+    public override Task<Reply> JoinRoomAvatarAsync(string code, string nick, string? avatar) => Task.FromResult(_svc.JoinRoom(Session, code, nick, ProtocolInfo.Version, avatar));
+    public override Task<Reply> HanSetSizeAsync(int size) => Task.FromResult(_svc.HanSetSize(Session, size));
+    public override Task<Reply> HanSetReadyAsync(bool ready) => Task.FromResult(_svc.HanSetReady(Session, ready));
+    public override void HanSubmit(global::HanLigi.HanAction action) => _svc.HanSubmit(Session, action);
+    /// <summary>Koltuk anahtarıyla geri dön (sınama).</summary>
+    public Reply Rejoin(string code, string token, int lastSeq) => _svc.Rejoin(Session, code, token, lastSeq);
 
     public override Task<Reply> CreateRoomAsync(string nick, bool nextGen = false, int players = 2) => Task.FromResult(_svc.CreateRoom(Session, nick, ProtocolInfo.Version, nextGen, players));
     public override Task<Reply> JoinRoomAsync(string code, string nick) => Task.FromResult(_svc.JoinRoom(Session, code, nick, ProtocolInfo.Version));

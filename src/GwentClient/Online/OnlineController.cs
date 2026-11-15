@@ -40,6 +40,9 @@ public sealed class OnlineController : IAsyncDisposable
     /// <summary>Bu oturum bir turnuva mı (oda yerine)? Katılırken oda bulunamazsa turnuva denenir; ayrıca ekranlar buna göre seçilir.</summary>
     public bool IsTournament { get; private set; }
 
+    /// <summary>Bu oturum bir Han Ligi odası mı? Katılırken sunucu "han:KOD" döner.</summary>
+    public bool IsHan { get; private set; }
+
     /// <summary>Host'un arkadaşlarına verebileceği davetler (en iyisi başta: tünel, UPnP, yerel ağ).</summary>
     public IReadOnlyList<InviteOption> Invites { get; private set; } = Array.Empty<InviteOption>();
 
@@ -61,6 +64,14 @@ public sealed class OnlineController : IAsyncDisposable
     /// </summary>
     public static Task<(OnlineController? Controller, string? Error)> HostAsync(string nick, HostOptions opts, IProgress<string>? progress) =>
         HostCoreAsync(nick, opts, progress, null);
+
+    /// <summary>Han Ligi odası kurar (aynı bağlantı yolları ve davet kodu). <paramref name="size"/>: maçtaki toplam koltuk; eksikleri bot doldurur.</summary>
+    public static async Task<(OnlineController? Controller, string? Error)> HostHanAsync(string nick, HostOptions opts, int size, IProgress<string>? progress)
+    {
+        var r = await HostCoreAsync(nick, opts, progress, null, (link, _) => link.CreateHanRoomAsync(nick, size, Settings.Portrait)).ConfigureAwait(false);
+        if (r.Controller != null) r.Controller.IsHan = true;
+        return r;
+    }
 
     /// <summary>Turnuva kurar: oda yerine turnuva açılır (aynı bağlantı yolları: tünel/yerel ağ/UPnP ve davet kodu).</summary>
     public static Task<(OnlineController? Controller, string? Error)> HostTournamentAsync(string nick, HostOptions opts, int maxPlayers, int entryFee, IProgress<string>? progress) =>
@@ -195,7 +206,7 @@ public sealed class OnlineController : IAsyncDisposable
                 if (resuming && saved!.IsTournament) asTournament = true;
                 var r = resuming
                     ? await (saved!.IsTournament ? link.RejoinTournamentAsync(roomCode, saved.Token) : link.RejoinAsync(roomCode, saved.Token)).ConfigureAwait(false)
-                    : await link.JoinRoomAsync(roomCode, nick).ConfigureAwait(false);
+                    : await link.JoinRoomAvatarAsync(roomCode, nick, Settings.Portrait).ConfigureAwait(false);
                 if (!r.Ok && !resuming && r.Error == "Böyle bir oda yok.")
                 {
                     // Aynı kod alanı odalar ve turnuvalar için ortaktır: oda yoksa turnuva olabilir
@@ -208,7 +219,8 @@ public sealed class OnlineController : IAsyncDisposable
                     if (resuming) ResumeStore.ClearGuest();   // oda artık yok ya da anahtar geçersiz: eski kayıt işe yaramaz
                     return (null, resuming ? "Yarım kalan maça dönülemedi: " + r.Error : r.Error);
                 }
-                return (new OnlineController(link, null, url) { Nick = nick, IsTournament = asTournament }, null);
+                var han = r.Value?.StartsWith("han:", StringComparison.Ordinal) == true;
+                return (new OnlineController(link, null, url) { Nick = nick, IsTournament = asTournament, IsHan = han }, null);
             }
             catch (Exception ex)
             {

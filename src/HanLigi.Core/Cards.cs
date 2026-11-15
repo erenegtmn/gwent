@@ -113,6 +113,9 @@ public static class CardSet
 /// <summary>Ayar sayıları (YENI_MOD.md §15; 7. tur model ölçümünden).</summary>
 public static class Tuning
 {
+    /// <summary>Yalnız ölçüm için (meta karşılaştırması): pusu eskisi gibi masa yeri yesin mi. Oyunda her zaman false.</summary>
+    public static bool AmbushTakesSlot;
+
     public const int StartHp = 100;
     public const int StartGold = 5;
     public const int Income = 4;

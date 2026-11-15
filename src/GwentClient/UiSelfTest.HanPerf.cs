@@ -21,8 +21,8 @@ public static partial class UiSelfTest
         var s = new HanSession(424242, "Ölçüm") { Timed = false };
         s.ChooseSchool(s.Player.SchoolOptions[0]);
         for (var i = 0; i < 40 && s.M.Round < 7 && s.Player.Alive && !s.Over; i++) s.AutoRound(rng);
-        if (s.Player.RewardOptions.Length > 0) s.M.PickReward(HanSession.Me, 0);
-        if (s.Player.PotionOptions.Length > 0) s.M.ChoosePotion(HanSession.Me, 0);
+        if (s.Player.RewardOptions.Length > 0) s.Act(HanActKind.Reward, 0);
+        if (s.Player.PotionOptions.Length > 0) s.Act(HanActKind.Potion, 0);
         s.Timed = true;
         var view = new HanView(s, () => { }, () => { }, animate: true);
         var win = new Window { Width = 1600, Height = 900, Content = view, WindowStartupLocation = WindowStartupLocation.CenterScreen, Title = "Han Ligi ölçüm" };

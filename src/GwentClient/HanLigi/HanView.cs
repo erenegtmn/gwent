@@ -46,6 +46,8 @@ public sealed partial class HanView : Grid
     private readonly Canvas _shop = new() { Width = 1920, Height = 1080 };
     /// <summary>Süre çubuğu ve sayaç: tek başına, önbelleksiz (her karede akıcı akar, başka hiçbir şeyi yeniden çizdirmez).</summary>
     private readonly Canvas _clockLayer = new() { Width = 1920, Height = 1080, IsHitTestVisible = false };
+    /// <summary>Bildirimler (öteki masaların sonuçları): ekran yeniden çizilince silinmez.</summary>
+    private readonly Canvas _toasts = new() { Width = 1920, Height = 1080, IsHitTestVisible = false };
     private readonly FxEngine _engine = new();
     internal FxEngine Engine => _engine;
     private readonly Dictionary<int, FrameworkElement> _unitEls = new();
@@ -68,6 +70,16 @@ public sealed partial class HanView : Grid
     /// <summary>Animasyon sürerken girdi kapalı; her yeni animasyon dizisi kuşağı artırır (eski zamanlayıcılar kendini iptal eder).</summary>
     private bool _busy;
     private int _gen;
+    // online bekleme durumları: sunucudan yanıt gelince bir sonraki adıma geçilir
+    private bool _waitReady, _waitAct, _waitRound;
+    private int? _waitWindow;
+    /// <summary>Kendi savaşımın sonu ekranda gösterildi mi. Motor canı savaş biter bitmez düşürür; ekran, sonuç sinematiği
+    /// oynayana kadar eski canı gösterir (sürpriz bozulmasın).</summary>
+    private bool _resultShown = true;
+    /// <summary>Bildirimi yapılmış savaş kaydı sayısı (öteki masaların sonuçları).</summary>
+    private int _histSeen = -1;
+    private readonly Dictionary<int, int> _hpShownLast = new();
+    private (int Mine, int Theirs) _scoreShown = (-1, -1);
 
     private Match M => Session.M;
     private PlayerState Me => Session.Player;
@@ -99,7 +111,7 @@ public sealed partial class HanView : Grid
         _live = animate;
         Background = Brushes.Black;
         _scene = new HanScene(animate);
-        foreach (var layer in new UIElement[] { _scene, _rows, _anim, _units, _c, _shop, _fx, _engine, _clockLayer, _banner, _hover }) _stage.Children.Add(layer);
+        foreach (var layer in new UIElement[] { _scene, _rows, _anim, _units, _c, _shop, _fx, _engine, _clockLayer, _toasts, _banner, _hover }) _stage.Children.Add(layer);
         // durağan katmanlar GPU dokusu olarak önbelleğe alınır (ölçek pencere boyuna göre ayarlanır: yazılar net kalır)
         foreach (var layer in new UIElement[] { _scene, _rows, _units, _c })
         {
@@ -127,9 +139,156 @@ public sealed partial class HanView : Grid
         Loaded += (_, _) => Focus();
         _stage.MouseDown += (_, _) => Focus();
         PreviewKeyDown += OnKey;
+        Session.Changed += OnSessionChanged;
+        Unloaded += (_, _) => Session.Changed -= OnSessionChanged;
+        _histSeen = M.History.Count;
         _screen = M.Phase switch { Phase.School => Screen.School, Phase.Finished => Screen.Final, _ => Screen.Prep };
         if (_screen == Screen.Prep) EnterPrep(); else Render();
     }
+
+    /// <summary>
+    /// Oturumda bir eylem uygulandı (yerelde hemen, online'da sunucudan gelince). Beklenen adım geldiyse ona geçilir; yoksa ekran
+    /// yeniden çizilir (öteki oyuncuların hamleleri oyuncu listesini ve havuzu değiştirir).
+    /// </summary>
+    private void OnSessionChanged()
+    {
+        Announce();
+        switch (_screen)
+        {
+            case Screen.School:
+                if (Me.School != null && M.Phase != Phase.School) EnterPrep(); else Render();
+                break;
+            case Screen.Prep:
+                if (M.Phase == Phase.Battle && Session.MyBattle != null) EnterActivation();
+                else if (!_dragging && _pressUid == null) Render();
+                break;
+            case Screen.Activation:
+                if (_waitAct && B.Started) BeginBattle();
+                else if (Session.MyBattle != null) Render();   // öteki masalar ilerledi (canlar, masa listesi)
+                break;
+            case Screen.Battle:
+                if (_waitWindow is { } i && B.Outcomes.Count > i) ResolveWindow(B.Outcomes[i]);
+                else if (_waitRound && Session.RoundClosed) ShowResult();
+                else if (!_busy && Session.MyBattle != null) Render();
+                break;
+            case Screen.Final:
+                Render();
+                break;
+        }
+    }
+
+    /// <summary>Beklenen şeyi anlatan yazı (online; yoksa null).</summary>
+    private string? WaitingText() =>
+        _screen == Screen.School && Me.School != null ? "Öteki oyuncular okulunu seçiyor…"
+        : _waitReady ? "Hazırsın. Öteki oyuncular hazırlanıyor…"
+        : _waitAct ? "Rakibin hedeflerini seçiyor…"
+        : _waitWindow != null ? "Rakibin seçimini yapıyor…"
+        : _waitRound ? $"{MyVerdict()} · diğer oyuncular bekleniyor ({M.Battles.Count(b => b.Done)}/{M.Battles.Count} masa bitti)"
+        : null;
+
+    /// <summary>"Kazandın 2–1" / "Kaybettin 1–2" / "Berabere 1–1" (kendi savaşım).</summary>
+    private string MyVerdict()
+    {
+        if (Session.MyBattle is not { } b) return "Savaş bitti";
+        var (m, t) = (b.Sides[Session.MySide].Points, b.Sides[1 - Session.MySide].Points);
+        return (b.Winner < 0 ? "Berabere" : b.Winner == Session.MySide ? "Kazandın" : "Kaybettin") + $" {m}–{t}";
+    }
+
+    /// <summary>Kendi savaşımın sonucu henüz gösterilmediyse oradan gelen can kaybı (ekranda henüz düşmemiş olan).</summary>
+    private int HiddenDamage(PlayerState p)
+    {
+        if (_resultShown || _screen is not (Screen.Activation or Screen.Battle) || Session.MyBattle is not { Settled: true } b || b.Winner < 0) return 0;
+        var loser = 1 - b.Winner;
+        if (loser == 1 && (b.Pve || b.Ghost)) return 0;
+        return b.Sides[loser].PlayerId == p.Id ? b.Damage : 0;
+    }
+
+    private int HpShown(PlayerState p) => p.Hp + HiddenDamage(p);
+    private bool AliveShown(PlayerState p) => p.Alive || HiddenDamage(p) > 0;
+
+    /// <summary>
+    /// Öteki masaların sonuçları biter bitmez bildirilir (üstte sağda kayan yazılar): kim kimi hangi skorla yendi, kim kaç can
+    /// kaybetti, kim elendi. Kendi savaşım bildirilmez (onu sinematik gösterir).
+    /// </summary>
+    private void Announce()
+    {
+        var fresh = M.History.Skip(_histSeen).ToList();
+        _histSeen = M.History.Count;
+        if (!_live) return;
+        var k = 0;
+        foreach (var h in fresh)
+        {
+            if (h.PlayerA == Session.Me || (h.PlayerB == Session.Me && !h.Ghost)) continue;
+            var (a, bn) = (h.NameA, h.Pve ? "canavarlar" : h.NameB);
+            string text;
+            Color c;
+            if (h.Winner < 0) { text = $"{a} – {bn}  berabere {h.PointsA}–{h.PointsB}"; c = HanUi.Parchment; }
+            else
+            {
+                var (w, l, wp, lp) = h.Winner == 0 ? (a, bn, h.PointsA, h.PointsB) : (bn, a, h.PointsB, h.PointsA);
+                text = h.Pve ? (h.Winner == 0 ? $"{a} canavarları {wp}–{lp} yendi" : $"{a} canavarlara {wp}–{lp} yenildi")
+                    : $"{w}, {l} karşısında {wp}–{lp} kazandı";
+                if (h.Damage > 0 && !(h.Ghost && h.Winner == 0)) text += $"  ·  {(h.Pve ? a : l)} −{h.Damage} can";
+                c = HanUi.Gold;
+            }
+            Toast(text, c, 700 * k++);
+            foreach (var pid in new[] { h.PlayerA, h.PlayerB })
+                if (pid >= 0 && pid < M.Players.Count && M.Players[pid] is { Alive: false } dead && dead.EliminatedRound == M.Round && !(h.Ghost && pid == h.PlayerB))
+                    Toast($"{dead.Name} elendi  ·  {dead.Place}. sıra", HanUi.Bad, 700 * k++);
+        }
+    }
+
+    private int _toastSlot;
+
+    /// <summary>Üst sağda beliren, kendiliğinden kaybolan bildirim satırı.</summary>
+    private void Toast(string text, Color color, int delay)
+    {
+        Fx.After(delay, () =>
+        {
+            var slot = _toastSlot++ % 4;
+            var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(14, 6, 16, 7) };
+            sp.Children.Add(new Rectangle { Width = 3, Height = 18, Fill = new SolidColorBrush(color), Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
+            sp.Children.Add(HanUi.T(text, 15, HanUi.Br(HanUi.Parchment), FontWeights.SemiBold));
+            sp.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var f = HanUi.Frame(sp.DesiredSize.Width + 2, sp.DesiredSize.Height, sp, 0xe8, color, 8);
+            f.IsHitTestVisible = false;
+            Canvas.SetLeft(f, ListX - 14 - f.Width);
+            Canvas.SetTop(f, 66 + slot * 44);
+            _toasts.Children.Add(f);
+            var tt = new TranslateTransform(24, 0);
+            f.RenderTransform = tt;
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            tt.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(24, 0, TimeSpan.FromMilliseconds(320)) { EasingFunction = ease });
+            var life = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(4600) };
+            life.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(0)));
+            life.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromPercent(0.07)));
+            life.KeyFrames.Add(new LinearDoubleKeyFrame(1, KeyTime.FromPercent(0.85)));
+            life.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(1)));
+            life.Completed += (_, _) => _toasts.Children.Remove(f);
+            f.BeginAnimation(OpacityProperty, life);
+            Sfx.Play("han_click");
+        });
+    }
+
+    /// <summary>Bekleme göstergesi: ekranın ortasında yarı saydam pill (tıklamayı engellemez).</summary>
+    private void DrawWaiting()
+    {
+        if (WaitingText() is not { } t) return;
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(22, 10, 24, 12) };
+        var dot = new Ellipse { Width = 12, Height = 12, Fill = HanUi.Br(HanUi.Gold), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+        if (_live) dot.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.2, TimeSpan.FromSeconds(0.7)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
+        sp.Children.Add(dot);
+        sp.Children.Add(HanUi.T(t, 20, HanUi.Br(HanUi.Parchment), FontWeights.SemiBold));
+        sp.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var f = HanUi.Frame(sp.DesiredSize.Width + 4, sp.DesiredSize.Height + 2, sp, 0xf0, HanUi.Gold, 10);
+        f.IsHitTestVisible = false;
+        Canvas.SetLeft(f, 960 - f.Width / 2);
+        Canvas.SetTop(f, 470);
+        _clockLayer.Children.Add(f);
+        _waitEl = f;
+    }
+
+    private FrameworkElement? _waitEl;
 
     /// <summary>Önbellek dokusu pencerenin gerçek ölçeğinde çizilir (büyük ekranda bulanık, küçükte boşa büyük olmasın).</summary>
     private void UpdateCacheScale()
@@ -148,8 +307,9 @@ public sealed partial class HanView : Grid
         switch (e.Key)
         {
             case Key.Space: ToggleShop(); e.Handled = true; break;
-            case Key.R: Do(() => M.Reroll(HanSession.Me), "han_reroll"); _shopOpen = true; Render(); e.Handled = true; break;
-            case Key.F: Do(() => M.BuyXp(HanSession.Me), "han_xp"); e.Handled = true; break;
+            case Key.R: Do(() => Session.Act(HanActKind.Reroll), "han_reroll"); _shopOpen = true; Render(); e.Handled = true; break;
+            case Key.F: Do(() => Session.Act(HanActKind.Xp), "han_xp"); e.Handled = true; break;
+            case Key.L: ToggleLock(); e.Handled = true; break;
         }
     }
 
@@ -330,7 +490,7 @@ public sealed partial class HanView : Grid
 
     private static string SchoolName(School? s) => s is { } x ? HT.Name(x) : "—";
 
-    private string? Face(int pid) => pid == HanSession.Me ? Settings.Portrait : Session.FaceOf(pid);
+    private string? Face(int pid) => pid == Session.Me ? Settings.Portrait : Session.FaceOf(pid);
 
     // ---------- üst şerit, oyuncu listesi ----------
 
@@ -365,11 +525,13 @@ public sealed partial class HanView : Grid
     {
         var opp = Me.Alive && M.Phase is Phase.Prep or Phase.Battle && !M.IsPve ? Me.OppId : -1;
         var y = 66.0;
-        foreach (var p in M.Players.OrderByDescending(p => p.Alive).ThenByDescending(p => p.Hp).ThenBy(p => p.Place))
+        foreach (var p in M.Players.OrderByDescending(AliveShown).ThenByDescending(HpShown).ThenBy(p => AliveShown(p) ? 0 : p.Place))
         {
-            var me = p.Id == HanSession.Me;
+            var me = p.Id == Session.Me;
             var foe = p.Id == opp;
-            var g = new Grid { Width = ListW, Height = 44, Opacity = p.Alive ? 1 : 0.35 };
+            var alive = AliveShown(p);
+            var hpNow = HpShown(p);
+            var g = new Grid { Width = ListW, Height = 44, Opacity = alive ? 1 : 0.35 };
             g.Children.Add(new Path
             {
                 Data = HanUi.ChamferGeometry(ListW, 44, 7, 0.5), StrokeThickness = me || foe ? 1.4 : 1,
@@ -387,12 +549,12 @@ public sealed partial class HanView : Grid
                 Foreground = me ? Theme.B("#ffe9a3") : foe ? Theme.B("#f0a090") : Theme.Text, Margin = new Thickness(48, 5, 0, 0), HorizontalAlignment = HorizontalAlignment.Left
             };
             g.Children.Add(name);
-            var sub = new TextBlock { Text = p.Alive ? $"Sv {p.Level}" + (p.Streak <= -2 ? $" · {-p.Streak} yenilgi" : p.Streak >= 3 ? $" · {p.Streak} galibiyet" : "") : $"{p.Place}.", FontFamily = HanUi.Font, FontSize = HanUi.S(11), Foreground = Theme.TextDim, Margin = new Thickness(48, 23, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+            var sub = new TextBlock { Text = alive ? $"Sv {p.Level}" + (p.Streak <= -2 ? $" · {-p.Streak} yenilgi" : p.Streak >= 3 ? $" · {p.Streak} galibiyet" : "") : $"{p.Place}.", FontFamily = HanUi.Font, FontSize = HanUi.S(11), Foreground = Theme.TextDim, Margin = new Thickness(48, 23, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
             g.Children.Add(sub);
-            var frac = Math.Clamp(p.Hp, 0, 100) / 100.0;
-            var hpc = p.Hp > 50 ? Color.FromRgb(0x8f, 0xd0, 0x62) : p.Hp > 25 ? Color.FromRgb(0xe8, 0xc0, 0x50) : Color.FromRgb(0xe0, 0x5a, 0x48);
+            var frac = Math.Clamp(hpNow, 0, 100) / 100.0;
+            var hpc = hpNow > 50 ? Color.FromRgb(0x8f, 0xd0, 0x62) : hpNow > 25 ? Color.FromRgb(0xe8, 0xc0, 0x50) : Color.FromRgb(0xe0, 0x5a, 0x48);
             g.Children.Add(new Border { Width = 132 * frac, Height = 2, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(48, 0, 0, 4), Background = new SolidColorBrush(hpc) });
-            var hp = HanUi.Number(p.Alive ? p.Hp.ToString() : "✝", 21, new LinearGradientBrush(Color.Add(hpc, Color.FromRgb(0x50, 0x50, 0x50)), hpc, 90));
+            var hp = HanUi.Number(alive ? hpNow.ToString() : "✝", 21, new LinearGradientBrush(Color.Add(hpc, Color.FromRgb(0x50, 0x50, 0x50)), hpc, 90));
             hp.HorizontalAlignment = HorizontalAlignment.Right;
             hp.VerticalAlignment = VerticalAlignment.Center;
             hp.Margin = new Thickness(0, 0, 10, 2);
@@ -401,6 +563,13 @@ public sealed partial class HanView : Grid
             g.ToolTip = $"{p.Name} · Seviye {p.Level} · {SchoolName(p.School)} okulu · {p.Wins} galibiyet, {p.Losses} yenilgi";
             Put(g, ListX, y);
             _hpAt[p.Id] = new Point(ListX + ListW - 24, y + 22);
+            // can o an düştüyse (öteki masada savaş bitti): sayı parlar, yanında kayıp yazar
+            if (_hpShownLast.TryGetValue(p.Id, out var before) && hpNow < before && _live)
+            {
+                Pop(hp);
+                HanArt.FloatText(_fx, "−" + (before - hpNow), new Point(ListX - 26, y + 22), Color.FromRgb(0xff, 0x5a, 0x48), 24, 1500);
+            }
+            _hpShownLast[p.Id] = hpNow;
             y += 48;
         }
     }
@@ -530,8 +699,9 @@ public sealed partial class HanView : Grid
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
         var begin = TimeSpan.FromMilliseconds(delayMs);
         move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(fromY, 0, TimeSpan.FromMilliseconds(240)) { BeginTime = begin, EasingFunction = ease });
+        var to = el.Opacity;   // soluk (alınamaz) kart soluk kalır: animasyon tam görünürlüğe çekmesin
         el.Opacity = 0;
-        el.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)) { BeginTime = begin });
+        el.BeginAnimation(OpacityProperty, new DoubleAnimation(0, to, TimeSpan.FromMilliseconds(180)) { BeginTime = begin });
     }
 
     // ---------- sürükle-bırak ----------
@@ -673,6 +843,8 @@ public sealed partial class HanView : Grid
             default: DrawFinal(); break;
         }
         if (_help) DrawHelp();
+        if (_waitEl != null) { _clockLayer.Children.Remove(_waitEl); _waitEl = null; }
+        DrawWaiting();
         foreach (var layer in new DependencyObject[] { _rows, _units, _c, _shop }) FastTips(layer);
     }
 
@@ -755,7 +927,7 @@ public sealed partial class HanView : Grid
             d.Height = 112;
             sp.Children.Add(d);
             var school = s;
-            var b = Btn("Seç", "han-school:" + s, () => { Session.ChooseSchool(school); Sfx.Play("han_levelup"); EnterPrep(); }, true, width: 230, height: 54);
+            var b = Btn("Seç", "han-school:" + s, () => { Sfx.Play("han_levelup"); Session.ChooseSchool(school); if (Session.Online) Render(); }, Me.School == null, width: 230, height: 54);
             b.HorizontalAlignment = HorizontalAlignment.Center;
             sp.Children.Add(b);
             var panel = Panel(cw, ch, sp, 0xe8, null, 16);
@@ -764,7 +936,8 @@ public sealed partial class HanView : Grid
             x += cw + gap;
             i++;
         }
-        var timed = Btn(Session.Timed ? "Süre sınırı: açık" : "Süre sınırı: kapalı", "han-timed", () => { Session.Timed = !Session.Timed; Render(); }, false, true, 280, "Açıkken hazırlık 30 sn, her çarpışma 6 sn. İlk maçında kapalı bırak: acele etmeden öğrenirsin.", 42);
+        if (Session.Online) return;
+        var timed = Btn(Session.Timed ? "Süre sınırı: açık" : "Süre sınırı: kapalı", "han-timed", () => { Session.Timed = !Session.Timed; Render(); }, false, true, 280, $"Açıkken hazırlık {HanTimes.Prep} sn, hedef seçimi {HanTimes.Activation} sn, her çarpışma {HanTimes.Window} sn. İlk maçında kapalı bırak: acele etmeden öğrenirsin.", 42);
         Put(timed, 960 - 140, 870);
     }
 
@@ -777,7 +950,7 @@ public sealed partial class HanView : Grid
         var emblem = HanArt.ResultEmblem(place == 1 ? 1 : place <= 4 ? 0 : -1, place == 1 ? "Şampiyon" : $"{place}. sıra", 420);
         Put(emblem, 750, 30);
         var sp = new StackPanel { Margin = new Thickness(48, 30, 48, 28) };
-        var head = HanUi.Display(place == 1 ? "Han Ligi şampiyonu sensin" : place <= 4 ? "İlk dörde girdin" : "Bu sefer olmadı", 38);
+        var head = HanUi.Display(!Session.Over && Me.Alive ? "Maç sürüyor" : place == 1 ? "Han Ligi şampiyonu sensin" : place <= 4 ? "İlk dörde girdin" : "Bu sefer olmadı", 38);
         head.HorizontalAlignment = HorizontalAlignment.Center;
         sp.Children.Add(head);
         var sub = HanUi.Body($"{M.Round} round  ·  {Me.Wins} galibiyet, {Me.Losses} yenilgi  ·  {SchoolName(Me.School)} okulu", 17, HanUi.Br(HanUi.Muted), false, TextAlignment.Center);
@@ -787,13 +960,19 @@ public sealed partial class HanView : Grid
         rule.Margin = new Thickness(0, 14, 0, 12);
         rule.HorizontalAlignment = HorizontalAlignment.Center;
         sp.Children.Add(rule);
-        foreach (var p in M.Players.OrderBy(p => p.Place))
+        if (!Session.Over)
         {
-            var me = p.Id == HanSession.Me;
+            var live = HanUi.Body($"Elendin ({place}. sıra). Maç öteki masalarda sürüyor; sıralama burada canlı güncellenir.", 16, HanUi.Br(HanUi.Ember), false, TextAlignment.Center);
+            live.HorizontalAlignment = HorizontalAlignment.Center;
+            sp.Children.Add(live);
+        }
+        foreach (var p in M.Players.OrderBy(p => p.Place == 0 ? 0 : p.Place).ThenByDescending(p => p.Hp))
+        {
+            var me = p.Id == Session.Me;
             var row = new Grid { Height = 46, Margin = new Thickness(0, 2, 0, 2) };
             if (me) row.Children.Add(new Path { Data = HanUi.ChamferGeometry(1004, 46, 6), Fill = HanUi.Br(HanUi.Gold, 0x22), Stroke = HanUi.Br(HanUi.Gold, 0x80), StrokeThickness = 1 });
             var line = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) };
-            var num = HanUi.Number(p.Place.ToString(), 26, p.Place == 1 ? HanUi.GoldText : HanUi.Br(HanUi.Parchment));
+            var num = HanUi.Number(p.Place == 0 ? "•" : p.Place.ToString(), 26, p.Place == 1 ? HanUi.GoldText : HanUi.Br(HanUi.Parchment));
             num.Width = 40;
             num.VerticalAlignment = VerticalAlignment.Center;
             line.Children.Add(num);
@@ -803,7 +982,7 @@ public sealed partial class HanView : Grid
             n.Margin = new Thickness(12, 0, 0, 0);
             n.VerticalAlignment = VerticalAlignment.Center;
             line.Children.Add(n);
-            var det = HanUi.Small($"Seviye {p.Level}  ·  {SchoolName(p.School)}  ·  {p.Wins} galibiyet" + (p.Place == 1 ? "" : $"  ·  round {p.EliminatedRound}'de elendi"), 14);
+            var det = HanUi.Small($"Seviye {p.Level}  ·  {SchoolName(p.School)}  ·  {p.Wins} galibiyet" + (p.Place == 0 ? $"  ·  {p.Hp} can, oynuyor" : p.Place == 1 ? "" : $"  ·  round {p.EliminatedRound}'de elendi"), 14);
             det.VerticalAlignment = VerticalAlignment.Center;
             line.Children.Add(det);
             row.Children.Add(line);
@@ -812,7 +991,7 @@ public sealed partial class HanView : Grid
         var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 22, 0, 0) };
         var again = Btn("Yeniden oyna", "han-again", () => { StopTimer(); _gen++; _again(); }, true, width: 260, height: 54);
         again.Margin = new Thickness(0, 0, 18, 0);
-        btns.Children.Add(again);
+        if (!Session.Online) btns.Children.Add(again);
         btns.Children.Add(Btn("Menüye dön", "han-menu", () => { StopTimer(); _gen++; _back(); }, width: 220, height: 54));
         sp.Children.Add(btns);
         Put(Panel(1100, 720, sp, 0xec, null, 16), 410, 300);
