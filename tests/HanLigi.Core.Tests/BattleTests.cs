@@ -276,4 +276,23 @@ public class BattleTests
         Assert.Equal(-1, bt.Winner);
         Assert.Equal(0, bt.Damage);
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Quen_refund_returns_only_the_focus_actually_paid(bool triss)
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "fiend");                       // Yakın: A satırı alır (Öfke karışmasın)
+        if (triss) Add(a, "triss", Row.Siege); // ilk Quen bedava
+        Add(b, "griffin");
+        var bt = Make(a, b);
+        bt.Start();
+        var before = bt.Sides[0].Focus;
+        var o = Play(bt, C(Sign.Quen), C(Sign.Igni));
+        Assert.Equal(0, o.Winner);
+        Assert.Contains(o.Fx, f => f.Kind == "igni" && f.Blocked);
+        // ödenmiş Quen: 1 harcanır, 1 geri gelir; bedava Quen: hiçbir şey harcanmaz, geri ödeme de yok
+        Assert.Equal(before, bt.Sides[0].Focus);
+    }
 }

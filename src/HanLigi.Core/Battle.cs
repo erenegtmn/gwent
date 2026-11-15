@@ -27,9 +27,17 @@ public sealed class Activation
 }
 
 /// <summary>Bir pencere seçimi: en çok 1 işaret (Jaskier ile bir kez 2), en çok 1 simya, en çok 1 pusu birimi.</summary>
-public sealed record WindowChoice(IReadOnlyList<Sign> Signs, Potion? Potion = null, int? AmbushUid = null)
+/// <remarks>Pusu: aynı pencerede birden çok birim indirilebilir (<see cref="AmbushUid"/> + <see cref="MoreAmbush"/>).</remarks>
+public sealed record WindowChoice(IReadOnlyList<Sign> Signs, Potion? Potion = null, int? AmbushUid = null, IReadOnlyList<int>? MoreAmbush = null)
 {
     public static readonly WindowChoice None = new(Array.Empty<Sign>());
+
+    /// <summary>Bu pencerede pusudan indirilecek bütün birimler.</summary>
+    public IReadOnlyList<int> AmbushUids => AmbushUid is { } a ? new[] { a }.Concat(MoreAmbush ?? Array.Empty<int>()).ToArray() : MoreAmbush ?? Array.Empty<int>();
+
+    /// <summary>Pusu listesinden seçim kurar (boşsa pusu yok).</summary>
+    public static WindowChoice With(IReadOnlyList<Sign> signs, Potion? potion, IReadOnlyList<int> ambush)
+        => new(signs, potion, ambush.Count > 0 ? ambush[0] : null, ambush.Count > 1 ? ambush.Skip(1).ToArray() : null);
 }
 
 public sealed class BattleSide
@@ -303,7 +311,8 @@ public sealed class Battle
         var s = Sides[side];
         if (c.Signs.Count > (CanDouble(side) ? 2 : 1)) return false;
         if (c.Potion is { } p && !s.Potions.Contains(p)) return false;
-        if (c.AmbushUid is { } uid && s.Ambush.All(u => u.Uid != uid)) return false;
+        var amb = c.AmbushUids;
+        if (amb.Distinct().Count() != amb.Count || amb.Any(uid => s.Ambush.All(u => u.Uid != uid))) return false;
         return Cost(side, c) <= s.Focus;
     }
 
@@ -329,9 +338,14 @@ public sealed class Battle
         var noWeather = new bool[2];
         var quenBlocks = new int[2];
         var potion = new Potion?[2];
-        var ambush = new int?[2];
+        var ambush = new IReadOnlyList<int>[2];
         void Pct(BattleUnit u, double d) => card[u] = card.GetValueOrDefault(u) + d;
 
+        // Quen'in iadesi yalnız gerçekten Odak ödenmişse (Triss, Geralt ya da Büyücü ile bedava Quen geri ödeme getirmez)
+        var quenPaid = new int[2];
+        for (var i = 0; i < 2; i++)
+            if (ch[i].Signs.Contains(Sign.Quen))
+                quenPaid[i] = Cost(i, ch[i]) - Cost(i, ch[i] with { Signs = ch[i].Signs.Where(x => x != Sign.Quen).ToArray() });
         for (var i = 0; i < 2; i++)
         {
             var s = Sides[i];
@@ -339,7 +353,7 @@ public sealed class Battle
             if (ch[i].Signs.Count > 1) s.JaskierUsed = true;
             potion[i] = ch[i].Potion;
             if (potion[i] is { } p) s.Potions.Remove(p);
-            ambush[i] = ch[i].AmbushUid;
+            ambush[i] = ch[i].AmbushUids;
             foreach (var u in s.Units) u.Landed = false;
         }
         // 1. Yrden: rakibin simya kartını ve pusu inişini keser
@@ -350,10 +364,10 @@ public sealed class Battle
             var s = Sides[i];
             var hit = false;
             if (potion[i] != null) { log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} tarafının {Texts.Name(potion[i]!.Value)} kartı etkisiz."); potion[i] = null; hit = true; }
-            if (s.Th(Tag.Bandit) < 3 && (ambush[i] != null || (Window == 2 && s.Ambush.Count > 0)))
+            if (s.Th(Tag.Bandit) < 3 && (ambush[i].Count > 0 || (Window == 2 && s.Ambush.Count > 0)))
             {
                 log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} pusudan inemedi.");
-                ambush[i] = null;
+                ambush[i] = Array.Empty<int>();
                 hit = true;
             }
             if (!hit) log.Add($"{Sides[1 - i].Name} Yrden attı, boşa gitti.");
@@ -365,7 +379,7 @@ public sealed class Battle
             var s = Sides[i];
             var blocked = yrden[1 - i] && s.Th(Tag.Bandit) < 3;
             var landing = new List<BattleUnit>();
-            if (ambush[i] is { } uid && s.Ambush.FirstOrDefault(u => u.Uid == uid) is { } au) landing.Add(au);
+            foreach (var uid in ambush[i]) if (s.Ambush.FirstOrDefault(u => u.Uid == uid) is { } au) landing.Add(au);
             if (Window == 2 && !blocked) landing.AddRange(s.Ambush.Where(u => !landing.Contains(u)));
             foreach (var u in landing)
             {
@@ -479,7 +493,7 @@ public sealed class Battle
         for (var i = 0; i < 2; i++)
         {
             var s = Sides[i];
-            s.Focus += quenBlocks[i];
+            s.Focus += Math.Min(quenBlocks[i], quenPaid[i]);
             if (winner == i)
             {
                 s.Points++;

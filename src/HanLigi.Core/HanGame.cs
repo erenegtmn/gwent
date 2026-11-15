@@ -50,7 +50,8 @@ public sealed record HanAction(HanActKind Kind, int Player, int A = 0, int B = 0
     }
 
     public static HanAction Choice(int player, int battle, int side, WindowChoice c)
-        => new(HanActKind.Window, player, battle, side, c.Potion is { } p ? (int)p : -1, c.AmbushUid ?? -1, c.Signs.Select(s => (int)s).ToList());
+        => new(HanActKind.Window, player, battle, side, c.Potion is { } p ? (int)p : -1, c.AmbushUid ?? -1,
+            c.Signs.Select(s => (int)s).Concat(c.MoreAmbush is { Count: > 0 } more ? new[] { -1 }.Concat(more) : Array.Empty<int>()).ToList());
 
     public Activation? ToActivation()
     {
@@ -66,9 +67,13 @@ public sealed record HanAction(HanActKind Kind, int Player, int A = 0, int B = 0
 
     public WindowChoice? ToChoice()
     {
-        var signs = (L ?? new List<int>()).ToList();
+        var all = (L ?? new List<int>()).ToList();
+        var cut = all.IndexOf(-1);
+        var signs = cut < 0 ? all : all.Take(cut).ToList();
+        var more = cut < 0 ? new List<int>() : all.Skip(cut + 1).ToList();
         if (signs.Any(s => s is < 0 or > 3) || C < -1 || C >= Enum.GetValues<Potion>().Length) return null;
-        return new WindowChoice(signs.Select(s => (Sign)s).ToArray(), C >= 0 ? (Potion)C : null, D >= 0 ? D : null);
+        if (D < 0 && more.Count > 0) return null;
+        return new WindowChoice(signs.Select(s => (Sign)s).ToArray(), C >= 0 ? (Potion)C : null, D >= 0 ? D : null, more.Count > 0 ? more : null);
     }
 }
 

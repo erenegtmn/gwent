@@ -61,7 +61,7 @@ public sealed partial class HanView : Grid
     private Activation _act = new();
     private readonly List<Sign> _signs = new();
     private Potion? _potion;
-    private int? _ambush;
+    private readonly List<int> _ambush = new();
     private DispatcherTimer? _timer;
     private DateTime _deadline;
     private int _lastShown = -1;

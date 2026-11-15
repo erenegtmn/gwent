@@ -436,7 +436,7 @@ public sealed partial class HanView
         _waitAct = false;
         _signs.Clear();
         _potion = null;
-        _ambush = null;
+        _ambush.Clear();
         _screen = Screen.Battle;
         _hold = 0;
         var b = B;
@@ -468,7 +468,7 @@ public sealed partial class HanView
 
     // ---------- işaret çubuğu ----------
 
-    private WindowChoice CurrentChoice() => new(_signs.ToArray(), _potion, _ambush);
+    private WindowChoice CurrentChoice() => WindowChoice.With(_signs.ToArray(), _potion, _ambush);
 
     private void SignTray(Battle b, BattleSide me)
     {
@@ -479,7 +479,7 @@ public sealed partial class HanView
         {
             var on = _signs.Contains(s);
             var trial = on ? _signs.Where(v => v != s).ToList() : _signs.Count < maxSigns ? _signs.Append(s).ToList() : new List<Sign> { s };
-            var ok = on || b.Valid(Mine, new WindowChoice(trial.ToArray(), _potion, _ambush));
+            var ok = on || b.Valid(Mine, WindowChoice.With(trial.ToArray(), _potion, _ambush));
             var cost = b.Cost(Mine, new WindowChoice(new[] { s }));
             var med = HanArt.SignMedallion(s, 104, on, ok, cost);
             Put(Bare(med, "han-sign:" + s, () => { _signs.Clear(); _signs.AddRange(trial); Sfx.Play("han_click"); Render(); }, ok, $"{s}\n{HT.Describe(s)}"), x, BarY + 32);
@@ -505,11 +505,11 @@ public sealed partial class HanView
         foreach (var u in me.Ambush)
         {
             var uu = u;
-            Put(CardEl(u.Def, u.Star, 112, "han-ambush:" + u.Uid, () => { _ambush = _ambush == uu.Uid ? null : uu.Uid; Sfx.Play("han_click"); Render(); }, u.Power, _ambush == u.Uid), x, BarY + 30);
+            Put(CardEl(u.Def, u.Star, 112, "han-ambush:" + u.Uid, () => { if (!_ambush.Remove(uu.Uid)) _ambush.Add(uu.Uid); Sfx.Play("han_click"); Render(); }, u.Power, _ambush.Contains(u.Uid)), x, BarY + 30);
             x += 120;
         }
         if (me.Ambush.Count == 0) Put(new TextBlock { Text = "pusuda kart yok", FontFamily = HanUi.Font, FontSize = HanUi.S(14), Foreground = Theme.TextDim }, x, BarY + 84);
-        var picked = _signs.Count + (_potion != null ? 1 : 0) + (_ambush != null ? 1 : 0);
+        var picked = _signs.Count + (_potion != null ? 1 : 0) + _ambush.Count;
         Put(Act("Çarpış", picked == 0 ? "satırı aç" : $"{b.Cost(Mine, CurrentChoice())} Odak harca", "han-go", OnWindowGo, HanButtonKind.Primary, 122, 164, true, picked == 0 ? "Hiçbir şey seçmezsen satır müdahalesiz açılır." : null), GoX, BarY + 14);
     }
 
@@ -525,7 +525,7 @@ public sealed partial class HanView
             var sp = new StackPanel { Orientation = Orientation.Horizontal };
             foreach (var s in c.Signs) { var m = HanArt.SignMedallion(s, 96, true, true, Tuning.SignCost(s)); m.Margin = new Thickness(0, 0, 12, 0); sp.Children.Add(m); }
             if (c.Potion is { } p) { var t = HanArt.IconToken(HanArt.PotionIcon(p), 96, true, "⚗"); t.Margin = new Thickness(0, 0, 12, 0); sp.Children.Add(t); }
-            if (c.AmbushUid != null) sp.Children.Add(Txt("PUSU", 26, Theme.B("#ffe9a3"), true));
+            if (c.AmbushUids.Count > 0) sp.Children.Add(Txt(c.AmbushUids.Count > 1 ? $"PUSU ×{c.AmbushUids.Count}" : "PUSU", 26, Theme.B("#ffe9a3"), true));
             if (sp.Children.Count == 0) sp.Children.Add(new TextBlock { Text = "müdahale yok", FontFamily = HanUi.Font, FontSize = HanUi.S(18), Foreground = Theme.TextDim });
             sp.VerticalAlignment = VerticalAlignment.Center;
             Put(new Grid { Height = 140, Children = { sp } }, x, BarY + 36);
@@ -598,7 +598,7 @@ public sealed partial class HanView
         var o = Session.Submit(CurrentChoice());
         _signs.Clear();
         _potion = null;
-        _ambush = null;
+        _ambush.Clear();
         if (o == null && b.Outcomes.Count > idx) o = b.Outcomes[idx];
         if (o == null) { _waitWindow = idx; Render(); return; }   // online: rakip seçiyor
         ResolveWindow(o);
@@ -670,7 +670,7 @@ public sealed partial class HanView
     {
         var parts = c.Signs.Select(s => s.ToString()).ToList();
         if (c.Potion is { } p) parts.Add(HT.Name(p));
-        if (c.AmbushUid != null) parts.Add("Pusu");
+        if (c.AmbushUids.Count > 0) parts.Add(c.AmbushUids.Count > 1 ? $"Pusu ×{c.AmbushUids.Count}" : "Pusu");
         return parts.Count == 0 ? "müdahale yok" : string.Join(" + ", parts);
     }
 
