@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Han Ligi (YENI_MOD.md §15): Gwent × auto chess. Saf ve deterministik kural motoru; arayüz/ağ/zaman bilmez. Klasik Gwent çekirdeğinden bağımsızdır. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>HanLigi</RootNamespace>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

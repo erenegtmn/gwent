@@ -50,6 +50,7 @@ public sealed class MenuView : Grid
     private readonly Action? _openGuide;
     private readonly Action? _openCareer;
     private readonly Action? _openKeep;
+    private readonly Action? _openHan;
     private readonly Action? _openDraft;
     private readonly Action? _openOnline;
     private readonly Grid _panoLayer = new();
@@ -59,12 +60,13 @@ public sealed class MenuView : Grid
     private Border _setup = null!;
     private bool _setupOpen;
 
-    public MenuView(Action<MatchConfig> start, Action<string, bool> openBuilder, string? initialFaction = null, bool nextGen = false, bool animate = true, Action? openSettings = null, Action? openOnline = null, Action? openStats = null, Action? openGuide = null, Action? openCareer = null, Action? openDraft = null, Action? openKeep = null)
+    public MenuView(Action<MatchConfig> start, Action<string, bool> openBuilder, string? initialFaction = null, bool nextGen = false, bool animate = true, Action? openSettings = null, Action? openOnline = null, Action? openStats = null, Action? openGuide = null, Action? openCareer = null, Action? openDraft = null, Action? openKeep = null, Action? openHan = null)
     {
         _openDraft = openDraft;
         _openGuide = openGuide;
         _openCareer = openCareer;
         _openKeep = openKeep;
+        _openHan = openHan;
         _openSettings = openSettings;
         _openStats = openStats;
         _openOnline = openOnline;
@@ -254,6 +256,7 @@ public sealed class MenuView : Grid
         var list = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Width = 360 };
         // Ana öğeler: oyun kipleri ve sık kullanılanlar. Profil (sol üstteki portre de açar) ve kılavuz altta küçük bağlantılardır.
         list.Children.Add(MenuItem("Hızlı Gwent", ToggleSetup));
+        if (_openHan != null) list.Children.Add(MenuItem("Han Ligi", () => _openHan()));
         if (_openKeep != null) list.Children.Add(MenuItem("Kaer Morhen", () => _openKeep()));
         if (_openCareer != null) list.Children.Add(MenuItem("Collect 'Em All", () => _openCareer()));
         if (_openDraft != null) list.Children.Add(MenuItem("Draft", () => _openDraft()));
