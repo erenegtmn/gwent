@@ -122,4 +122,37 @@ public class RulesV2Tests
         Assert.Contains(m.Players, x => !x.Alive);
         Assert.True(m.EndRound());
     }
+
+    [Fact]
+    public void Class_breakpoints_fit_the_number_of_cards_in_each_class()
+    {
+        foreach (var t in Enum.GetValues<Tag>())
+        {
+            var cards = CardSet.All.Count(d => d.IsUnit && !d.IsHero && d.Has(t));
+            Assert.True(Tuning.Breakpoints(t)[2] <= cards, $"{t}: son eşik {Tuning.Breakpoints(t)[2]}, kart {cards}");
+        }
+        Assert.Equal(new[] { 0, 0, 1, 2, 3 }, new[] { 0, 1, 2, 3, 4 }.Select(n => Tuning.TagLevel(Tag.Bandit, n)).ToArray());
+        Assert.Equal(new[] { 0, 1, 2, 2, 3 }, new[] { 1, 2, 3, 4, 5 }.Select(n => Tuning.TagLevel(Tag.Mage, n)).ToArray());
+        Assert.Equal(new[] { 1, 1, 2, 2, 3 }, new[] { 2, 3, 4, 5, 6 }.Select(n => Tuning.TagLevel(Tag.Monster, n)).ToArray());
+    }
+
+    [Fact]
+    public void Manticore_gets_potions_from_round_two()
+    {
+        for (var seed = 1; seed < 40; seed++)
+        {
+            var m = new Match(seed, Enumerable.Range(0, 2).Select(i => ($"O{i}", true)).ToList());
+            if (m.Players[0].SchoolOptions is not { } o || !o.Contains(School.Manticore)) continue;
+            m.ChooseSchool(0, School.Manticore);
+            m.ChooseSchool(1, m.Players[1].SchoolOptions.First(x => x != School.Manticore));
+            foreach (var x in m.Players) m.SetReady(x.Id);
+            foreach (var b in m.Battles) { b.Start(); while (!b.Done) { b.Submit(0, WindowChoice.None); b.Submit(1, WindowChoice.None); b.Resolve(); } }
+            m.EndRound();
+            Assert.Equal(2, m.Round);
+            Assert.Equal(3, m.Players[0].PotionOptions.Length);
+            Assert.Empty(m.Players[1].PotionOptions);
+            return;
+        }
+        Assert.Fail("Mantikor seçeneği olan tohum bulunamadı");
+    }
 }

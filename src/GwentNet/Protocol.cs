@@ -12,7 +12,7 @@ namespace GwentNet;
 public static class ProtocolInfo
 {
     /// <summary>Mesaj biçimi değişince artırılır.</summary>
-    public const int Number = 7;   // 7: Han Ligi tezgâh kilidi, özel kart satırı, savaş anında can kaybı, ortak süreler; 6: Han Ligi online (HanRoomState, HanSetup, HanBroadcast; sürüm özeti Han kartlarını da kapsar); 5: üç kişilik oda (RoomState.Capacity, MatchSetup.Seat2/Nick2, RoomSnapshot.Token2, eylemde Side); 2: online draft (RoomState.Draft, PlayerInfo.DraftPicks, SetDraft/DraftChoose); 3: oda lanetleri (RoomState/MatchSetup.Curses, SetCurses); 4: Kaer Morhen motoru (Deck rün/müttefik/avantaj alanları, yakma olayı "kimlik:güç")
+    public const int Number = 8;   // 8: Han Ligi Meta 2-3 dengesi (sınıfa göre eşikler, okul ve eşik etkileri, XP 5, round'a göre hasar eğrisi, güçlü yenilgi serisi); 7: Han Ligi tezgâh kilidi, özel kart satırı, savaş anında can kaybı, ortak süreler; 6: Han Ligi online (HanRoomState, HanSetup, HanBroadcast; sürüm özeti Han kartlarını da kapsar); 5: üç kişilik oda (RoomState.Capacity, MatchSetup.Seat2/Nick2, RoomSnapshot.Token2, eylemde Side); 2: online draft (RoomState.Draft, PlayerInfo.DraftPicks, SetDraft/DraftChoose); 3: oda lanetleri (RoomState/MatchSetup.Curses, SetCurses); 4: Kaer Morhen motoru (Deck rün/müttefik/avantaj alanları, yakma olayı "kimlik:güç")
 
     /// <summary>
     /// Sürüm kimliği = protokol numarası + kart verisinin özeti. Kart/kural farkı olan istemci odaya girmesin
@@ -31,6 +31,9 @@ public static class ProtocolInfo
             sb.Append("han:").Append(d.Id).Append('|').Append(d.Tier).Append('|').Append(d.Power).Append('|').Append(d.Row).Append('|').Append(d.Ability).Append('|').Append(d.Special).Append('|').Append(d.Hero).Append('|').Append(string.Join(",", d.Tags)).Append(';');
         sb.Append($"han-tuning:{HanLigi.Tuning.Income},{HanLigi.Tuning.WinGold},{HanLigi.Tuning.InterestPer},{HanLigi.Tuning.InterestCap},{HanLigi.Tuning.XpCost},{HanLigi.Tuning.StartFocus},{HanLigi.Tuning.DamageMult},{HanLigi.Tuning.PveLater};");
         for (var s = -6; s <= 6; s++) sb.Append(HanLigi.Tuning.StreakGold(s)).Append(',');
+        foreach (var t in Enum.GetValues<HanLigi.Tag>()) sb.Append(string.Join("/", HanLigi.Tuning.Breakpoints(t))).Append(',');
+        sb.Append($"{HanLigi.Tuning.CatWinGold},{HanLigi.Tuning.ManticorePotionsFrom},{HanLigi.Tuning.DamageMode};");
+        for (var r = 1; r <= 30; r++) sb.Append(HanLigi.Tuning.DamageRamp(r)).Append(',');
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
         return $"p{Number}-{Convert.ToHexString(hash, 0, 4).ToLowerInvariant()}";
     }

@@ -298,7 +298,7 @@ public class MechanicsTests
     [Fact]
     public void Soldier_weather_levels()
     {
-        foreach (var (n, v) in new[] { (0, 1), (2, 2), (4, 3), (6, 4) })
+        foreach (var (n, v) in new[] { (0, 1), (2, 2), (4, 4), (6, 6) })   // Asker 4: havadan etkilenmez; 6: ayrıca +2
         {
             var a = Side("A", tags: (Tag.Soldier, n));
             var u = Add(a, "blue_stripes_commando");
@@ -321,7 +321,7 @@ public class MechanicsTests
     }
 
     [Fact]
-    public void Dwarf_four_protects_from_scorch_and_dwarf_six_boosts_row()
+    public void Dwarf_three_protects_from_scorch_and_dwarf_five_boosts_row()
     {
         var (a, b) = (Side("A", tags: (Tag.Dwarf, 6)), Side("B"));
         var y = Add(a, "barclay_els", Row.Close, power: 9);
@@ -331,7 +331,7 @@ public class MechanicsTests
         Assert.Contains(a.Units, x => x == y);
         Assert.DoesNotContain(b.Units, x => x.Def.Id == "fiend");
         var o = Play(bt, N, N);
-        Assert.Equal(11, o.ValueA);                  // 9 × 1,2 = 10,8 → 11
+        Assert.Equal(12, o.ValueA);                  // Cüce 3: +1 → 10; Cüce 5: × 1,2 = 12
     }
 
     // ================= yetenekler =================

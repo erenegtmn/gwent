@@ -6,7 +6,7 @@ namespace HanLigi;
 /// <list type="bullet">
 /// <item><b>Saha:</b> dizilim motorun kendi satır değeriyle (<see cref="Match.Preview"/>: Bağ, Büyüme, Moral, sınıf, Boynuz dahil)
 /// yerel aramayla seçilir. Savaş üç satırın en iyi ikisi olduğundan <b>ikinci güçlü satır</b> en ağır basar.</item>
-/// <item><b>Alışveriş:</b> çift/üçlü (yıldız atlama) ve sınıf eşikleri (2/4/6) peşinde; kart başına güç/altın; kahraman.</item>
+/// <item><b>Alışveriş:</b> çift/üçlü (yıldız atlama) ve sınıf eşikleri peşinde; kart başına güç/altın; kahraman.</item>
 /// <item><b>Ekonomi:</b> faiz eşikleri (10/20) korunur, round'a göre seviye eğrisi; can azalınca birikim harcanır (yenile, XP).</item>
 /// <item><b>Savaş:</b> satırın önemi (belirleyici mi), farkın yakınlığı ve kalan Odak'a göre işaret; Quen rakip Igni atabilecekken
 /// önde olduğumuz satırda; simya ve pusu yakın/belirleyici satırda.</item>
@@ -137,13 +137,13 @@ public static class ExpertBot
         if (same1 == 2) score += 6 + Tuning.Power(d, 2) * 1.2;
         else if (same1 == 1) score += 2.5 + d.Tier * 0.8;
         if (same2 >= 1 && same1 >= 1) score += 4 + Tuning.Power(d, 3) * 0.6;
-        // sınıf eşikleri: 2/4/6'ya bir kart kalmışsa
+        // sınıf eşikleri: bir sonraki eşiğe bir kart kalmışsa
         var tags = TagsOwned(p);
         if (p.Cards.All(c => c.Def != d))
             foreach (var t in d.Tags)
             {
                 var n = tags.GetValueOrDefault(t);
-                if (n is 1 or 3 or 5) score += 3 + n * 0.5;
+                if (Tuning.Breakpoints(t).Contains(n + 1)) score += 3 + n * 0.5;
                 else if (n >= 2) score += 1;
             }
         // erken tier-1, geç yüksek tier

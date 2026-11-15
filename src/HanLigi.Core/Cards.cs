@@ -121,17 +121,46 @@ public static class Tuning
     public const int Income = 4;
     public const int WinGold = 1;
     public const int InterestPer = 10;
-    public const int InterestCap = 2;
+    /// <summary>Faiz üst sınırı (meta ölçümünde değiştirilebilir; oyunda sabit).</summary>
+    public static int InterestCap = 2;
 
     /// <summary>
     /// Seri altını (round başı). Yenilgi serisi geri dönüş ve "bilerek kaybedip ekonomi kur" yolunu açar; galibiyet serisi küçük
-    /// tutulur (önde olanı kartopu gibi büyütmesin): yenilgi 2 → +1, 3-4 → +2, 5+ → +3; galibiyet 3-4 → +1, 5+ → +2.
+    /// tutulur (önde olanı kartopu gibi büyütmesin): yenilgi 2 → +1, 3 → +2, 4 → +3, 5+ → +4; galibiyet 3-4 → +1, 5+ → +2 (Meta 3).
     /// </summary>
-    public static int StreakGold(int streak) => streak switch
+    public static int StreakGold(int streak) => StreakMode switch
     {
-        <= -5 => 3, <= -3 => 2, -2 => 1, >= 5 => 2, >= 3 => 1, _ => 0
+        1 => streak switch { <= -5 => 4, -4 => 3, -3 => 2, -2 => 1, >= 5 => 2, >= 3 => 1, _ => 0 },
+        2 => streak switch { <= -5 => 4, -4 => 3, -3 => 2, -2 => 1, _ => 0 },
+        _ => streak switch { <= -5 => 3, <= -3 => 2, -2 => 1, >= 5 => 2, >= 3 => 1, _ => 0 }
     };
-    public const int XpCost = 4;
+
+    /// <summary>Seri altını tablosu (meta denemesi): 0 = Meta 2, 1 = yenilgi serisi güçlü (Meta 3, oyunda bu), 2 = ayrıca galibiyet serisi altını yok.</summary>
+    public static int StreakMode = 1;
+
+    /// <summary>
+    /// Hasarın taban seviyesi (meta denemesi): 0 = kazananın seviyesi, 1 = round'un seviyesi (<see cref="StageLevel"/>),
+    /// 2 = kazananın seviyesi ama round seviyesini en çok 1 aşabilir.
+    /// </summary>
+    public static int DamageMode;
+
+    /// <summary>
+    /// Hasar çarpanının round'a göre eğrisi: 0 = düz (Meta 2), 3 = erken hafif / geç ağır (Meta 3, oyunda bu: 1-8. round ×0,6,
+    /// 9-14 ×1, 15+ ×1,3; erken kayıp maçı kilitlemesin, arkadan gelmek mümkün olsun), 4 = daha yumuşak eğri.
+    /// </summary>
+    public static int RampMode = 3;
+
+    public static double DamageRamp(int round) => RampMode switch
+    {
+        3 => round <= 8 ? 0.6 : round <= 14 ? 1.0 : 1.3,
+        4 => round <= 8 ? 0.75 : round <= 14 ? 1.0 : 1.15,
+        _ => 1.0
+    };
+
+    /// <summary>Round'a göre beklenen seviye (botların seviye eğrisi): hasar tabanı için.</summary>
+    public static int StageLevel(int round) => round <= 2 ? 3 : round <= 4 ? 4 : round <= 7 ? 5 : round <= 10 ? 6 : round <= 14 ? 7 : 8;
+    /// <summary>XP fiyatı (meta ölçümünde değiştirilebilir; oyunda sabit).</summary>
+    public static int XpCost = 5;
     public const int XpGain = 4;
     public const int XpPerRound = 2;
     public const int RerollCost = 1;
@@ -144,6 +173,19 @@ public static class Tuning
     public const double DamageMult = 2.25;
     public const double PveLater = 0.8;
     public const int PotionsFromRound = 4;
+
+    /// <summary>
+    /// Sınıf eşikleri (TFT gibi sınıfa göre): kart sayısı az olan sınıfların son eşiği ulaşılabilir olsun. Haydutta 4, Büyücü ve
+    /// Cücede 5, ötekilerde 6+ farklı kart var.
+    /// </summary>
+    private static readonly int[] Bp246 = { 2, 4, 6 }, Bp235 = { 2, 3, 5 }, Bp234 = { 2, 3, 4 };
+    public static int[] Breakpoints(Tag t) => t switch { Tag.Bandit => Bp234, Tag.Mage or Tag.Dwarf => Bp235, _ => Bp246 };
+    /// <summary>Sınıf sayısından eşik basamağı (0-3).</summary>
+    public static int TagLevel(Tag t, int n) { var b = Breakpoints(t); return n >= b[2] ? 3 : n >= b[1] ? 2 : n >= b[0] ? 1 : 0; }
+    /// <summary>Kedi okulu: kazandığı savaş başına ek altın.</summary>
+    public const int CatWinGold = 1;
+    /// <summary>Mantikor okulu simya seçimine bu round'dan başlar (ötekiler <see cref="PotionsFromRound"/>).</summary>
+    public const int ManticorePotionsFrom = 2;
 
     /// <summary>L2…L8 kümülatif XP eşikleri.</summary>
     public static readonly int[] XpThresholds = { 2, 6, 12, 22, 35, 52, 72 };
@@ -206,11 +248,11 @@ public static class Texts
     public static string Describe(School s) => s switch
     {
         School.Wolf => "Her savaşın başında +1 Odak.",
-        School.Cat => "Satır sırasını hazırlıkta görürsün ve iki satırın yerini değiştirebilirsin. Casus bilgisi +1 kart.",
+        School.Cat => "Satır sırasını hazırlıkta görürsün ve iki satırın yerini değiştirebilirsin. Casus bilgisi +1 kart. Bir oyuncuyu yendiğin savaşta +1 altın.",
         School.Griffin => "Aard ve Igni etkisi %50 daha güçlü.",
         School.Bear => "Quen bir işareti engellerse rakibin o satırı −%10. Kaybettiğin savaşta %10 daha az hasar alırsın.",
         School.Viper => "Üç simya kartı taşıyabilirsin; bombaların %25 daha güçlü.",
-        _ => "Round başı simya seçimini 2 yerine 3 karttan yaparsın."
+        _ => "Simya seçimi 2. round'dan başlar, 2 yerine 3 karttan yaparsın ve üç simya kartı taşıyabilirsin."
     };
 
     public static string Describe(Potion p) => p switch
@@ -272,14 +314,14 @@ public static class Texts
         _ => ""
     };
 
-    /// <summary>Etiket eşik bonuslarının (2/4/6) açıklaması.</summary>
+    /// <summary>Etiket eşik bonuslarının açıklaması (eşikler: <see cref="Tuning.Breakpoints"/>).</summary>
     public static string[] Thresholds(Tag t) => t switch
     {
         Tag.Monster => new[] { "Canavarlar +1", "Canavarlar +2", "Canavarlar +3" },
-        Tag.Soldier => new[] { "Askerler havada 2", "Askerler havada 3", "Askerler havadan etkilenmez" },
-        Tag.Mage => new[] { "İşaretler +%25", "+1 Odak", "Savaş başına bir işaret bedava" },
+        Tag.Soldier => new[] { "Askerler havada 2", "Askerler havadan etkilenmez", "Askerler +2, havadan etkilenmez" },
+        Tag.Mage => new[] { "İşaretler +%25", "+1 Odak, işaretler +%50", "Savaş başına bir işaret bedava" },
         Tag.Bandit => new[] { "Pusu yeri 3 kart", "Pusudan inen +%25", "Pusu Yrden'den etkilenmez" },
-        Tag.Noble => new[] { "Round başı +1 altın", "İlk reroll bedava", "Round başı +2 altın" },
-        _ => new[] { "Cüceler bombalardan yarı etkilenir", "Cüceler Kavurma'dan korunur", "Cücelerin satırına +%20" }
+        Tag.Noble => new[] { "İlk yenileme bedava", "Round başı +1 altın", "Round başı +3 altın" },
+        _ => new[] { "Cüceler bombalardan yarı etkilenir", "Cüceler +1, Kavurma'dan korunur", "Cücelerin satırına +%20" }
     };
 }

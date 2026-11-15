@@ -54,17 +54,27 @@ public static class Meta
         }
     }
 
-    public sealed record Report(int Games, double Seconds, List<Stat> Builds, List<Stat> Schools, List<Stat> Traits, List<Stat> Heroes, double AvgRounds);
+    /// <summary>
+    /// Eğlencenin dolaylı göstergeleri: <b>Comeback</b> = 10. round'da canı en düşük yarıdayken maçı kazananların oranı;
+    /// <b>Close</b> = PvP savaşlarının 2–1 bitenleri; <b>WinnerTags</b> = kazananın ana sınıfı (en yüksek eşik) dağılımı ve
+    /// bunun normalleştirilmiş entropisi (1 = her sınıf eşit sıklıkta kazanıyor); <b>HeroWins</b> = kazananın sahasında kahraman.
+    /// </summary>
+    public sealed record Fun(double Comeback, double Close, Dictionary<string, double> WinnerTags, double Diversity, double HeroWins);
+
+    public sealed record Report(int Games, double Seconds, List<Stat> Builds, List<Stat> Schools, List<Stat> Traits, List<Stat> Heroes, double AvgRounds, Fun Fun);
+
+    private sealed record Game((int[] Build, School[] School, int[] Place, HashSet<(Tag, int)>[] Traits, HashSet<string>[] Heroes, int Rounds) Core,
+        bool? Comeback, int Pvp, int TwoOne, string WinnerTag, bool WinnerHero);
 
     /// <summary><paramref name="games"/> maç oynatır (paralel, belirlenimci: aynı tohum aynı sonuç).</summary>
     public static Report Run(int games, int seed = 1, Action<int>? progress = null)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var results = new (int[] Build, School[] School, int[] Place, HashSet<(Tag, int)>[] Traits, HashSet<string>[] Heroes, int Rounds)[games];
+        var games2 = new Game[games];
         var done = 0;
         Parallel.For(0, games, g =>
         {
-            results[g] = Play(seed * 100003 + g);
+            games2[g] = Play(seed * 100003 + g);
             var d = Interlocked.Increment(ref done);
             if (progress != null && d % 50 == 0) progress(d);
         });
@@ -73,6 +83,7 @@ public static class Meta
         var schools = Enum.GetValues<School>().Select(s => New(Texts.Name(s))).ToList();
         var traits = new Dictionary<(Tag, int), Stat>();
         var heroes = new Dictionary<string, Stat>();
+        var results = games2.Select(x => x.Core).ToList();
         foreach (var r in results)
             for (var i = 0; i < 8; i++)
             {
@@ -80,7 +91,7 @@ public static class Meta
                 schools[(int)r.School[i]].Add(r.Place[i]);
                 foreach (var t in r.Traits[i])
                 {
-                    if (!traits.TryGetValue(t, out var st)) traits[t] = st = New($"{Texts.Name(t.Item1)} {t.Item2 * 2}+");
+                    if (!traits.TryGetValue(t, out var st)) traits[t] = st = New($"{Texts.Name(t.Item1)} {Tuning.Breakpoints(t.Item1)[t.Item2 - 1]}+");
                     st.Add(r.Place[i]);
                 }
                 foreach (var h in r.Heroes[i])
@@ -92,11 +103,24 @@ public static class Meta
         foreach (var s in builds.Concat(schools).Concat(traits.Values).Concat(heroes.Values)) s.Finish();
         return new Report(games, sw.Elapsed.TotalSeconds, builds.OrderBy(s => s.Avg).ToList(), schools.OrderBy(s => s.Avg).ToList(),
             traits.OrderBy(k => k.Key.Item1).ThenBy(k => k.Key.Item2).Select(k => k.Value).ToList(), heroes.Values.OrderBy(s => s.Avg).ToList(),
-            results.Average(r => r.Rounds));
+            results.Average(r => r.Rounds), FunOf(games2));
     }
 
-    private static (int[] Build, School[] School, int[] Place, HashSet<(Tag, int)>[] Traits, HashSet<string>[] Heroes, int Rounds) Play(int seed)
+    private static Fun FunOf(Game[] gs)
     {
+        var cb = gs.Where(g => g.Comeback != null).ToList();
+        var tags = gs.GroupBy(g => g.WinnerTag).ToDictionary(g => g.Key, g => g.Count() / (double)gs.Length);
+        var real = tags.Where(k => k.Key != "—").Select(k => k.Value).ToList();
+        var sum = real.Sum();
+        var h = real.Where(v => v > 0).Sum(v => -(v / sum) * Math.Log(v / sum));
+        return new Fun(cb.Count == 0 ? 0 : cb.Count(g => g.Comeback == true) / (double)cb.Count,
+            gs.Sum(g => g.Pvp) == 0 ? 0 : gs.Sum(g => g.TwoOne) / (double)gs.Sum(g => g.Pvp),
+            tags, h / Math.Log(Enum.GetValues<Tag>().Length), gs.Count(g => g.WinnerHero) / (double)gs.Length);
+    }
+
+    private static Game Play(int seed)
+    {
+        HashSet<int>? lowAt10 = null;
         var rng = new Random(seed);
         var pick = Enumerable.Range(0, Builds.Length).OrderBy(_ => rng.Next()).Take(8).ToArray();
         var m = new Match(seed, Enumerable.Range(0, 8).Select(i => ($"B{i}", true)).ToList());
@@ -107,6 +131,11 @@ public static class Meta
         {
             foreach (var p in m.Alive.ToList()) ExpertBot.Prep(m, p.Id, rng, Builds[pick[p.Id]]);
             if (m.Phase == Phase.Prep) m.ForceLock();
+            if (m.Round == 10 && lowAt10 == null)
+            {
+                var al = m.Alive.OrderBy(p => p.Hp).ToList();
+                lowAt10 = al.Take(al.Count / 2).Select(p => p.Id).ToHashSet();
+            }
             // round ortası sonrasında ulaşılan sınıf eşikleri ve sahadaki kahramanlar (düzenin gerçekte ne kurduğu)
             if (m.Round >= 8)
                 foreach (var p in m.Alive)
@@ -130,7 +159,12 @@ public static class Meta
         foreach (var t in traits)
             foreach (var g in t.GroupBy(x => x.Item1).ToList())
                 foreach (var lower in g.Where(x => x.Item2 < g.Max(y => y.Item2)).ToList()) t.Remove(lower);
-        return (pick, m.Players.Select(p => p.School!.Value).ToArray(), m.Players.Select(p => p.Place).ToArray(), traits, heroes, m.Round);
+        var core = (pick, m.Players.Select(p => p.School!.Value).ToArray(), m.Players.Select(p => p.Place).ToArray(), traits, heroes, m.Round);
+        var win = m.Players.First(p => p.Place == 1);
+        var top = Enum.GetValues<Tag>().Select(t => (T: t, L: win.Th(t), N: win.TagCounts().GetValueOrDefault(t))).Where(x => x.L > 0).OrderByDescending(x => x.L).ThenByDescending(x => x.N).FirstOrDefault();
+        var pvp = m.History.Where(h => !h.Pve && !h.Ghost && h.Winner >= 0).ToList();
+        return new Game(core, lowAt10 == null ? null : lowAt10.Contains(win.Id), pvp.Count, pvp.Count(h => h.PointsA + h.PointsB == 3),
+            top.L > 0 ? Texts.Name(top.T) : "—", win.Fielded.Any(c => c.Def.IsHero));
     }
 
     /// <summary>Kademe: ortalama sıranın 4,5'ten farkına göre (S en güçlü).</summary>
@@ -154,6 +188,14 @@ public static class Meta
                 sb.AppendLine((tier ? $"| {Tier(s.Avg)} " : "") + $"| {s.Name} | {s.Avg:F2} ± {s.Ci:F2} | %{s.Top4Rate * 100:F0} | %{s.WinRate * 100:F1} | {s.N} |");
             sb.AppendLine();
         }
+        sb.AppendLine("### Eğlence göstergeleri");
+        sb.AppendLine();
+        sb.AppendLine($"- **Arkadan gelme:** 10. round'da canı en düşük yarıdayken kazananlar: %{r.Fun.Comeback * 100:F0} (yarı yarıya şans %50; düşük olması öndekinin kartopu demek).");
+        sb.AppendLine($"- **Başa baş savaşlar:** PvP savaşlarının %{r.Fun.Close * 100:F0}'i 2–1 bitiyor.");
+        sb.AppendLine($"- **Kazanan tahtaların çeşitliliği:** {r.Fun.Diversity:F2} (1 = altı sınıf eşit sıklıkta kazanıyor). Kazananın ana sınıfı: " +
+            string.Join(", ", r.Fun.WinnerTags.OrderByDescending(k => k.Value).Select(k => $"{k.Key} %{k.Value * 100:F0}")) + ".");
+        sb.AppendLine($"- **Kahramanlı zafer:** kazananların %{r.Fun.HeroWins * 100:F0}'inin sahasında kahraman var.");
+        sb.AppendLine();
         Table("Düzenler", r.Builds, true);
         Table("Okullar", r.Schools, false);
         Table("Sınıf eşikleri (8. round sonrası ulaşılan en yüksek)", r.Traits.Where(s => s.N >= 30), false);

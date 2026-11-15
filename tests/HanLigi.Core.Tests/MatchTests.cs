@@ -50,7 +50,7 @@ public class MatchTests(ITestOutputHelper output)
     [Fact]
     public void Streak_gold_rewards_loss_streaks_more_than_win_streaks()
     {
-        Assert.Equal(new[] { 3, 3, 2, 2, 1, 0, 0, 0, 1, 1, 2 }, new[] { -6, -5, -4, -3, -2, -1, 0, 2, 3, 4, 5 }.Select(Tuning.StreakGold).ToArray());
+        Assert.Equal(new[] { 4, 4, 3, 2, 1, 0, 0, 0, 1, 1, 2 }, new[] { -6, -5, -4, -3, -2, -1, 0, 2, 3, 4, 5 }.Select(Tuning.StreakGold).ToArray());
         // gerçek maçta: seriler round sonunda güncellenir, sonraki round başında altın olarak gelir
         var m = New(11);
         PickSchools(m);

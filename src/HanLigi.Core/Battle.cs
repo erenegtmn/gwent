@@ -71,7 +71,7 @@ public sealed class BattleSide
     public int[] RowValues { get; } = new int[3];
 
     /// <summary>Etiket eşik seviyesi: 0 yok, 1 (2 kart), 2 (4 kart), 3 (6 kart).</summary>
-    public int Th(Tag t) => Tags.TryGetValue(t, out var n) ? n >= 6 ? 3 : n >= 4 ? 2 : n >= 2 ? 1 : 0 : 0;
+    public int Th(Tag t) => Tags.TryGetValue(t, out var n) ? Tuning.TagLevel(t, n) : 0;
 
     public IEnumerable<BattleUnit> In(Row r) => Units.Where(u => u.Row == r);
     public bool HasHero(Hero h) => Units.Any(u => u.Def.Hero == h);
@@ -113,6 +113,8 @@ public sealed class Battle
     public int?[] AmbushSeen { get; } = new int?[2];
     public bool Pve { get; init; }
     public bool NoDamage { get; init; }
+    /// <summary>Savaşın round'u (hasar tabanı için; 0 = bilinmiyor).</summary>
+    public int Round { get; init; }
     /// <summary>İkinci taraf başka bir oyuncunun sahasının kopyası (gölge rakip).</summary>
     public bool Ghost { get; init; }
     private readonly WindowChoice?[] _pending = new WindowChoice?[2];
@@ -142,7 +144,7 @@ public sealed class Battle
         if (Weather.Contains(u.Row) && !noWeather && !u.IsHero && !u.Protected && !Shielded(s, u.Row))
         {
             var th = u.Has(Tag.Soldier) ? s.Th(Tag.Soldier) : 0;
-            if (th < 3) v = Math.Min(v, th == 2 ? 3 : th == 1 ? 2 : 1);
+            if (th < 2) v = Math.Min(v, th == 1 ? 2 : 1);
         }
         if (!u.Token)
         {
@@ -155,6 +157,8 @@ public sealed class Battle
             if (m != u && m.Def.Ability == Ability.Morale && !m.Token && s.Act.Morale.TryGetValue(m.Uid, out var mr) && mr == u.Row)
                 v += m.Star;
         if (u.Has(Tag.Monster)) v += s.Th(Tag.Monster);
+        if (u.Has(Tag.Soldier) && s.Th(Tag.Soldier) >= 3) v += 2;
+        if (u.Has(Tag.Dwarf) && s.Th(Tag.Dwarf) >= 2) v += 1;
         if (mirror && !u.Token && u.Def.Ability == Ability.Mirror)
         {
             var best = s.In(u.Row).Where(o => o != u && (o.Token || o.Def.Ability != Ability.Mirror)).Select(o => Value(s, o, noWeather, false)).DefaultIfEmpty(0).Max();
@@ -401,7 +405,7 @@ public sealed class Battle
         BattleUnit? Strongest(int side, IEnumerable<BattleUnit>? skip = null) =>
             Sides[side].In(row).Where(u => !u.IsHero && !u.Protected && skip?.Contains(u) != true)
                 .OrderByDescending(u => Value(Sides[side], u, noWeather[side]) * (1 + card.GetValueOrDefault(u))).FirstOrDefault();
-        double Amp(int side) => 1 + (Sides[side].School == HanLigi.School.Griffin ? 0.5 : 0) + (Sides[side].Th(Tag.Mage) >= 1 ? 0.25 : 0);
+        double Amp(int side) => 1 + (Sides[side].School == HanLigi.School.Griffin ? 0.5 : 0) + (Sides[side].Th(Tag.Mage) >= 2 ? 0.5 : Sides[side].Th(Tag.Mage) >= 1 ? 0.25 : 0);
         double Bomb(int side, BattleUnit target, int victim)
         {
             var v = Sides[victim];
@@ -544,7 +548,14 @@ public sealed class Battle
             var w = Winner;
             if (w < 0 || NoDamage) return 0;
             var d = Math.Max(1, Math.Abs(Sides[0].Points - Sides[1].Points));
-            var h = (int)Math.Ceiling(Tuning.DamageMult * (Sides[w].Level + d));
+            var lv = Tuning.DamageMode switch
+            {
+                1 => Tuning.StageLevel(Round),
+                2 => Math.Min(Sides[w].Level, Tuning.StageLevel(Round) + 1),
+                _ => Sides[w].Level
+            };
+            var h = (int)Math.Ceiling(Tuning.DamageMult * (lv + d));
+            h = (int)Math.Ceiling(h * Tuning.DamageRamp(Round));
             if (Sides[1 - w].School == HanLigi.School.Bear) h = (int)Math.Ceiling(h * 0.9);
             if (Pve) h = (int)Math.Ceiling(h / 2.0);
             return h;

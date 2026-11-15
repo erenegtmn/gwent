@@ -400,7 +400,8 @@ public sealed partial class HanView : Grid
                 var th = HT.Thresholds(tag);
                 var t = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(13), Foreground = HanUi.Br(HanUi.Muted), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
                 t.Inlines.Add(new System.Windows.Documents.Run(HanUi.Tracked(HanUi.Upper(HT.Name(tag))) + "   ") { Foreground = new SolidColorBrush(HanCardView.TagColor(tag)), FontWeight = FontWeights.Bold });
-                t.Inlines.Add(new System.Windows.Documents.Run($"2: {th[0]}  ·  4: {th[1]}  ·  6: {th[2]}"));
+                var bp = Tuning.Breakpoints(tag);
+                t.Inlines.Add(new System.Windows.Documents.Run($"{bp[0]}: {th[0]}  ·  {bp[1]}: {th[1]}  ·  {bp[2]}: {th[2]}"));
                 info.Children.Add(t);
             }
         info.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));

@@ -348,7 +348,7 @@ public sealed partial class HanView
         next.Inlines.Add(new System.Windows.Documents.Run($"\n{Tuning.Income} gelir · {interest} faiz") { Foreground = Theme.B("#88e8dcc4") });
         if (Me.Streak <= -2 || Me.Streak >= 2)
             next.Inlines.Add(new System.Windows.Documents.Run(Me.Streak < 0 ? $"\n{-Me.Streak} yenilgi serisi +{streak}" : $"\n{Me.Streak} galibiyet serisi +{streak}") { Foreground = Me.Streak < 0 ? Theme.B("#ffb070") : Theme.B("#a3e078"), FontWeight = FontWeights.Bold });
-        next.ToolTip = "Faiz: her 10 altına +1 (en çok +2).\nSeri: art arda yenilgi 2 → +1, 3-4 → +2, 5+ → +3; art arda galibiyet 3-4 → +1, 5+ → +2.";
+        next.ToolTip = "Faiz: her 10 altına +1 (en çok +2).\nSeri: art arda yenilgi 2 → +1, 3 → +2, 4 → +3, 5+ → +4; art arda galibiyet 3-4 → +1, 5+ → +2.";
         Put(next, EcoX + 110, BarY + 10);
         next.Width = EcoW - 112;
         next.TextWrapping = TextWrapping.Wrap;
@@ -580,7 +580,8 @@ public sealed partial class HanView
         {
             var n = counts.GetValueOrDefault(t);
             any |= n > 0;
-            var th = n >= 6 ? 3 : n >= 4 ? 2 : n >= 2 ? 1 : 0;
+            var th = Tuning.TagLevel(t, n);
+            var bp = Tuning.Breakpoints(t);
             var c = HanCardView.TagColor(t);
             var g = new Grid { Width = SideW, Height = 40, Background = Brushes.Transparent, Opacity = n == 0 ? 0.42 : 1 };
             g.Children.Add(new Border { CornerRadius = new CornerRadius(20, 6, 6, 20), Background = th > 0 ? new LinearGradientBrush(Color.FromArgb(0xd0, (byte)(c.R / 3), (byte)(c.G / 3), (byte)(c.B / 3)), Color.FromArgb(0xb0, 0x0c, 0x07, 0x04), 0) : Theme.B("#a00c0704"), BorderBrush = th > 0 ? new SolidColorBrush(c) : Theme.B("#3a2a12"), BorderThickness = new Thickness(1) });
@@ -592,10 +593,10 @@ public sealed partial class HanView
             g.Children.Add(new TextBlock { Text = n.ToString(), Width = 38, Margin = new Thickness(3, 0, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center, FontFamily = HanUi.Font, FontSize = HanUi.S(18), FontWeight = FontWeights.Bold, Foreground = th > 0 ? Theme.B("#1a1209") : Theme.TextDim });
             g.Children.Add(new TextBlock { Text = HT.Name(t), FontFamily = HanUi.Font, FontSize = HanUi.S(14), FontWeight = FontWeights.Bold, Foreground = th > 0 ? Theme.B("#f4ead2") : Theme.TextDim, Margin = new Thickness(48, 3, 0, 0) });
             var pips = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(12), FontWeight = FontWeights.Bold, Margin = new Thickness(48, 21, 0, 0) };
-            foreach (var step in new[] { 2, 4, 6 })
+            foreach (var step in bp)
             {
                 pips.Inlines.Add(new System.Windows.Documents.Run(step.ToString()) { Foreground = n >= step ? new SolidColorBrush(Color.Add(c, Color.FromRgb(0x40, 0x40, 0x40))) : Theme.B("#55e8dcc4") });
-                if (step < 6) pips.Inlines.Add(new System.Windows.Documents.Run("  ›  ") { Foreground = Theme.B("#44e8dcc4") });
+                if (step < bp[2]) pips.Inlines.Add(new System.Windows.Documents.Run("  ›  ") { Foreground = Theme.B("#44e8dcc4") });
             }
             g.Children.Add(pips);
             // açık bonusun kısa metni
@@ -603,13 +604,13 @@ public sealed partial class HanView
                 g.Children.Add(new TextBlock { Text = HT.Thresholds(t)[th - 1], FontFamily = HanUi.Font, FontSize = HanUi.S(11), Foreground = Theme.B("#d8ccb4"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), MaxWidth = 100, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Right });
             g.ToolTip = new ToolTip
             {
-                Content = new TextBlock { Text = HT.Name(t) + "\n" + string.Join("\n", HT.Thresholds(t).Select((s, i) => $"{(i + 1) * 2}: {s}")), FontFamily = HanUi.Font, FontSize = HanUi.S(14), Foreground = Theme.Text },
+                Content = new TextBlock { Text = HT.Name(t) + "\n" + string.Join("\n", HT.Thresholds(t).Select((s, i) => $"{bp[i]}: {s}")), FontFamily = HanUi.Font, FontSize = HanUi.S(14), Foreground = Theme.Text },
                 Background = Theme.B("#f4150f09"), BorderBrush = new SolidColorBrush(c), Padding = new Thickness(10)
             };
             Put(g, SideX, y);
             y += 44;
         }
-        if (!any) Put(new TextBlock { Text = "Aynı sınıftan 2, 4, 6 kart bonus açar. Sınıflar kartın altında yazar.", FontFamily = HanUi.Font, FontSize = HanUi.S(13), Foreground = Theme.B("#88e8dcc4"), TextWrapping = TextWrapping.Wrap, Width = SideW - 8 }, SideX + 4, y);
+        if (!any) Put(new TextBlock { Text = "Aynı sınıftan farklı kartlar bonus açar (çoğu sınıfta 2, 4, 6; Haydut 2, 3, 4; Büyücü ve Cüce 2, 3, 5). Sınıflar kartın altında yazar.", FontFamily = HanUi.Font, FontSize = HanUi.S(13), Foreground = Theme.B("#88e8dcc4"), TextWrapping = TextWrapping.Wrap, Width = SideW - 8 }, SideX + 4, y);
     }
 
     /// <summary>Tezgâh yalnız bir satın almayla mı değişti (yenileme değil)?</summary>

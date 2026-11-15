@@ -58,7 +58,7 @@ public sealed class PlayerState
     public bool ShopLocked { get; set; }
 
     public int Slots => Tuning.Slots(Level);
-    public int PotionCap => School == HanLigi.School.Viper ? 3 : 2;
+    public int PotionCap => School is HanLigi.School.Viper or HanLigi.School.Manticore ? 3 : 2;
     public IEnumerable<OwnedCard> Fielded => Cards.Where(c => c.Fielded);
     /// <summary>Masa sınırına sayılan kart sayısı (pusu hariç).</summary>
     public int Used => Cards.Count(c => c.TakesSlot);
@@ -74,7 +74,7 @@ public sealed class PlayerState
         return d;
     }
 
-    public int Th(Tag t) => TagCounts().TryGetValue(t, out var n) ? n >= 6 ? 3 : n >= 4 ? 2 : n >= 2 ? 1 : 0 : 0;
+    public int Th(Tag t) => TagCounts().TryGetValue(t, out var n) ? Tuning.TagLevel(t, n) : 0;
     public int AmbushCap => Th(Tag.Bandit) >= 1 ? 3 : 2;
 }
 
@@ -145,13 +145,13 @@ public sealed class Match
             if (Round >= 2) p.Gold += Tuning.StreakGold(p.Streak);
             p.Gold += Math.Min(2, p.Fielded.Count(c => c.Def.Ability == Ability.Treasure));
             var noble = p.Th(Tag.Noble);
-            p.Gold += noble >= 3 ? 2 : noble >= 1 ? 1 : 0;
+            p.Gold += noble >= 3 ? 3 : noble >= 2 ? 1 : 0;
             p.Xp += Tuning.XpPerRound;
             LevelUp(p);
             if (p.ShopLocked) p.ShopLocked = false;   // kilitli tezgâh aynen kalır (alınanların yeri boş)
             else { ReturnShop(p); RollShop(p); }
             p.PotionOptions = Array.Empty<Potion>();
-            if (Round >= Tuning.PotionsFromRound && p.Potions.Count < p.PotionCap)
+            if (Round >= (p.School == School.Manticore ? Tuning.ManticorePotionsFrom : Tuning.PotionsFromRound) && p.Potions.Count < p.PotionCap)
                 p.PotionOptions = Enum.GetValues<Potion>().OrderBy(_ => _misc.Next()).Take(p.School == School.Manticore ? 3 : 2).ToArray();
         }
         Pair();
@@ -231,7 +231,7 @@ public sealed class Match
 
     private bool InPrep(PlayerState p) => Phase == Phase.Prep && p.Alive && !p.Ready;
 
-    public int RerollCost(int pid) => Players[pid].Th(Tag.Noble) >= 2 && !Players[pid].FreeRerollUsed ? 0 : Tuning.RerollCost;
+    public int RerollCost(int pid) => Players[pid].Th(Tag.Noble) >= 1 && !Players[pid].FreeRerollUsed ? 0 : Tuning.RerollCost;
 
     public bool Reroll(int pid)
     {
@@ -501,12 +501,12 @@ public sealed class Match
             {
                 var o = Players[p.OppId];
                 done.Add(o.Id);
-                b = new Battle(Snapshot(p), Snapshot(o), p.Order, _pair.Next());
+                b = new Battle(Snapshot(p), Snapshot(o), p.Order, _pair.Next()) { Round = Round };
             }
             else if (p.OppKind == OpponentKind.Ghost)
-                b = new Battle(Snapshot(p), Snapshot(Players[p.OppId], Players[p.OppId].Name + " (gölge)"), p.Order, _pair.Next()) { Ghost = true };
+                b = new Battle(Snapshot(p), Snapshot(Players[p.OppId], Players[p.OppId].Name + " (gölge)"), p.Order, _pair.Next()) { Ghost = true, Round = Round };
             else
-                b = new Battle(Snapshot(p), PveSide(p), p.Order, _pair.Next()) { Pve = true, NoDamage = Round <= 2 };
+                b = new Battle(Snapshot(p), PveSide(p), p.Order, _pair.Next()) { Pve = true, NoDamage = Round <= 2, Round = Round };
             done.Add(p.Id);
             Spy(b, 0);
             Spy(b, 1);
@@ -556,7 +556,7 @@ public sealed class Match
             // kullanılan simya kartları harcanır
             p.Potions.Clear();
             p.Potions.AddRange(side.Potions);
-            if (w == i) { p.Gold += Tuning.WinGold; p.Wins++; }
+            if (w == i) { p.Gold += Tuning.WinGold + (p.School == School.Cat && !b.Pve ? Tuning.CatWinGold : 0); p.Wins++; }
             else if (w == 1 - i) { p.Hp -= dmg; p.Losses++; }
             if (!b.Pve) p.Streak = w == i ? Math.Max(0, p.Streak) + 1 : w == 1 - i ? Math.Min(0, p.Streak) - 1 : 0;
             // PvE ödülü: R1-2'de her durumda, sonra yalnız kazanana
