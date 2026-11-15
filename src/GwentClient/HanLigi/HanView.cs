@@ -185,7 +185,7 @@ public sealed partial class HanView : Grid
         : _waitReady ? "Hazırsın. Öteki oyuncular hazırlanıyor…"
         : _waitAct ? "Rakibin hedeflerini seçiyor…"
         : _waitWindow != null ? "Rakibin seçimini yapıyor…"
-        : _waitRound ? $"{MyVerdict()} · diğer oyuncular bekleniyor ({M.Battles.Count(b => b.Done)}/{M.Battles.Count} masa bitti)"
+        : _waitRound ? (M.Battles.All(b => b.Done) ? $"{MyVerdict()} · diğer oyuncular savaşlarının sonunu izliyor…" : $"{MyVerdict()} · diğer oyuncular bekleniyor ({M.Battles.Count(b => b.Done)}/{M.Battles.Count} masa bitti)")
         : null;
 
     /// <summary>"Kazandın 2–1" / "Kaybettin 1–2" / "Berabere 1–1" (kendi savaşım).</summary>

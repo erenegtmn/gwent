@@ -55,6 +55,9 @@ public sealed class HanFake : IGwentClient, IHanClient
     public void OnSpectateAction(ActionBroadcast action) { }
     public void OnSpectateEnded(MatchResult result) { }
 
+    /// <summary>Savaşın sonunu izledim bildirimini yollasın mı (gerçek istemci sinematikten sonra yollar).</summary>
+    public bool SendSeen { get; set; } = true;
+
     public void Pump() { while (_inbox.Count > 0) _inbox.Dequeue()(); }
 
     public void Reconnect()
@@ -92,6 +95,7 @@ public sealed class HanFake : IGwentClient, IHanClient
             var side = m.SideOf(b, me);
             if (!b.Started && !g.Activated(bi, side)) a = HanAction.Activation(me, bi, side, b.DefaultActivation(side));
             else if (b.Started && !b.Done && !b.Submitted(side)) a = HanAction.Choice(me, bi, side, _rng.Next(3) == 0 ? WindowChoice.None : HanBot.Window(b, side, _rng));
+            else if (b.Done && !g.Seen(me) && SendSeen) a = new HanAction(HanActKind.RoundSeen, me);
         }
         if (a == null) return false;
         var r = _svc.HanSubmit(Session, a);
@@ -229,5 +233,45 @@ public class HanRoomTests
         svc.HanSetReady(a.Session, true);                // yalnız host kaldı: 3 botla başlar
         a.Pump();
         Assert.Equal(4, a.Setup!.Names.Count);
+    }
+
+    [Fact]
+    public void Round_closes_only_when_every_human_saw_their_battle_or_after_timeout()
+    {
+        var (svc, clock) = Server(9);
+        var a = new HanFake(svc, "Ali", 1);
+        var b = new HanFake(svc, "Banu", 2);
+        svc.CreateHanRoom(a.Session, "Ali", ProtocolInfo.Version, 4);
+        a.Pump();
+        svc.JoinRoom(b.Session, a.State!.Code, "Banu", ProtocolInfo.Version);
+        svc.HanSetReady(a.Session, true);
+        svc.HanSetReady(b.Session, true);
+        a.Pump(); b.Pump();
+        var room = svc.FindHan(a.State!.Code)!;
+        var g = room.Game!;
+        b.SendSeen = false;
+        // A oynar ve izler; B savaşını oynar ama izlediğini bildirmez: round kapanmamalı
+        for (var i = 0; i < 400 && !(g.M.Phase == Phase.Battle && g.RoundCanEnd && g.Seen(a.Seat)); i++) { a.Act(); b.Act(); }
+        Assert.True(g.RoundCanEnd);
+        var round = g.M.Round;
+        a.Act(); b.Act();
+        Assert.Equal(round, g.M.Round);
+        Assert.Equal(Phase.Battle, g.M.Phase);
+        // B izledi: hemen kapanır, herkes aynı anda sonraki round'da
+        Assert.True(svc.HanSubmit(b.Session, new HanAction(HanActKind.RoundSeen, b.Seat)).Ok);
+        a.Pump(); b.Pump();
+        Assert.Equal(round + 1, g.M.Round);
+        Assert.Equal(Phase.Prep, g.M.Phase);
+        // sonraki round: B yine bildirmez (kopmuş gibi); gösterim payı dolunca sunucu kapatır
+        for (var i = 0; i < 400 && !(g.M.Phase == Phase.Battle && g.RoundCanEnd && g.Seen(a.Seat)); i++) { a.Act(); b.Act(); if (i % 40 == 39) { clock.Advance(TimeSpan.FromSeconds(30)); svc.TickHan(); } }
+        Assert.Equal(round + 1, g.M.Round);
+        clock.Advance(TimeSpan.FromSeconds(10));
+        svc.TickHan();
+        Assert.Equal(round + 1, g.M.Round);
+        clock.Advance(TimeSpan.FromSeconds(30));
+        svc.TickHan();
+        Assert.Equal(round + 2, g.M.Round);
+        a.Pump(); b.Pump();
+        Assert.Equal(g.Fingerprint(), b.Game!.Fingerprint());
     }
 }

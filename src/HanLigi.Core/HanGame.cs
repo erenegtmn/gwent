@@ -32,7 +32,9 @@ public enum HanActKind
     /// <summary>Yalnız sunucu: oyuncu ayrıldı, koltuğunu bundan sonra yapay zekâ oynar.</summary>
     Abandon,
     /// <summary>Tezgâh kilidi aç/kapa (sonraki round tezgâh aynen kalır).</summary>
-    LockShop
+    LockShop,
+    /// <summary>Oyuncu kendi savaşının sonunu ekranda izledi (sinematik bitti). Sunucu herkes izleyince round'u kapatır.</summary>
+    RoundSeen
 }
 
 /// <summary>
@@ -155,6 +157,17 @@ public sealed class HanGame
     /// <summary>Round kapanabilir mi (bütün savaşlar bitti)? Sunucu o zaman <see cref="HanActKind.EndRound"/> yollar.</summary>
     public bool RoundCanEnd => M.Phase == Phase.Battle && M.Battles.All(b => b.Done);
 
+    /// <summary>Bu round'da kendi savaşının sonunu izlediğini bildiren insanlar.</summary>
+    private readonly HashSet<int> _seen = new();
+
+    /// <summary>
+    /// Savaşı olan bütün insanlar savaşlarının sonunu izledi mi. Online'da round, motor bitirse bile ancak o zaman kapanır:
+    /// son masadakiler satır çözümünü ve sonucu izlerken ötekiler sonraki round'un tezgâhına geçmesin, herkes birlikte geçsin.
+    /// </summary>
+    public bool Seen(int pid) => _seen.Contains(pid);
+
+    public bool AllSeen => M.Phase == Phase.Battle && M.Battles.SelectMany((b, i) => new[] { Owner(b, 0), Owner(b, 1) }).Where(o => o >= 0).All(_seen.Contains);
+
     /// <summary>Eylemi uygular. Geçersizse false ve durum değişmez.</summary>
     public bool Apply(HanAction a)
     {
@@ -182,6 +195,10 @@ public sealed class HanGame
             case HanActKind.Sell: return Human(pid) && M.Sell(pid, a.A);
             case HanActKind.Move: return Human(pid) && Enum.IsDefined(typeof(Zone), a.B) && a.C is >= -1 and <= 2 && M.Move(pid, a.A, (Zone)a.B, a.C >= 0 ? (Row)a.C : null);
             case HanActKind.LockShop: return Human(pid) && M.ToggleShopLock(pid);
+            case HanActKind.RoundSeen:
+                // elenmiş oyuncu da kendi savaşının sonunu izler; yalnız savaşı bitmiş olmalı
+                if (pid < 0 || pid >= M.Players.Count || Bots.Contains(pid) || M.Phase != Phase.Battle || M.BattleOf(pid) is not { Done: true }) return false;
+                return _seen.Add(pid);
             case HanActKind.Reroll: return Human(pid) && M.Reroll(pid);
             case HanActKind.Xp: return Human(pid) && M.BuyXp(pid);
             case HanActKind.Reward: return Human(pid) && M.PickReward(pid, a.A);
@@ -215,6 +232,7 @@ public sealed class HanGame
             case HanActKind.EndRound:
                 if (!RoundCanEnd || !M.EndRound()) return false;
                 _activated.Clear();
+                _seen.Clear();
                 AfterRoundBegins();
                 return true;
             case HanActKind.Abandon:

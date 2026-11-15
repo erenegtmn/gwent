@@ -113,11 +113,15 @@ public sealed class HanRoom
         return true;
     }
 
-    /// <summary>Sunucu görevleri: bütün savaşlar bitince round'u kapatır (yalnız botların kaldığı roundlar da hemen geçer); maç bitince oda biter.</summary>
+    /// <summary>
+    /// Sunucu görevleri: bütün savaşlar bitince ve savaşı olan her insan sonucu izlediğini bildirince round'u kapatır (herkes
+    /// sonraki round'a aynı anda geçer; yalnız botların kaldığı roundlar hemen geçer). İzlemeyen (kopan) için süre: <see cref="Tick"/>.
+    /// Maç bitince oda biter.
+    /// </summary>
     private void Duties()
     {
         if (Game == null) return;
-        for (var guard = 0; guard < 500 && Game.RoundCanEnd; guard++) Apply(new HanAction(HanActKind.EndRound, -1));
+        for (var guard = 0; guard < 500 && Game.RoundCanEnd && Game.AllSeen; guard++) Apply(new HanAction(HanActKind.EndRound, -1));
         if (Game.M.Phase == HanLigi.Phase.Finished && Phase == RoomPhase.Playing) { Phase = RoomPhase.Finished; BroadcastState(); }
     }
 
@@ -138,7 +142,7 @@ public sealed class HanRoom
         // aşama süreleri: hazırlık herkes için ortak; savaşta her ikili kendi aşamasında (öteki ikilileri beklemez)
         var now = _clock.UtcNow;
         var pending = Game.PendingDefaults().ToList();
-        if (Game.M.Phase == HanLigi.Phase.Prep && now - _phaseAt > TimeSpan.FromSeconds(HanTimes.Prep + HanTimes.Grace + (Game.M.Round > 1 ? HanTimes.ResultHold : 0)))
+        if (Game.M.Phase == HanLigi.Phase.Prep && now - _phaseAt > TimeSpan.FromSeconds(HanTimes.Prep + HanTimes.Grace))
             foreach (var a in pending.Where(a => a.Kind == HanActKind.Lock).Take(1)) Apply(a);
         else if (Game.M.Phase == HanLigi.Phase.Battle)
             foreach (var a in pending.Where(a => a.Kind is HanActKind.Activate or HanActKind.Window))
@@ -147,6 +151,10 @@ public sealed class HanRoom
                 var limit = st.Stage == "act" ? HanTimes.Activation + HanTimes.ResultHold : HanTimes.Window + HanTimes.WindowShow;
                 if (now - st.At > TimeSpan.FromSeconds(limit + HanTimes.Grace)) Apply(a);
             }
+        // bütün savaşlar bitti ama biri sonucu izlediğini bildirmedi (kopmuş ya da takılmış): gösterim payından sonra round kapanır
+        if (Game.RoundCanEnd && !Game.AllSeen && _stages.Count > 0 && _stages.Values.Max(s => s.At) is var last
+            && now - last > TimeSpan.FromSeconds(HanTimes.WindowShow + HanTimes.ResultHold + HanTimes.Grace + 6))
+            Apply(new HanAction(HanActKind.EndRound, -1));
         if (_clock.UtcNow - LastProgress < stall) return;
         foreach (var a in Game.PendingDefaults().ToList()) Apply(a);
     }
@@ -250,6 +258,7 @@ public sealed partial class RoomService
         {
             if (s.Han is not { Phase: RoomPhase.Playing } room) return Reply.Fail("Devam eden bir Han maçı yok.");
             if (action.Kind is HanActKind.Lock or HanActKind.EndRound or HanActKind.Abandon) return Reply.Fail("Bu eylemi yalnız sunucu yapar.");
+            // round sonunu izledi: sunucu herkes izleyince round'u kapatır (Duties)
             if (action.Player != s.Seat) return Reply.Fail("Başka bir koltuk adına oynanamaz.");
             return room.Apply(action) ? Reply.Success() : Reply.Fail("Kural dışı eylem.");
         }

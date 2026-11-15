@@ -440,7 +440,7 @@ public sealed partial class HanView
         _screen = Screen.Battle;
         _hold = 0;
         var b = B;
-        if (!_live) { Render(); return; }
+        if (!_live) { Render(); if (b.Done) AfterBattle(); return; }
         _busy = true;
         var gen = ++_gen;
         _banner.Children.Clear();
@@ -463,7 +463,13 @@ public sealed partial class HanView
             });
             t += 750;
         }
-        After(t + 150, gen, () => { _busy = false; StartTimer(HanTimes.Window, OnWindowGo); Render(); });
+        After(t + 150, gen, () =>
+        {
+            _busy = false;
+            if (b.Done) { Render(); BattleEnd(b, gen); return; }   // savaş ben dönmeden bitti (süre aşımı)
+            StartTimer(HanTimes.Window, OnWindowGo);
+            Render();
+        });
     }
 
     // ---------- işaret çubuğu ----------
@@ -593,7 +599,14 @@ public sealed partial class HanView
         if (_screen != Screen.Battle || _busy) return;
         StopTimer();
         var b = B;
-        if (b.Done || _waitWindow != null) return;
+        if (b.Done && _waitWindow == null)
+        {
+            // savaş ben seçmeden bitti (süre doldu, sunucu varsayılanı uyguladı): sonucu göster, round sonunu bildir
+            Render();
+            if (_live) BattleEnd(b, ++_gen); else AfterBattle();
+            return;
+        }
+        if (_waitWindow != null) return;
         var idx = b.Outcomes.Count;
         var o = Session.Submit(CurrentChoice());
         _signs.Clear();

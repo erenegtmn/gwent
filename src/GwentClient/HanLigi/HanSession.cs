@@ -105,6 +105,9 @@ public sealed class HanSession
     {
         if (MyBattle is not { Started: true, Done: false } b || b.Submitted(MySide)) return null;
         var before = b.Outcomes.Count;
+        // geçersiz seçim (ör. kurala uymayan simya/pusu birleşimi) sunucuda reddedilir ve online'da ekran yanıt beklerken takılırdı:
+        // kopyalar aynı olduğu için burada denetlenir, geçersizse "müdahale yok" gider
+        if (!b.Valid(MySide, c)) c = WindowChoice.None;
         if (!Act(HanAction.Choice(Me, MyBattleIndex, MySide, c)) && !Online) Act(HanAction.Choice(Me, MyBattleIndex, MySide, WindowChoice.None));
         return b.Outcomes.Count > before ? b.Outcomes[before] : null;
     }
@@ -116,6 +119,8 @@ public sealed class HanSession
         _lastBattle = null;
         if (Online)
         {
+            // sunucuya "savaşımın sonunu izledim": herkes izleyince round hep birlikte kapanır
+            if (M.Phase == Phase.Battle && M.BattleOf(Me) is { Done: true }) Act(HanActKind.RoundSeen);
             _releaseEndRound = true;
             Drain();
             return;
