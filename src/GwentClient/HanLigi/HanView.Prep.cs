@@ -23,8 +23,12 @@ public sealed partial class HanView
     private Dictionary<int, int> _lastStars = new();
 
     // alt şerit bölümleri (x)
-    private const double EcoX = 12, EcoW = 262, BenchX = 286, ShopX = 1122, GoX = 1774;
-    private const double BenchCardW = 96, ShopCardW = 120;
+    private const double EcoX = 12, EcoW = 262, BenchX = 286, ShopX = 1262, GoX = 1774;
+    private const double BenchCardW = 106;
+    // havada süzülen tezgâh: bant (bilgi) ve üstünde duran kartlar
+    private const double ShopBandY = 318, ShopBandH = 92, ShopCardW = 148, ShopGap = 44;
+    /// <summary>Tezgâh açık mı (hazırlık başında kendiliğinden açılır; ✕ ya da Boşluk kapatır).</summary>
+    private bool _shopOpen = true;
 
     private void EnterPrep()
     {
@@ -35,6 +39,7 @@ public sealed partial class HanView
         _banner.Children.Clear();
         _screen = Screen.Prep;
         _sel = null;
+        _shopOpen = true;
         StartTimer(30, OnReady);
         Render();
         if (_live && M.Round > 1) RoundBanner($"ROUND {M.Round}", M.IsPve ? (M.Round <= 2 ? "Canavar Sürüsü" : "Vahşi Av saldırıyor") : "Hazırlık");
@@ -103,7 +108,7 @@ public sealed partial class HanView
         var free = Me.Slots - Me.Fielded.Count();
         if (free > 0 && Me.Bench.Any()) return ($"Masada {free} boş yer var: depodaki kartları satırlarına sürükle.", Theme.B("#ffe9a3"));
         if (free > 0 && Me.Shop.Any(d => d != null && d.Price <= Me.Gold)) return ($"Masada {free} boş yer var: tezgâhtan kart al.", Theme.B("#ffe9a3"));
-        if (free > 0) return ($"Masada {free} boş yer: tezgâhı yenile ya da Hazır'a bas.", null);
+        if (free > 0) return ($"{free} boş yer: tezgâhı yenile ya da Hazır'a bas.", null);
         if (Me.Gold >= Tuning.XpCost && Me.Level < Tuning.MaxLevel) return ("Masan dolu: seviye atla, tezgâhı yenile ya da Hazır'a bas.", null);
         return ("Hazırsan Hazır'a bas. Satır sırası savaşta açıklanır.", null);
     }
@@ -135,19 +140,32 @@ public sealed partial class HanView
             _ => M.Players[Me.OppId].Name
         };
         var oppSub = Me.OppKind == OpponentKind.Pve
-            ? (M.Round <= 2 ? "Öğretici round · can kaybı yok, ödül her durumda" : "Kaybedersen yarım hasar · kazanırsan kart ödülü")
+            ? (M.Round == 1 ? "Tek canavar, gücü 1: masaya bir kart koy yeter · can kaybı yok, ödül her durumda"
+                : M.Round == 2 ? "Her satırda bir canavar, gücü 1: farklı satırlara iki kart koy · can kaybı yok, ödül her durumda"
+                : "Kaybedersen yarım hasar · kazanırsan kart ödülü")
             : $"Seviye {M.Players[Me.OppId].Level} · {SchoolName(M.Players[Me.OppId].School)} okulu · {M.Players[Me.OppId].Hp} can";
         var oppTag = new StackPanel { Width = 700 };
         oppTag.Children.Add(new TextBlock { Text = "SIRADAKİ RAKİBİN", FontFamily = HanUi.Font, FontSize = HanUi.S(13), FontWeight = FontWeights.Bold, Foreground = Theme.B("#a8905a"), TextAlignment = TextAlignment.Center });
         oppTag.Children.Add(Txt(oppName, 40, Theme.B("#f0a090"), true, TextAlignment.Center));
-        oppTag.Children.Add(new TextBlock { Text = oppSub, FontFamily = HanUi.Font, FontSize = HanUi.S(15), Foreground = Theme.TextDim, TextAlignment = TextAlignment.Center });
+        oppTag.Children.Add(new TextBlock { TextWrapping = TextWrapping.Wrap, Text = oppSub, FontFamily = HanUi.Font, FontSize = HanUi.S(15), Foreground = Theme.TextDim, TextAlignment = TextAlignment.Center });
         oppTag.Children.Add(new TextBlock
         {
             Text = Me.School == School.Cat ? "Satır sırası: " + string.Join("  →  ", Me.Order.Select(HT.Name)) : "Satırları savaşta tek tek açılacak",
             FontFamily = HanUi.Font, FontSize = HanUi.S(Me.School == School.Cat ? 17 : 14), FontWeight = Me.School == School.Cat ? FontWeights.Bold : FontWeights.Normal,
             Foreground = Me.School == School.Cat ? Theme.B("#ffe9a3") : Theme.B("#88e8dcc4"), TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 4, 0, 0)
         });
-        PutU(oppTag, new Point(RowX + RowW / 2, 255), 0, _c);
+        if (_shopOpen)
+        {
+            var line = new StackPanel { Orientation = Orientation.Horizontal };
+            line.Children.Add(HanUi.Label("Sıradaki rakibin   ", 12));
+            line.Children.Add(HanUi.Shadow(HanUi.Title(oppName, 20, HanUi.Br(Color.FromRgb(0xf0, 0xa0, 0x90)))));
+            var sub = HanUi.Shadow(HanUi.Small("   " + oppSub, 13));
+            sub.VerticalAlignment = VerticalAlignment.Center;
+            line.Children.Add(sub);
+            ((TextBlock)line.Children[0]).VerticalAlignment = VerticalAlignment.Center;
+            PutU(line, new Point(RowX + RowW / 2, 70), 0, _c);
+        }
+        else PutU(oppTag, new Point(RowX + RowW / 2, 255), 0, _c);
         if (Me.School == School.Cat && !Me.OrderSwapped)
         {
             var sw = new StackPanel { Orientation = Orientation.Horizontal };
@@ -158,7 +176,7 @@ public sealed partial class HanView
                 bt.Margin = new Thickness(6, 0, 6, 0);
                 sw.Children.Add(bt);
             }
-            PutU(sw, new Point(RowX + RowW / 2, 420), 0, _c);
+            PutU(sw, new Point(RowX + RowW / 2, _shopOpen ? 150 : 420), 0, _c);
         }
 
         // ---- kendi satırlarım ----
@@ -206,10 +224,13 @@ public sealed partial class HanView
         var shopEls = new List<FrameworkElement>();
         Economy(sel);
         Bench(sel, Mine);
-        Shop(sel, shopEls);
         var rc = M.RerollCost(HanSession.Me);
-        Put(Act("Yenile", rc == 0 ? "bedava" : $"{rc} altın", "han-reroll", () => Do(() => M.Reroll(HanSession.Me), "han_reroll"), HanButtonKind.Secondary, 122, 60, Me.Gold >= rc, "Tezgâha beş yeni kart gelir.", HanArt.Icon("icon_coins", 18, "")), GoX, BarY + 14);
-        Put(Act("Hazır", "savaşa geç", "han-ready", OnReady, HanButtonKind.Primary, 122, 96, true, "Masanı kilitle ve savaşa geç."), GoX, BarY + 84);
+        Put(Act(_shopOpen ? "Tezgâhı kapat" : "Tezgâh", _shopOpen ? "Boşluk" : $"{Me.Shop.Count(d => d != null)} kart bekliyor · Boşluk", "han-shop-toggle", ToggleShop, _shopOpen ? HanButtonKind.Secondary : HanButtonKind.Primary, 236, 76, true, "Tezgâhı aç / kapat (Boşluk)."), ShopX, BarY + 14);
+        Put(Act("Yenile", rc == 0 ? "bedava · R" : $"{rc} altın · R", "han-reroll", () => { Do(() => M.Reroll(HanSession.Me), "han_reroll"); if (!_shopOpen) { _shopOpen = true; Render(); } }, HanButtonKind.Secondary, 236, 76, Me.Gold >= rc, "Tezgâha beş yeni kart gelir (R).", HanArt.Icon("icon_coins", 20, "")), ShopX, BarY + 100);
+        Put(Act("Hazır", "savaşa geç", "han-ready", OnReady, HanButtonKind.Primary, 392, 162, true, "Masanı kilitle ve savaşa geç."), 1510, BarY + 14);
+        // seçim penceresi (ödül, simya) ya da yardım açıkken tezgâh gizlenir: üst üste binmesin
+        var modal = Me.PotionOptions.Length > 0 || (Me.RewardOptions.Length > 0 && Me.Bench.Count() < Tuning.BenchSize) || _help;
+        if (_shopOpen && !modal) ShopOverlay(sel, shopEls);
 
         // ---- seçim pencereleri ----
         if (Me.RewardOptions.Length > 0 && Me.Bench.Count() < Tuning.BenchSize)
@@ -325,7 +346,7 @@ public sealed partial class HanView
         else
         {
             var can = Me.Gold >= Tuning.XpCost && Me.Level < Tuning.MaxLevel;
-            Put(Act("XP al", $"{Tuning.XpCost} altın → {Tuning.XpGain} XP", "han-xp", () => Do(() => M.BuyXp(HanSession.Me), "han_xp"), HanButtonKind.Secondary, EcoW - 28, 66, can, "Seviye: masaya daha çok kart sığar ve tezgâha daha iyi kartlar gelir.", HanArt.Icon("icon_exp", 22, "")), EcoX + 14, BarY + 110);
+            Put(Act("XP al", $"{Tuning.XpCost} altın → {Tuning.XpGain} XP · F", "han-xp", () => Do(() => M.BuyXp(HanSession.Me), "han_xp"), HanButtonKind.Secondary, EcoW - 28, 66, can, "Seviye: masaya daha çok kart sığar ve tezgâha daha iyi kartlar gelir.", HanArt.Icon("icon_exp", 22, "")), EcoX + 14, BarY + 110);
         }
         if (_live && _lastGold >= 0 && _lastGold != Me.Gold) Pop(goldText);
         if (_live && _lastLevel >= 0 && _lastLevel != Me.Level) { Pop(lv); Sfx.Play("han_levelup"); }
@@ -344,49 +365,138 @@ public sealed partial class HanView
         {
             var uid = sel.Uid;
             var ok = M.CanMove(HanSession.Me, uid, Zone.Bench);
-            ScreenZone(new Rect(BenchX - 4, BarY + 26, ShopX - BenchX - 8, BenchCardW * 1.2 + 8), "han-move:" + Zone.Bench, ok ? "Depoya al" : "Depo dolu", () => Do(() => M.Move(HanSession.Me, uid, Zone.Bench)), false, ok);
+            ScreenZone(new Rect(BenchX - 4, BarY + 26, ShopX - BenchX - 8, BenchCardW * HanCardView.CardAspect + 8), "han-move:" + Zone.Bench, ok ? "Depoya al" : "Depo dolu", () => Do(() => M.Move(HanSession.Me, uid, Zone.Bench)), false, ok);
         }
         const double gap = (ShopX - BenchX - 16 - Tuning.BenchSize * BenchCardW) / (Tuning.BenchSize - 1);
         for (var i = 0; i < Tuning.BenchSize; i++)
         {
             var x = BenchX + i * (BenchCardW + gap);
             if (i < bench.Count) Put(mine(bench[i], BenchCardW, null), x, BarY + 30);
-            else Put(new Border { Width = BenchCardW, Height = BenchCardW * 1.2, CornerRadius = new CornerRadius(6), BorderBrush = Theme.B("#30e8dcc4"), BorderThickness = new Thickness(1), Background = Theme.B("#26000000"), IsHitTestVisible = false }, x, BarY + 30);
+            else Put(new Border { Width = BenchCardW, Height = BenchCardW * HanCardView.CardAspect, CornerRadius = new CornerRadius(6), BorderBrush = Theme.B("#30e8dcc4"), BorderThickness = new Thickness(1), Background = Theme.B("#26000000"), IsHitTestVisible = false }, x, BarY + 30);
         }
         Put(new Rectangle { Width = 1, Height = BarH - 28, Fill = Theme.B("#405e451c") }, ShopX - 8, BarY + 14);
     }
 
-    /// <summary>Alt şeridin sağı: tezgâh (5 kart, fiyat, birleşme uyarısı). Sürüklenen kart buraya bırakılırsa satılır.</summary>
-    private void Shop(OwnedCard? sel, List<FrameworkElement> shopEls)
+    private void ToggleShop()
     {
-        Put(Caption("TEZGÂH"), ShopX + 4, BarY + 8);
-        const double gap = 8;
-        for (var i = 0; i < Me.Shop.Length; i++)
+        _shopOpen = !_shopOpen;
+        Sfx.Play(_shopOpen ? "han_open" : "han_click");
+        Render();
+    }
+
+    /// <summary>
+    /// Havada süzülen tezgâh (Auto Chess düzeni): masanın ortasından geçen yarı saydam bir bant, bandın üstünde kaidelerde
+    /// duran beş kart (hafifçe süzülür), bantta her kartın adı, yeteneği, sınıfları ve fiyatı. Solda yenile, sağda kapat.
+    /// Bir karta ya da altındaki yazıya tıklamak satın alır. Kart sürüklenirken bant "Sat" alanı olur.
+    /// </summary>
+    private void ShopOverlay(OwnedCard? sel, List<FrameworkElement> shopEls)
+    {
+        var n = Me.Shop.Length;
+        var inner = n * ShopCardW + (n - 1) * ShopGap;
+        var bw = inner + 200;
+        var bx = 960 - bw / 2 + 40;   // masanın ortası (tahta biraz sağda)
+        // bant: koyu, yarı saydam, üstü ve altı ince altın çizgili
+        var band = new Grid { Width = bw, Height = ShopBandH };
+        band.Children.Add(new Path
+        {
+            Data = HanUi.ChamferGeometry(bw, ShopBandH, 14), IsHitTestVisible = true,
+            Fill = new LinearGradientBrush(new GradientStopCollection { new(Color.FromArgb(0xa8, 0x16, 0x10, 0x0a), 0), new(Color.FromArgb(0x88, 0x0a, 0x07, 0x05), 1) }, 90),
+            Stroke = new LinearGradientBrush(new GradientStopCollection { new(Color.FromArgb(0x00, 0xe8, 0xc3, 0x6a), 0), new(Color.FromArgb(0xd0, 0xe8, 0xc3, 0x6a), 0.5), new(Color.FromArgb(0x00, 0xe8, 0xc3, 0x6a), 1) }, 0), StrokeThickness = 1.2
+        });
+        Canvas.SetLeft(band, bx);
+        Canvas.SetTop(band, ShopBandY);
+        _shop.Children.Add(band);
+        // bant başlığı
+        var head = HanUi.Shadow(HanUi.Label("Tezgâh", 12));
+        Canvas.SetLeft(head, bx + 24);
+        Canvas.SetTop(head, ShopBandY - 22);
+        _shop.Children.Add(head);
+        // sol: yenile, sağ: kapat
+        var rc = M.RerollCost(HanSession.Me);
+        var rr = Act("", rc == 0 ? "bedava" : $"{rc} altın", "han-reroll-band", () => Do(() => M.Reroll(HanSession.Me), "han_reroll"), HanButtonKind.Ghost, 64, 64, Me.Gold >= rc, "Yenile (R): tezgâha beş yeni kart gelir.", HanArt.Icon("icon_coins", 26, "↻"));
+        Canvas.SetLeft(rr, bx + 18);
+        Canvas.SetTop(rr, ShopBandY + (ShopBandH - 64) / 2);
+        _shop.Children.Add(rr);
+        var close = Act("✕", null, "han-shop-close", ToggleShop, HanButtonKind.Ghost, 40, 40, true, "Kapat (Boşluk)");
+        Canvas.SetLeft(close, bx + bw - 58);
+        Canvas.SetTop(close, ShopBandY + (ShopBandH - 40) / 2);
+        _shop.Children.Add(close);
+
+        var k = ShopCardW / DesignW;
+        for (var i = 0; i < n; i++)
         {
             var idx = i;
-            var x = ShopX + 4 + i * (ShopCardW + gap);
-            if (Me.Shop[i] is { } d)
+            var cx = bx + 100 + i * (ShopCardW + ShopGap) + ShopCardW / 2;
+            // kaide
+            var ped = new Ellipse
             {
-                var can = M.CanBuy(HanSession.Me, i);
-                var owned = Me.Cards.Count(c => c.Def == d && c.Star == 1);
-                var el = CardEl(d, 1, ShopCardW, "han-shop:" + i, () => Do(() => M.Buy(HanSession.Me, idx), "han_buy"), dim: !can, price: d.Price, named: true, aspect: 1.25);
-                Put(el, x, BarY + 26);
-                shopEls.Add(el);
-                if (owned > 0 && d.IsUnit && !d.IsHero)
-                    Put(new Border
-                    {
-                        Background = owned == 2 ? Theme.B("#e04a8a30") : Theme.B("#d0120c07"), BorderBrush = owned == 2 ? Theme.B("#a0f080") : Theme.B("#7a5c24"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7),
-                        Padding = new Thickness(6, 0, 6, 1), IsHitTestVisible = false,
-                        Child = new TextBlock { Text = owned == 2 ? "★ BİRLEŞİR" : $"sende {owned}", FontFamily = HanUi.Font, FontSize = HanUi.S(11), FontWeight = FontWeights.Bold, Foreground = owned == 2 ? Theme.B("#d8ffc0") : Theme.TextDim }
-                    }, x + ShopCardW / 2 - 34, BarY + 168);
+                Width = ShopCardW * 0.95, Height = 22, IsHitTestVisible = false,
+                Fill = new RadialGradientBrush(Color.FromArgb(0xf0, 0x14, 0x10, 0x0c), Color.FromArgb(0xf0, 0x06, 0x05, 0x04)),
+                Stroke = new LinearGradientBrush(Color.FromArgb(0xc0, 0xe8, 0xc3, 0x6a), Color.FromArgb(0x30, 0x8a, 0x62, 0x22), 90), StrokeThickness = 1.2
+            };
+            Canvas.SetLeft(ped, cx - ped.Width / 2);
+            Canvas.SetTop(ped, ShopBandY - 13);
+            _shop.Children.Add(ped);
+            if (Me.Shop[i] is not { } d) continue;
+            var can = M.CanBuy(HanSession.Me, i);
+            void Buy() => Do(() => M.Buy(HanSession.Me, idx), "han_buy");
+            var card = CardEl(d, 1, DesignW, "han-shop:" + i, Buy, dim: !can, plain: true);
+            card.CacheMode = new BitmapCache(Math.Max(1, k)) { SnapsToDevicePixels = true };
+            var holder = new Grid { Width = DesignW, Height = DesignH, RenderTransformOrigin = new Point(0.5, 1) };
+            var bob = new TranslateTransform();
+            holder.RenderTransform = new TransformGroup { Children = { new ScaleTransform(k, k), bob } };
+            holder.Children.Add(card);
+            Canvas.SetLeft(holder, cx - DesignW / 2);
+            Canvas.SetTop(holder, ShopBandY - 6 - DesignH);
+            _shop.Children.Add(holder);
+            shopEls.Add(card);
+            // üstüne gelince kart kaidesinden hızla yükselir (sürekli süzülme yok: yavaş hareket piksele oturup takılıyordu)
+            if (_live)
+            {
+                var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+                holder.MouseEnter += (_, _) => bob.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-14, TimeSpan.FromMilliseconds(110)) { EasingFunction = ease });
+                holder.MouseLeave += (_, _) => bob.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(140)) { EasingFunction = ease });
             }
-            else Put(new Border { Width = ShopCardW, Height = ShopCardW * 1.25, CornerRadius = new CornerRadius(6), BorderBrush = Theme.B("#22e8dcc4"), BorderThickness = new Thickness(1), Background = Theme.B("#26000000"), IsHitTestVisible = false }, x, BarY + 26);
+            // bantta bilgi: ad ★ · yetenek · sınıflar · fiyat (tıklayınca da alınır)
+            var info = new StackPanel { Width = ShopCardW + ShopGap - 8, Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.Hand, Opacity = can ? 1 : 0.45 };
+            var name = HanUi.Title(d.Name, 16.5, d.IsHero ? HanUi.GoldText : HanUi.Br(HanUi.Parchment), TextAlignment.Center);
+            name.HorizontalAlignment = HorizontalAlignment.Center;
+            info.Children.Add(name);
+            var kw = HanCardView.Keyword(d);
+            var cls = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(12.5), TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, IsHitTestVisible = false };
+            if (kw.Length > 0) cls.Inlines.Add(new System.Windows.Documents.Run(HanUi.Upper(kw)) { Foreground = HanUi.Br(Color.FromRgb(0xff, 0xe2, 0xa0)), FontWeight = FontWeights.Bold });
+            if (d.IsUnit)
+                for (var t = 0; t < d.Tags.Length; t++)
+                {
+                    cls.Inlines.Add(new System.Windows.Documents.Run(kw.Length > 0 || t > 0 ? "  ·  " : "") { Foreground = HanUi.Br(HanUi.Muted) });
+                    cls.Inlines.Add(new System.Windows.Documents.Run(HT.Name(d.Tags[t])) { Foreground = new SolidColorBrush(HanCardView.TagColor(d.Tags[t])), FontWeight = FontWeights.SemiBold });
+                }
+            info.Children.Add(cls);
+            var price = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 3, 0, 0) };
+            price.Children.Add(HanArt.Icon("icon_crowns", 20, "◉"));
+            price.Children.Add(HanUi.Number(" " + d.Price, 18, can ? HanUi.GoldText : HanUi.Br(HanUi.Bad)));
+            info.Children.Add(price);
+            info.MouseLeftButtonUp += (_, e) => { e.Handled = true; Buy(); };
+            Canvas.SetLeft(info, cx - info.Width / 2);
+            Canvas.SetTop(info, ShopBandY + 12);
+            _shop.Children.Add(info);
+            // birleşme uyarısı: kartın üstünde
+            var owned = Me.Cards.Count(c => c.Def == d && c.Star == 1);
+            if (owned > 0 && d.IsUnit && !d.IsHero)
+            {
+                var chip = HanUi.Chip(owned == 2 ? "★ Birleşir" : $"sende {owned}", owned == 2 ? HanUi.Good : HanUi.Muted, 11, owned == 2);
+                chip.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                Canvas.SetLeft(chip, cx - chip.DesiredSize.Width / 2);
+                Canvas.SetTop(chip, ShopBandY - 26 - DesignH * k - 12);
+                _shop.Children.Add(chip);
+            }
         }
-        // satış: sürüklenen kart tezgâhın üstüne bırakılır (yalnız fare basılıyken; tıklamayla alım engellenmesin)
+        // satış: sürüklenen kart banda bırakılır
         if (sel != null && _pressUid == sel.Uid)
         {
             var uid = sel.Uid;
-            ScreenZone(new Rect(ShopX, BarY + 22, 5 * ShopCardW + 4 * gap + 8, ShopCardW * 1.25 + 8), "han-sell-drop", $"Sat  +{Tuning.SellValue(sel.Def, sel.Star)} altın", () => Do(() => M.Sell(HanSession.Me, uid), "han_sell"), true);
+            var zone = DropZone(new RectangleGeometry(new Rect(bx, ShopBandY - DesignH * k - 20, bw, ShopBandH + DesignH * k + 20), 10, 10), new Rect(bx, ShopBandY - DesignH * k - 20, bw, ShopBandH + DesignH * k + 20), "han-sell-drop", $"Sat  +{Tuning.SellValue(sel.Def, sel.Star)} altın", () => Do(() => M.Sell(HanSession.Me, uid), "han_sell"), true);
+            _shop.Children.Add(zone);
         }
     }
 
@@ -414,11 +524,10 @@ public sealed partial class HanView
         foreach (var t in Enum.GetValues<HTag>().OrderByDescending(t => counts.GetValueOrDefault(t)).ThenBy(t => t))
         {
             var n = counts.GetValueOrDefault(t);
-            if (n == 0) continue;
-            any = true;
+            any |= n > 0;
             var th = n >= 6 ? 3 : n >= 4 ? 2 : n >= 2 ? 1 : 0;
             var c = HanCardView.TagColor(t);
-            var g = new Grid { Width = SideW, Height = 40, Background = Brushes.Transparent };
+            var g = new Grid { Width = SideW, Height = 40, Background = Brushes.Transparent, Opacity = n == 0 ? 0.42 : 1 };
             g.Children.Add(new Border { CornerRadius = new CornerRadius(20, 6, 6, 20), Background = th > 0 ? new LinearGradientBrush(Color.FromArgb(0xd0, (byte)(c.R / 3), (byte)(c.G / 3), (byte)(c.B / 3)), Color.FromArgb(0xb0, 0x0c, 0x07, 0x04), 0) : Theme.B("#a00c0704"), BorderBrush = th > 0 ? new SolidColorBrush(c) : Theme.B("#3a2a12"), BorderThickness = new Thickness(1) });
             g.Children.Add(new Path
             {
@@ -445,7 +554,7 @@ public sealed partial class HanView
             Put(g, SideX, y);
             y += 44;
         }
-        if (!any) Put(new TextBlock { Text = "Masaya birim koy: aynı sınıftan 2, 4, 6 kart bonus açar. Sınıflar kartın altında yazar.", FontFamily = HanUi.Font, FontSize = HanUi.S(13), Foreground = Theme.B("#88e8dcc4"), TextWrapping = TextWrapping.Wrap, Width = SideW - 8 }, SideX + 4, y);
+        if (!any) Put(new TextBlock { Text = "Aynı sınıftan 2, 4, 6 kart bonus açar. Sınıflar kartın altında yazar.", FontFamily = HanUi.Font, FontSize = HanUi.S(13), Foreground = Theme.B("#88e8dcc4"), TextWrapping = TextWrapping.Wrap, Width = SideW - 8 }, SideX + 4, y);
     }
 
     /// <summary>Tezgâh yalnız bir satın almayla mı değişti (yenileme değil)?</summary>

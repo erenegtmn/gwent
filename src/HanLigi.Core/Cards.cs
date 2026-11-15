@@ -139,7 +139,6 @@ public static class Tuning
     public const int StartFocus = 3;
     public const int RageCap = 2;
     public const double DamageMult = 2.25;
-    public const double PveEarly = 0.5;
     public const double PveLater = 0.8;
     public const int PotionsFromRound = 4;
 
@@ -169,6 +168,20 @@ public static class Tuning
 
     /// <summary>En yakın tamsayı, yarım yukarı (§15.1 R2).</summary>
     public static int Round(double v) => (int)Math.Floor(v + 0.5);
+
+    /// <summary>
+    /// Yüzdesel etkiyi tam sayıya uygular (savaştaki bütün yüzdeler buradan geçer). Kurallar:
+    /// (1) etki en az 1 puan oynatır — %10'luk Aard 5'lik satırı da düşürür (eskiden 4,5 → 5 yuvarlanıp boşa gidiyordu);
+    /// (2) buçuklar etkinin lehine yuvarlanır: düşüşte aşağı, artışta yukarı (Igni 3 → 1,5 → 1);
+    /// (3) sonuç 0'ın altına inmez, %−100'den fazla düşüş yoktur. Değer 0 ise etki yoktur.
+    /// </summary>
+    public static int ApplyPct(int value, double pct)
+    {
+        if (value <= 0 || Math.Abs(pct) < 1e-9) return Math.Max(0, value);
+        var x = value * (1 + Math.Max(-1, pct));
+        if (pct < 0) return Math.Max(0, Math.Min(value - 1, (int)Math.Ceiling(x - 0.5 - 1e-9)));
+        return Math.Max(value + 1, (int)Math.Floor(x + 0.5 + 1e-9));
+    }
 
     public static int SignCost(Sign s) => s == Sign.Igni ? 2 : 1;
 

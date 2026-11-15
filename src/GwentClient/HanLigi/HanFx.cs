@@ -607,4 +607,84 @@ public static class HanFx
         });
         Fx.After(ms, () => { Explosion(e, to, Ramp.Fire, 0.8); land(); });
     }
+
+    // ---------- kart ölçeğinde etkiler (işaret yalnız etkilediği karta iner) ----------
+
+    /// <summary>Igni tek karta: elden ince bir alev dili uzanır, kart tutuşur (alev kartın üstünde yükselir, kor ve is). <paramref name="landed"/> değilse alev kartın önünde söner (Quen).</summary>
+    public static void IgniStrike(FxEngine e, Point from, Point card, double cardW, double cardH, bool landed, double burnSeconds = 1.8)
+    {
+        var to = new Point(card.X, card.Y + cardH * 0.1);
+        var dir = to - from;
+        var ang = Math.Atan2(dir.Y, dir.X) * 180 / Math.PI;
+        var dist = (float)dir.Length;
+        const double stream = 0.36;
+        e.Light(from, 200, Ramp.Fire, 0.6f, (float)stream + 0.2f, 0);
+        e.Add(new FxEngine.Emitter
+        {
+            Pos = _ => from, Duration = stream, Rate = 620,
+            Spawn = (en, p, _) =>
+            {
+                var speed = dist / 0.3f * en.R(0.9f, 1.1f);
+                if (en.Rng.Next(3) == 0) en.Spark(p, ang + en.R(-2, 2), speed, en.R(0.26f, 0.32f), en.R(6, 10), en.R(18, 26), Ramp.HotCore, 0.6f, -40, 0.3f, false, 150);
+                else en.Spark(p, ang + en.R(-5, 5), speed, en.R(0.3f, 0.38f), en.R(10, 16), en.R(40, 64), Ramp.Fire, en.R(0.3f, 0.45f), -160, 0.4f, false, 700);
+            }
+        });
+        Fx.After(300, () =>
+        {
+            if (landed)
+            {
+                e.Light(to, (float)cardW * 2.4f, Ramp.Fire, 0.9f, (float)burnSeconds, 0.5f);
+                for (var i = 0; i < 40; i++) e.Spark(to, e.R(190, 350), e.R(120, 420), e.R(0.4f, 0.9f), 3, 2, Ramp.Ember, 1.3f, 700, 1, true);
+                CardBurn(e, card, cardW, cardH, burnSeconds);
+            }
+            else
+                for (var i = 0; i < 50; i++) e.Spark(to, ang + 180 + e.R(-70, 70), e.R(150, 500), e.R(0.3f, 0.6f), 3, 2, Ramp.Ember, 1.2f, 600, 1.5f, true);
+        });
+    }
+
+    /// <summary>Bir kart yanar: alt yarısından yükselen dalgalı alev dilleri, beyaz-sıcak dip, kor ve is.</summary>
+    public static void CardBurn(FxEngine e, Point card, double cardW, double cardH, double seconds = 1.6)
+    {
+        var w = (float)cardW;
+        var foot = new Point(card.X, card.Y + cardH * 0.35);
+        e.Add(new FxEngine.Emitter
+        {
+            Pos = _ => foot, Duration = seconds, Rate = 170,
+            Spawn = (en, p, t) =>
+            {
+                var fall = (float)Math.Max(0.3, 1 - t / seconds);
+                var q = new Point(p.X + en.R(-w * 0.45f, w * 0.45f), p.Y + en.R(-(float)cardH * 0.25f, 4));
+                en.Spark(q, en.R(-98, -82), en.R(80, 200) * fall, en.R(0.3f, 0.6f), en.R(14, 22), en.R(4, 9), Ramp.Fire, en.R(0.45f, 0.75f), -240, 1.4f, false, 600);
+                if (en.Rng.Next(3) == 0) en.Spark(q, en.R(-95, -85), en.R(30, 70), en.R(0.15f, 0.25f), en.R(12, 18), 6, Ramp.HotCore, 0.6f, -80, 1);
+                if (en.Rng.Next(6) == 0) en.Spark(q, en.R(-120, -60), en.R(100, 260), en.R(0.6f, 1.1f), 3, 2, Ramp.Ember, 1.3f, -40, 0.6f, true, 700);
+                if (en.Rng.Next(7) == 0) en.Puff(new Point(q.X, q.Y - cardH * 0.4), en.R(-100, -80), en.R(30, 80), en.R(0.8f, 1.4f), 24, en.R(70, 120), 0.14f, -50, 90);
+            }
+        });
+    }
+
+    /// <summary>Aard tek karta: elden çıkan mavi hava akımı karta çarpar; kartın ayağında küçük şok halkası, toz ve kıvılcım.</summary>
+    public static void Gust(FxEngine e, Point from, Point card, double cardW, double cardH, int delayMs = 0)
+    {
+        var to = new Point(card.X, card.Y);
+        var dir = to - from;
+        var ang = Math.Atan2(dir.Y, dir.X) * 180 / Math.PI;
+        var dist = (float)dir.Length;
+        Fx.After(1 + delayMs, () =>
+        {
+            for (var i = 0; i < 26; i++) e.Spark(from, ang + e.R(-4, 4), dist / 0.24f * e.R(0.9f, 1.1f), 0.26f, e.R(3, 6), 2, Ramp.Aard, e.R(0.6f, 1.0f), 0, 0.5f, true);
+            for (var i = 0; i < 6; i++) e.Spark(from, ang + e.R(-3, 3), dist / 0.24f, 0.26f, e.R(20, 30), e.R(50, 70), Ramp.Aard, 0.12f, 0, 0.5f);
+        });
+        Fx.After(240 + delayMs, () =>
+        {
+            var foot = new Point(card.X, card.Y + cardH * 0.45);
+            e.Light(to, (float)cardW * 2f, Ramp.Aard, 0.8f, 0.35f, 0);
+            Ring(e, foot, cardW * 0.85, new FxEngine.Rgb(0.45f, 0.72f, 1f), 0.45, 1.1f, 12);
+            for (var i = 0; i < 30; i++) e.Spark(to, ang + e.R(-50, 50), e.R(200, 520), e.R(0.25f, 0.5f), 3, 2, Ramp.Aard, 1.1f, 0, 2.2f, true);
+            for (var i = 0; i < 6; i++) e.Puff(new Point(foot.X + e.R(-(float)cardW / 2, (float)cardW / 2), foot.Y), ang + e.R(-40, 40), e.R(60, 160), e.R(0.7f, 1.2f), 26, 90, 0.2f, -20, 60);
+        });
+    }
+
+    /// <summary>Kart üstünde yükselen ışık (iksir, iyileşme): kart genişliğinde.</summary>
+    public static void CardAura(FxEngine e, Point card, double cardW, double cardH, Ramp ramp, double seconds = 1.1)
+        => Aura(e, new Point(card.X, card.Y + cardH * 0.3), cardW * 0.9, ramp, seconds);
 }

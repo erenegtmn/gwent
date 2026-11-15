@@ -166,6 +166,8 @@ public static class HanBot
     /// <summary>Pencere kararı: açık bilgiye dayalı, gürültülü bir sezgisel.</summary>
     public static WindowChoice Window(Battle b, int side, Random rng)
     {
+        // öğretici canavar (R1-2) hiçbir şeye müdahale etmez
+        if (b.Pve && b.NoDamage && b.Sides[side].PlayerId < 0) return WindowChoice.None;
         var me = b.Sides[side];
         var op = b.Sides[1 - side];
         var row = b.CurrentRow;

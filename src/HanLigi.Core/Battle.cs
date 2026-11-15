@@ -70,7 +70,13 @@ public sealed class BattleSide
 /// <summary>Arayüzün canlandıracağı bir olay: işaret, simya, pusu inişi, Öfke, hava, Kavurma. <c>Target</c> birim kimliği ya da satır numarasıdır.</summary>
 public sealed record FxEvent(string Kind, int Side, int Target = 0, bool Blocked = false);
 
-public sealed record WindowOutcome(int Index, Row Row, int ValueA, int ValueB, int Winner, WindowChoice ChoiceA, WindowChoice ChoiceB, IReadOnlyList<string> Log, IReadOnlyList<FxEvent> Fx, IReadOnlyDictionary<int, int> CardValues);
+public sealed record WindowOutcome(int Index, Row Row, int ValueA, int ValueB, int Winner, WindowChoice ChoiceA, WindowChoice ChoiceB, IReadOnlyList<string> Log, IReadOnlyList<FxEvent> Fx, IReadOnlyDictionary<int, int> CardValues)
+{
+    /// <summary>Kartların yüzdeler uygulanmadan önceki değeri (arayüz "8 → 4" gösterir).</summary>
+    public IReadOnlyDictionary<int, int> BaseValues { get; init; } = new Dictionary<int, int>();
+    /// <summary>[taraf] satırın, satır yüzdeleri (Aard, Gök Gürültüsü, Boynuz...) uygulanmadan önceki toplamı.</summary>
+    public int[] RowBase { get; init; } = new int[2];
+}
 
 /// <summary>
 /// İki sahanın satır çarpışması (YENI_MOD.md §15.5-15.7). Akış: <see cref="Start"/> (savaş öncesi çözüm) → her satır için
@@ -149,7 +155,7 @@ public sealed class Battle
     {
         var s = Sides[side];
         var sum = s.In(r).Sum(u => Value(s, u));
-        return Tuning.Round(sum * (1 + 0.5 * s.Act.Horns.Count(h => h == r)));
+        return Tuning.ApplyPct(sum, 0.5 * s.Act.Horns.Count(h => h == r));
     }
 
     // ---------- aktivasyon ----------
@@ -390,7 +396,7 @@ public sealed class Battle
             var o = 1 - i;
             foreach (var sg in ch[i].Signs)
             {
-                if (sg == Sign.Aard) { foe[o] -= 0.10 * Amp(i); log.Add($"{s.Name} Aard: {Sides[o].Name} satırı −%{0.10 * Amp(i) * 100:0}."); fx.Add(new FxEvent("aard", i)); }
+                if (sg == Sign.Aard) { foe[o] -= 0.10 * Amp(i); log.Add($"{s.Name} Aard: {Sides[o].Name} satırı −%{0.10 * Amp(i) * 100:0}."); fx.Add(new FxEvent("aard", i, (int)Math.Round(0.10 * Amp(i) * 100))); }
                 if (sg == Sign.Quen && !ch[o].Signs.Contains(Sign.Igni)) log.Add($"{s.Name} Quen attı, boşa gitti.");
                 if (sg == Sign.Quen) fx.Add(new FxEvent("quen", i, 0, ch[o].Signs.Contains(Sign.Igni) && potion[i] != Potion.BlackBlood));
                 if (sg != Sign.Igni) continue;
@@ -442,17 +448,24 @@ public sealed class Battle
         // 8. karşılaştırma
         var val = new int[2];
         var cardValues = new Dictionary<int, int>();
+        var baseValues = new Dictionary<int, int>();
+        var rowBase = new int[2];
         for (var i = 0; i < 2; i++)
         {
             var s = Sides[i];
-            double normal = 0, exempt = 0;
+            int normal = 0, exempt = 0;
             foreach (var u in s.In(row))
             {
-                var v = Math.Max(0, Tuning.Round(Value(s, u, noWeather[i]) * (1 + Math.Max(-1, card.GetValueOrDefault(u)))));
+                var bv = Value(s, u, noWeather[i]);
+                baseValues[u.Uid] = bv;
+                var v = Tuning.ApplyPct(bv, card.GetValueOrDefault(u));
+                if (Tutorial(i)) v = Math.Max(1, v);   // öğretici canavar sıfırlanamaz
                 cardValues[u.Uid] = v;
                 if (u.Landed && u.Def.Hero == Hero.Ciri) exempt += v; else normal += v;
             }
-            val[i] = Math.Max(0, Tuning.Round(normal * (1 + Math.Max(-1, own[i] + foe[i])) + exempt * (1 + Math.Max(-1, own[i]))));
+            rowBase[i] = normal + exempt;
+            val[i] = Tuning.ApplyPct(normal, own[i] + foe[i]) + Tuning.ApplyPct(exempt, own[i]);
+            if (Tutorial(i) && s.In(row).Any()) val[i] = Math.Max(1, val[i]);
             s.RowValues[Window] = val[i];
             s.Total += val[i];
         }
@@ -478,13 +491,19 @@ public sealed class Battle
             }
             else s.Prev = 0;
         }
-        var outcome = new WindowOutcome(Window, row, val[0], val[1], winner, ch[0], ch[1], log, fx, cardValues);
+        var outcome = new WindowOutcome(Window, row, val[0], val[1], winner, ch[0], ch[1], log, fx, cardValues) { BaseValues = baseValues, RowBase = rowBase };
         Outcomes.Add(outcome);
         Window++;
         return outcome;
     }
 
     // ---------- sonuç ----------
+
+    /// <summary>
+    /// R1-2 öğretici canavarı mı (PvE, hasarsız, canavar tarafı)? Kartları hiçbir etkiyle 1'in altına inmez: R2'de tek kart,
+    /// işaret ya da bombayla bile her durumda kaybeder (YENI_MOD.md §15).
+    /// </summary>
+    public bool Tutorial(int side) => Pve && NoDamage && Sides[side].PlayerId < 0;
 
     /// <summary>Kazanan taraf (0/1) ya da berabere (−1). Puanlar eşitse üç satırın toplamı belirler.</summary>
     public int Winner

@@ -145,7 +145,7 @@ public sealed partial class HanView
             var scored = i < shownWindows;
             var o = i < b.Outcomes.Count ? b.Outcomes[i] : null;
             var (mv, ov) = o == null ? (0, 0) : Mine == 0 ? (o.ValueA, o.ValueB) : (o.ValueB, o.ValueA);
-            int Shown(BattleSide s, BattleUnit u) => scored && o!.CardValues.TryGetValue(u.Uid, out var fv) ? fv : b.Value(s, u);
+            int Shown(BattleSide s, BattleUnit u) => (scored || (o != null && _stepShown.Contains(u.Uid))) && o!.CardValues.TryGetValue(u.Uid, out var fv) ? fv : b.Value(s, u);
 
             if (i == current)
                 foreach (var mine in new[] { false, true })
@@ -265,7 +265,7 @@ public sealed partial class HanView
                 Width = 14, Height = 14, Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Stroke = Theme.B("#cfefff"), StrokeThickness = 1,
                 Fill = i < focus ? new RadialGradientBrush(Color.FromRgb(0xc8, 0xf0, 0xff), Color.FromRgb(0x2a, 0x84, 0xc8)) : Theme.B("#33000000")
             });
-        fo.Children.Add(new TextBlock { Text = $"  {focus} Odak  ·  {s.Potions.Count} simya" + (mine && s.Ambush.Count > 0 ? $"  ·  pusu {s.Ambush.Count}" : ""), FontFamily = HanUi.Font, FontSize = HanUi.S(12), FontWeight = FontWeights.SemiBold, Foreground = Theme.B("#cfefff"), VerticalAlignment = VerticalAlignment.Center });
+        fo.Children.Add(new TextBlock { Text = $"  {focus} Odak  ·  {s.Potions.Count} simya", FontFamily = HanUi.Font, FontSize = HanUi.S(12), FontWeight = FontWeights.SemiBold, Foreground = Theme.B("#cfefff"), VerticalAlignment = VerticalAlignment.Center });
         g.Children.Add(fo);
         Put(g, SideX, y);
     }
@@ -367,7 +367,7 @@ public sealed partial class HanView
             });
             t += 750;
         }
-        After(t + 150, gen, () => { _busy = false; StartTimer(6, OnWindowGo); Render(); });
+        After(t + 150, gen, () => { _busy = false; StartTimer(10, OnWindowGo); Render(); });
     }
 
     // ---------- işaret çubuğu ----------
@@ -451,6 +451,17 @@ public sealed partial class HanView
 
     // ---------- pencere çözümü ----------
 
+    /// <summary>Çözülen penceredeki adımların ilerleyişi: etkisi kartına inmiş kartlar son değerini gösterir.</summary>
+    private readonly HashSet<int> _stepShown = new();
+
+    /// <summary>Bir çözüm adımı: kim (SEN/RAKİP), ne (işaret/simya adı), ayrıntı (hedef, sonuç, kalan Odak), süre, oynatma.</summary>
+    private sealed record Step(bool Mine, string What, string Detail, Color Color, int Ms, Action Play);
+
+    /// <summary>
+    /// Satırı aç: seçimler kilitlenir ve pencere <b>adım adım</b> çözülür (oyuncunun izleyebileceği hızda):
+    /// seçimler gösterilir → rakibin satırı açılır → her müdahale sırayla duyurulur (kim, ne, hedef, kalan Odak), işaret havada
+    /// çizilir, etkisi yalnız etkilediği kartlara iner ve o kartların sayısı değişir → satır toplamları → sonuç.
+    /// </summary>
     private void OnWindowGo()
     {
         if (_screen != Screen.Battle || _busy) return;
@@ -467,15 +478,33 @@ public sealed partial class HanView
         _busy = true;
         var gen = ++_gen;
         var row = o.Row;
+        _stepShown.Clear();
         _hold = 1;
         Render();
-        var castMs = Cast(o, row);
-        After(castMs, gen, () => { _hold = 2; Sfx.Play("draw_card"); Render(); Impact(o, row); });
-        After(castMs + 1350, gen, () =>
+        var (mc, tc) = Mine == 0 ? (o.ChoiceA, o.ChoiceB) : (o.ChoiceB, o.ChoiceA);
+        Caption(new Step(true, "Seçimler açıldı", $"Sen: {ChoiceText(mc)}   ·   Rakip: {ChoiceText(tc)}", HanUi.Gold, 1300, () => { }));
+        Sfx.Play("han_open");
+        var t = 1400;
+        After(t, gen, () =>
+        {
+            _hold = 2;
+            Sfx.Play("draw_card");
+            Render();
+            Caption(new Step(false, $"{HT.Name(row)} satırı açıldı", "Rakibin kartları masada", HanUi.Parchment, 1100, () => { }));
+        });
+        t += 1300;
+        foreach (var st in Steps(o, b))
+        {
+            var step = st;
+            After(t, gen, () => { Caption(step); step.Play(); });
+            t += step.Ms;
+        }
+        After(t, gen, () =>
         {
             _hold = 0;
             Render();
             var won = o.Winner == Mine;
+            var (mv, ov) = Mine == 0 ? (o.ValueA, o.ValueB) : (o.ValueB, o.ValueA);
             Sfx.Play(o.Winner < 0 ? "battle_draw" : won ? "battle_won" : "battle_lost");
             var c = o.Winner < 0 ? Color.FromRgb(0xe8, 0xdc, 0xc4) : won ? Color.FromRgb(0xa3, 0xe0, 0x78) : Color.FromRgb(0xff, 0x6a, 0x55);
             if (o.Winner >= 0)
@@ -483,26 +512,268 @@ public sealed partial class HanView
                 var (rc, rw) = RowS(won, row);
                 HanFx.Fountain(_engine, rc, rw * 0.9, won ? FxEngine.Ramp.Gold : FxEngine.Ramp.Blood);
             }
-            ScreenBanner(o.Winner < 0 ? "BERABERE" : won ? "SATIR SENİN" : "SATIR RAKİBİN", c);
+            ScreenBanner(o.Winner < 0 ? $"BERABERE  {mv} – {ov}" : won ? $"SATIR SENİN  {mv} – {ov}" : $"SATIR RAKİBİN  {mv} – {ov}", c);
             foreach (var f in o.Fx.Where(f => f.Kind == "rage"))
             {
-                var at = new Point(SideX + SideW / 2, f.Side == Mine ? 800 : 120);
-                HanArt.FloatText(_fx, $"ÖFKE  +{f.Target} ODAK", at, Color.FromRgb(0x8f, 0xd8, 0xff), 24, 1400, 300);
-                Fx.After(300, () => HanFx.Aura(_engine, new Point(at.X, at.Y + 20), 180, FxEngine.Ramp.Aard, 0.7));
+                var at = new Point(SideX + SideW / 2, f.Side == Mine ? 800 : 130);
+                HanArt.FloatText(_fx, $"ÖFKE  +{f.Target} ODAK", at, Color.FromRgb(0x8f, 0xd8, 0xff), 24, 1800, 400);
+                Fx.After(400, () => HanFx.Aura(_engine, new Point(at.X, at.Y + 20), 180, FxEngine.Ramp.Aard, 0.9));
             }
         });
-        After(castMs + 2500, gen, () =>
+        t += 2200;
+        After(t, gen, () =>
         {
             _busy = false;
+            _stepShown.Clear();
             if (b.Done) { Render(); BattleEnd(b, gen); }
-            else { StartTimer(6, OnWindowGo); Render(); }
+            else { StartTimer(10, OnWindowGo); Render(); }
         });
+    }
+
+    private static string ChoiceText(WindowChoice c)
+    {
+        var parts = c.Signs.Select(s => s.ToString()).ToList();
+        if (c.Potion is { } p) parts.Add(HT.Name(p));
+        if (c.AmbushUid != null) parts.Add("Pusu");
+        return parts.Count == 0 ? "müdahale yok" : string.Join(" + ", parts);
+    }
+
+    /// <summary>Üstte, yönlendirme şeridinin altında beliren adım duyurusu: kim · ne · ayrıntı.</summary>
+    private void Caption(Step st)
+    {
+        var g = new Grid { Width = 1920, Height = 1080, IsHitTestVisible = false };
+        var sp = new StackPanel { Margin = new Thickness(26, 10, 26, 12) };
+        var head = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+        if (st.What != "Seçimler açıldı" && !st.What.EndsWith("açıldı"))
+        {
+            var who = HanUi.Chip(st.Mine ? "Sen" : "Rakip", st.Mine ? HanUi.Gold : HanUi.Bad, 12, true);
+            who.VerticalAlignment = VerticalAlignment.Center;
+            who.Margin = new Thickness(0, 0, 12, 0);
+            head.Children.Add(who);
+        }
+        var what = HanUi.T(HanUi.Tracked(HanUi.Upper(st.What), 1), 26, new SolidColorBrush(st.Color), FontWeights.Bold);
+        what.Effect = new DropShadowEffect { Color = st.Color, BlurRadius = 14, ShadowDepth = 0, Opacity = 0.6 };
+        head.Children.Add(what);
+        sp.Children.Add(head);
+        if (st.Detail.Length > 0)
+        {
+            var d = HanUi.Body(st.Detail, 17, null, true, TextAlignment.Center);
+            d.HorizontalAlignment = HorizontalAlignment.Center;
+            d.Margin = new Thickness(0, 4, 0, 0);
+            sp.Children.Add(d);
+        }
+        sp.Measure(new Size(1100, double.PositiveInfinity));
+        var w = Math.Max(420, Math.Min(1100, sp.DesiredSize.Width + 20));
+        var frame = HanUi.Frame(w, sp.DesiredSize.Height + 4, sp, 0xec, st.Color, 12);
+        frame.HorizontalAlignment = HorizontalAlignment.Center;
+        frame.VerticalAlignment = VerticalAlignment.Top;
+        frame.Margin = new Thickness(0, 66, 0, 0);
+        g.Children.Add(frame);
+        _banner.Children.Add(g);
+        Fx.Banner(g, Math.Max(400, st.Ms - 640), () => _banner.Children.Remove(g));
+    }
+
+    /// <summary>Bir kartın ekrandaki merkezi, genişliği, yüksekliği ve adı (masada değilse null).</summary>
+    private (Point C, double W, double H, string Name)? CardAt(int uid)
+    {
+        if (!_pos.TryGetValue(uid, out var p)) return null;
+        var w = _cardW.GetValueOrDefault(uid, 100);
+        var name = B.Sides.SelectMany(s => s.Units).FirstOrDefault(u => u.Uid == uid)?.Def.Name ?? "";
+        return (p, w, w * HanCardView.CardAspect * Lean, name);
+    }
+
+    /// <summary>Etkisi inen kartlar son değerini gösterir (ekran yeniden çizilir), sonra titrer.</summary>
+    private void Land(IEnumerable<int> uids, double amp = 7)
+    {
+        var list = uids.ToList();
+        _stepShown.UnionWith(list);
+        Render();
+        foreach (var u in list) Hit(u, amp);
+    }
+
+    private int FocusLeft(WindowOutcome o, int side) => B.Sides[side].Focus - o.Fx.Where(f => f.Kind == "rage" && f.Side == side).Sum(f => f.Target);
+
+    /// <summary>Penceredeki olayları oyuncunun okuyabileceği adımlara çevirir (önce pusu, sonra senin, sonra rakibin müdahalelerin).</summary>
+    private List<Step> Steps(WindowOutcome o, Battle b)
+    {
+        var steps = new List<Step>();
+        var row = o.Row;
+        const int Sign = 2300, Short = 1500;
+        int Val(int uid) => o.CardValues.GetValueOrDefault(uid);
+        int BaseOf(int uid) => o.BaseValues.GetValueOrDefault(uid, Val(uid));
+        string Delta(int uid) => $"{BaseOf(uid)} → {Val(uid)}";
+        int RowBaseOf(int side) => o.RowBase[side];
+        string NameOf(int uid) => b.Sides.SelectMany(x => x.Units).FirstOrDefault(u => u.Uid == uid)?.Def.Name ?? "Bir kart";
+        string Odak(int side) => $"kalan Odak: {FocusLeft(o, side)}";
+
+        foreach (var side in new[] { Mine, 1 - Mine })
+        {
+            var mine = side == Mine;
+            var at = Caster(mine);
+            void Glyph(Sign s, string sound) { HanFx.DrawGlyph(_fx, _engine, s, at, 130, 420); Sfx.Play(sound); }
+
+            foreach (var f in o.Fx.Where(f => f.Side == side && f.Kind == "yrden"))
+                steps.Add(f.Blocked
+                    ? new Step(mine, "Yrden", (mine ? "Rakibin simyası / pususu mühürlendi" : "Simyan / pusun mühürlendi") + " · " + Odak(side), HanArt.SignColor(global::HanLigi.Sign.Yrden), Sign, () =>
+                    {
+                        Glyph(global::HanLigi.Sign.Yrden, "han_yrden");
+                        Fx.After(500, () => { HanFx.Yrden(_fx, _engine, SealAt(!mine), 300, true); Sfx.Play("han_yrden_shock"); });
+                        Fx.After(1300, () => Sfx.Play("han_yrden_hit"));
+                    })
+                    : new Step(mine, "Yrden", "Boşa gitti: mühürlenecek simya ya da pusu yoktu · " + Odak(side), HanArt.SignColor(global::HanLigi.Sign.Yrden), Short, () =>
+                    {
+                        Glyph(global::HanLigi.Sign.Yrden, "han_yrden");
+                        Fx.After(500, () => HanFx.Yrden(_fx, _engine, SealAt(!mine), 200, false));
+                    }));
+
+        }
+
+        foreach (var f in o.Fx.Where(f => f.Kind == "ambush"))
+        {
+            var mine = f.Side == Mine;
+            var uid = f.Target;
+            steps.Add(new Step(mine, "Pusu", $"{NameOf(uid)} pusudan {HT.Name(row)} satırına indi", Color.FromRgb(0xff, 0xe9, 0xa3), Short, () =>
+            {
+                if (CardAt(uid) is { } c)
+                {
+                    for (var i = 0; i < 12; i++) _engine.Puff(new Point(c.C.X + _engine.R(-(float)c.W / 2, (float)c.W / 2), c.C.Y + c.H * 0.4), _engine.R(-170, -10), _engine.R(60, 200), _engine.R(0.6f, 1.1f), 26, 90, 0.18f, -20, 60);
+                    _engine.Light(c.C, (float)c.W * 2.2f, FxEngine.Ramp.Gold, 0.9f, 0.4f, 0);
+                    Hit(uid, 5);
+                }
+                Sfx.Play("han_place");
+            }));
+        }
+
+        foreach (var side in new[] { Mine, 1 - Mine })
+        {
+            var mine = side == Mine;
+            var at = Caster(mine);
+            var foe = 1 - side;
+            void Glyph(Sign s, string sound) { HanFx.DrawGlyph(_fx, _engine, s, at, 130, 420); Sfx.Play(sound); }
+
+            foreach (var f in o.Fx.Where(f => f.Side == side && f.Kind == "aard"))
+            {
+                var targets = b.Sides[foe].In(row).Select(u => u.Uid).ToList();
+                var pct = f.Target > 0 ? f.Target : 10;
+                var rb = RowBaseOf(foe);
+                var after = Tuning.ApplyPct(rb, -pct / 100.0);
+                steps.Add(new Step(mine, "Aard", $"{(mine ? "Rakibin" : "Senin")} satırı −%{pct}: {rb} → {after} · {Odak(side)}", HanArt.SignColor(global::HanLigi.Sign.Aard), Sign, () =>
+                {
+                    Glyph(global::HanLigi.Sign.Aard, "han_glyph");
+                    Fx.After(450, () =>
+                    {
+                        Sfx.Play("han_aard");
+                        var k = 0;
+                        foreach (var uid in targets) if (CardAt(uid) is { } c) HanFx.Gust(_engine, at, c.C, c.W, c.H, 70 * k++);
+                        Fx.After(300 + 70 * targets.Count, () =>
+                        {
+                            Land(targets, 6);
+                            var (rc, rw) = RowS(!mine, row);
+                            HanArt.FloatText(_fx, $"−%{pct}   {rb} → {after}", new Point(rc.X + rw * 0.36, rc.Y - 50), HanArt.SignColor(global::HanLigi.Sign.Aard), 30, 1800);
+                        });
+                    });
+                }));
+            }
+
+            foreach (var f in o.Fx.Where(f => f.Side == side && f.Kind is "igni" or "igni_reflect"))
+            {
+                if (f.Kind == "igni" && f.Blocked)
+                {
+                    var shielded = b.Sides[foe].In(row).Where(u => !u.IsHero).OrderByDescending(u => Val(u.Uid)).Select(u => u.Uid).FirstOrDefault();
+                    steps.Add(new Step(mine, "Igni → Quen", (mine ? "Rakip Quen ile engelledi" : "Quen'in alevi durdurdu") + $" · {Odak(side)}", HanArt.SignColor(global::HanLigi.Sign.Quen), Sign, () =>
+                    {
+                        Glyph(global::HanLigi.Sign.Igni, "han_igni_cast");
+                        Fx.After(450, () =>
+                        {
+                            if (shielded != 0 && CardAt(shielded) is { } c)
+                            {
+                                HanFx.Quen(_fx, _engine, new Point(c.C.X, c.C.Y + c.H * 0.5), c.W * 1.7, true);
+                                HanFx.IgniStrike(_engine, at, c.C, c.W, c.H, false);
+                                Fx.After(700, () => { Sfx.Play("han_quen_hit"); HanArt.FloatText(_fx, "ENGELLENDİ", new Point(c.C.X, c.C.Y - c.H * 0.7), HanArt.SignColor(global::HanLigi.Sign.Quen), 30, 1400); });
+                            }
+                            Sfx.Play("han_igni");
+                        });
+                    }));
+                    continue;
+                }
+                var uid = f.Target;
+                var reflect = f.Kind == "igni_reflect";
+                steps.Add(new Step(mine, reflect ? "Igni → Kara Kan" : "Igni", uid == 0 ? "Hedef yoktu, boşa gitti · " + Odak(side)
+                    : (reflect ? $"Kara Kan yansıttı: {(mine ? "kendi" : "rakibin kendi")} {NameOf(uid)} yandı · " : $"{NameOf(uid)} yandı · ") + $"güç {Delta(uid)} · {Odak(side)}",
+                    HanArt.SignColor(global::HanLigi.Sign.Igni), Sign, () =>
+                    {
+                        Glyph(global::HanLigi.Sign.Igni, "han_igni_cast");
+                        Fx.After(450, () =>
+                        {
+                            Sfx.Play("han_igni");
+                            if (CardAt(uid) is not { } c) return;
+                            HanFx.IgniStrike(_engine, at, c.C, c.W, c.H, true);
+                            Fx.After(330, () => { Land(new[] { uid }, 8); HanArt.FloatText(_fx, Delta(uid), new Point(c.C.X, c.C.Y - c.H * 0.7), Color.FromRgb(0xff, 0xa0, 0x40), 34, 1700); });
+                        });
+                    }));
+            }
+
+            foreach (var f in o.Fx.Where(f => f.Side == side && f.Kind == "quen" && !f.Blocked))
+                steps.Add(new Step(mine, "Quen", "Boşa gitti: Igni gelmedi · " + Odak(side), HanArt.SignColor(global::HanLigi.Sign.Quen), Short, () =>
+                {
+                    Glyph(global::HanLigi.Sign.Quen, "han_quen");
+                    Fx.After(450, () => HanFx.Quen(_fx, _engine, new Point(at.X, at.Y + 60), 160, false));
+                }));
+
+            var own = b.Sides[side].In(row).Select(u => u.Uid).ToList();
+            foreach (var f in o.Fx.Where(f => f.Side == side && f.Kind is "thunderbolt" or "swallow"))
+            {
+                var thunder = f.Kind == "thunderbolt";
+                var ramp = thunder ? FxEngine.Ramp.Toxic : FxEngine.Ramp.Ice;
+                steps.Add(new Step(mine, thunder ? "Gök Gürültüsü" : "Kırlangıç", thunder ? $"Satırın +%25: {RowBaseOf(side)} → {Tuning.ApplyPct(RowBaseOf(side), 0.25)}" : "Satırdaki hava etkisi kalktı: " + string.Join(", ", own.Select(u => $"{NameOf(u)} {Val(u)}")), thunder ? Color.FromRgb(0x9f, 0xf0, 0x9a) : Color.FromRgb(0x9a, 0xd8, 0xff), Sign - 300, () =>
+                {
+                    Sfx.Play("han_drink");
+                    Fx.After(400, () =>
+                    {
+                        Sfx.Play("han_potion");
+                        foreach (var uid in own) if (CardAt(uid) is { } c) HanFx.CardAura(_engine, c.C, c.W, c.H, ramp, 1.2);
+                        Fx.After(500, () =>
+                        {
+                            Land(own, 3);
+                            foreach (var uid in own) if (CardAt(uid) is { } c) HanArt.FloatText(_fx, thunder ? "+%25" : $"{Val(uid)}", new Point(c.C.X, c.C.Y - c.H * 0.6), thunder ? Color.FromRgb(0x9f, 0xf0, 0x9a) : Color.FromRgb(0x9a, 0xd8, 0xff), 24, 1300);
+                        });
+                    });
+                }));
+            }
+
+            foreach (var f in o.Fx.Where(f => f.Side == side && f.Kind == "blackblood" && !f.Blocked))
+                steps.Add(new Step(mine, "Kara Kan", "Boşa gitti: Igni gelmedi", Color.FromRgb(0xff, 0x60, 0x70), Short, () => Sfx.Play("han_drink")));
+
+            foreach (var kind in new[] { "dancingstar", "northernwind" })
+            {
+                var hits = o.Fx.Where(f => f.Side == side && f.Kind == kind).Select(f => f.Target).ToList();
+                if (hits.Count == 0) continue;
+                var ice = kind == "northernwind";
+                var targets = hits.Where(u => u != 0).ToList();
+                var names = string.Join(", ", targets.Select(NameOf));
+                steps.Add(new Step(mine, ice ? "Kuzey Rüzgârı" : "Dans Eden Yıldız", targets.Count == 0 ? "Hedef yoktu" : string.Join(" · ", targets.Select(u => $"{NameOf(u)} {Delta(u)}")), ice ? Color.FromRgb(0xb0, 0xe0, 0xff) : Color.FromRgb(0xff, 0xa0, 0x40), Sign, () =>
+                {
+                    Sfx.Play("han_whoosh");
+                    foreach (var uid in targets)
+                        if (CardAt(uid) is { } c)
+                            HanFx.Throw(_engine, new Point(at.X + 200, at.Y), c.C, ice ? FxEngine.Ramp.Ice : FxEngine.Ramp.Ember, 620, () =>
+                            {
+                                if (ice) HanFx.Frost(_engine, c.C);
+                                else { HanFx.Explosion(_engine, c.C, FxEngine.Ramp.Fire, 0.55); HanFx.CardBurn(_engine, c.C, c.W, c.H, 1.2); }
+                                Sfx.Play(ice ? "han_bomb_frost" : "han_bomb_fire");
+                                Land(new[] { uid }, 8);
+                                HanArt.FloatText(_fx, Delta(uid), new Point(c.C.X, c.C.Y - c.H * 0.7), ice ? Color.FromRgb(0xb0, 0xe0, 0xff) : Color.FromRgb(0xff, 0xa0, 0x40), 32, 1400);
+                            });
+                }));
+            }
+        }
+        return steps;
     }
 
     /// <summary>Ekranın ortasında kısa yazı.</summary>
     private void ScreenBanner(string text, Color c)
     {
-        var t = Txt(text, 60, new SolidColorBrush(c), true, TextAlignment.Center, false);
+        var t = Txt(text, 54, new SolidColorBrush(c), true, TextAlignment.Center, false);
         t.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 20, ShadowDepth = 0, Opacity = 1 };
         var holder = new Grid { Width = 1920, Height = 1080, IsHitTestVisible = false };
         t.HorizontalAlignment = HorizontalAlignment.Center;
@@ -510,152 +781,19 @@ public sealed partial class HanView
         t.Margin = new Thickness(0, -60, 0, 0);
         holder.Children.Add(t);
         _banner.Children.Add(holder);
-        Fx.Banner(holder, 650, () => _banner.Children.Remove(holder));
+        Fx.Banner(holder, 1300, () => _banner.Children.Remove(holder));
     }
+
+    /// <summary>Yrden mührünün indiği yer: mühürlenen tarafın panelinin altı (simyası ve pusu orada).</summary>
+    private static Point SealAt(bool mine) => mine ? new Point(SideX + SideW / 2, 852) : new Point(SideX + SideW / 2, 176);
 
     /// <summary>İşaretin çıktığı yer: kendi tarafında masanın sol önü, rakibinde sol arkası.</summary>
-    private static Point Caster(bool mine) => mine ? new Point(560, 800) : new Point(620, 110);
-
-    /// <summary>
-    /// Atış: iki tarafın işaretleri havada çizilir (ışıklı kalem, kıvılcımlar), simya kartları elde parlar. Süresini (ms) döner.
-    /// </summary>
-    private int Cast(WindowOutcome o, Row row)
-    {
-        var any = false;
-        var seen = new HashSet<string>();
-        foreach (var f in o.Fx)
-        {
-            if (!seen.Add(f.Kind + f.Side)) continue;
-            var mine = f.Side == Mine;
-            var at = Caster(mine);
-            Sign? sign = f.Kind switch { "aard" => Sign.Aard, "igni" or "igni_reflect" => Sign.Igni, "quen" => Sign.Quen, "yrden" => Sign.Yrden, _ => null };
-            if (sign is { } s)
-            {
-                any = true;
-                var delay = mine ? 0 : 140;
-                Fx.After(1 + delay, () => HanFx.DrawGlyph(_fx, _engine, s, at, 150));
-                HanArt.FloatText(_fx, (mine ? "" : "Rakip: ") + s.ToString().ToUpperInvariant(), new Point(at.X, at.Y + (mine ? -110 : 105)), HanArt.SignColor(s), 28, 1100, delay + 200);
-                Fx.After(1 + delay, () => Sfx.Play(s switch { Sign.Igni => "han_igni_cast", Sign.Quen => "han_quen", Sign.Yrden => "han_yrden", _ => "han_glyph" }));
-            }
-            else if (f.Kind is "thunderbolt" or "swallow" or "blackblood" or "dancingstar" or "northernwind")
-            {
-                any = true;
-                var icon = f.Kind switch { "thunderbolt" => "potion_thunderbolt", "swallow" => "potion_swallow", "blackblood" => "potion_blackblood", "dancingstar" => "bomb_dancingstar", _ => "bomb_northernwind" };
-                var pat = new Point(at.X + 260, at.Y + (mine ? -10 : 10));
-                var holder = new Grid { Width = 120, Height = 120 };
-                holder.Children.Add(HanArt.Icon(icon, 120, "⚗"));
-                HanArt.Burst(_fx, holder, pat, 0.5, 1.05, 900, 80);
-                var ramp = f.Kind switch { "thunderbolt" => FxEngine.Ramp.Toxic, "swallow" => FxEngine.Ramp.Ice, "blackblood" => FxEngine.Ramp.Blood, "northernwind" => FxEngine.Ramp.Ice, _ => FxEngine.Ramp.Fire };
-                Fx.After(80, () => { _engine.Light(pat, 160, ramp, 1.0f, 0.4f, 0); for (var i = 0; i < 40; i++) _engine.Spark(pat, _engine.R(0, 360), _engine.R(60, 260), _engine.R(0.3f, 0.7f), 3, 2, ramp, 1.2f, 200, 1.5f, true); });
-                HanArt.FloatText(_fx, (mine ? "" : "Rakip: ") + HT.Name(f.Kind switch { "thunderbolt" => Potion.Thunderbolt, "swallow" => Potion.Swallow, "blackblood" => Potion.BlackBlood, "dancingstar" => Potion.DancingStar, _ => Potion.NorthernWind }), new Point(pat.X, pat.Y + 85), Color.FromRgb(0xff, 0xe0, 0x9a), 22, 1100, 150);
-                Sfx.Play(f.Kind is "dancingstar" or "northernwind" ? "han_whoosh" : "han_drink");
-            }
-        }
-        return any ? 760 : 300;
-    }
+    private static Point Caster(bool mine) => mine ? new Point(300, 790) : new Point(330, 240);
 
     /// <summary>Bir kartı titretir (vurulma tepkisi); masa ve ekran yerinde kalır.</summary>
     private void Hit(int uid, double amp = 7)
     {
         if (_unitEls.TryGetValue(uid, out var el)) Fx.Shake(el, amp, 420);
-    }
-
-    /// <summary>Etkilerin hedefe inişi: alev seli, şok dalgası, kalkan, mühür, bomba; vurulan kart titrer.</summary>
-    private void Impact(WindowOutcome o, Row row)
-    {
-        foreach (var f in o.Fx)
-        {
-            var mine = f.Side == Mine;
-            var origin = Caster(mine);
-            var (foeC, foeW) = RowS(!mine, row);
-            var (ownC, ownW) = RowS(mine, row);
-            Point Target(bool onFoe) => f.Target != 0 && _pos.TryGetValue(f.Target, out var p) ? p : (onFoe ? foeC : ownC);
-            var cardW = foeW / 9;
-            switch (f.Kind)
-            {
-                case "aard":
-                    HanFx.Aard(_engine, origin, foeC, foeW);
-                    Sfx.Play("han_aard");
-                    Fx.After(280, () =>
-                    {
-                        foreach (var kv in _pos) if (Math.Abs(kv.Value.Y - foeC.Y) < 70) Hit(kv.Key, 8);
-                        HanArt.FloatText(_fx, "−%10", new Point(foeC.X + foeW * 0.38, foeC.Y - 40), HanArt.SignColor(Sign.Aard), 44, 1200);
-                    });
-                    break;
-                case "igni" when f.Blocked:
-                    HanFx.Igni(_engine, origin, new Point(foeC.X, foeC.Y - 40), cardW, false);
-                    Sfx.Play("han_igni");
-                    Fx.After(380, () => Sfx.Play("han_quen_hit"));
-                    Fx.After(420, () => HanArt.FloatText(_fx, "ENGELLENDİ", new Point(foeC.X, foeC.Y - 90), HanArt.SignColor(Sign.Quen), 46, 1300));
-                    break;
-                case "igni":
-                case "igni_reflect":
-                {
-                    var p = Target(f.Kind == "igni");
-                    var landed = f.Target != 0;
-                    HanFx.Igni(_engine, origin, p, cardW, landed);
-                    Sfx.Play("han_igni");
-                    Fx.After(400, () =>
-                    {
-                        if (landed) { Hit(f.Target, 9); HanArt.FloatText(_fx, f.Kind == "igni" ? "−%50" : "YANSIDI  −%50", new Point(p.X, p.Y - 90), Color.FromRgb(0xff, 0xa0, 0x40), 46, 1300); }
-                        else HanArt.FloatText(_fx, "hedef yok", p, Color.FromRgb(0xa3, 0x98, 0x80), 28, 900);
-                    });
-                    break;
-                }
-                case "quen":
-                    HanFx.Quen(_fx, _engine, ownC, ownW, f.Blocked);
-                    if (f.Blocked) Fx.After(620, () => Sfx.Play("han_quen_hit"));
-                    break;
-                case "yrden":
-                    HanFx.Yrden(_fx, _engine, foeC, foeW, f.Blocked);
-                    Fx.After(150, () => Sfx.Play("han_yrden_shock"));
-                    if (f.Blocked) Fx.After(900, () => Sfx.Play("han_yrden_hit"));
-                    Fx.After(350, () => HanArt.FloatText(_fx, f.Blocked ? "MÜHÜRLENDİ" : "boşa gitti", new Point(foeC.X, foeC.Y - 80), HanArt.SignColor(Sign.Yrden), f.Blocked ? 46 : 28, 1300));
-                    break;
-                case "thunderbolt":
-                    HanFx.Aura(_engine, ownC, ownW * 0.85, FxEngine.Ramp.Toxic);
-                    Sfx.Play("han_potion");
-                    HanArt.FloatText(_fx, "+%25", new Point(ownC.X + ownW * 0.38, ownC.Y - 40), Color.FromRgb(0x9f, 0xf0, 0x9a), 44, 1200, 200);
-                    break;
-                case "swallow":
-                    HanFx.Aura(_engine, ownC, ownW * 0.85, FxEngine.Ramp.Ice);
-                    Sfx.Play("han_potion");
-                    HanArt.FloatText(_fx, "HAVA KALKTI", new Point(ownC.X, ownC.Y - 80), Color.FromRgb(0x9a, 0xd8, 0xff), 38, 1200, 200);
-                    break;
-                case "blackblood":
-                    if (f.Blocked)
-                    {
-                        HanFx.Aura(_engine, ownC, ownW * 0.6, FxEngine.Ramp.Blood, 0.8);
-                        Sfx.Play("han_potion");
-                        HanArt.FloatText(_fx, "KARA KAN: YANSIDI", new Point(ownC.X, ownC.Y - 80), Color.FromRgb(0xff, 0x60, 0x70), 36, 1300, 300);
-                    }
-                    break;
-                case "dancingstar":
-                case "northernwind":
-                {
-                    var p = Target(true);
-                    var ice = f.Kind == "northernwind";
-                    var landed = f.Target != 0;
-                    HanFx.Throw(_engine, new Point(origin.X + 260, origin.Y), p, ice ? FxEngine.Ramp.Ice : FxEngine.Ramp.Ember, 520, () =>
-                    {
-                        if (ice) HanFx.Frost(_engine, p); else HanFx.Explosion(_engine, p, FxEngine.Ramp.Fire, 1.2);
-                        if (!ice && landed) HanFx.Burn(_engine, p, cardW, 1.0, 0.7);
-                        Sfx.Play(ice ? "han_bomb_frost" : "han_bomb_fire");
-                        if (landed) { Hit(f.Target, 9); HanArt.FloatText(_fx, ice ? "−%70" : "−%30", new Point(p.X, p.Y - 90), ice ? Color.FromRgb(0xb0, 0xe0, 0xff) : Color.FromRgb(0xff, 0xa0, 0x40), 46, 1300); }
-                    });
-                    break;
-                }
-                case "ambush":
-                    if (_pos.TryGetValue(f.Target, out var ap))
-                    {
-                        for (var i = 0; i < 40; i++) _engine.Puff(new Point(ap.X + _engine.R(-50, 50), ap.Y + 50), _engine.R(-170, -10), _engine.R(60, 240), _engine.R(0.6f, 1.1f), 30, 110, 0.18f, -20, 80);
-                        _engine.Light(ap, 240, FxEngine.Ramp.Gold, 1.0f, 0.35f);
-                        HanArt.FloatText(_fx, "PUSU!", new Point(ap.X, ap.Y - 100), Color.FromRgb(0xff, 0xe9, 0xa3), 46, 1200);
-                    }
-                    Sfx.Play("han_place");
-                    break;
-            }
-        }
     }
 
     /// <summary>Savaş sonu: zafer/yenilgi afişi, sonra hasar mermisi kaybedenin can çubuğuna uçar.</summary>

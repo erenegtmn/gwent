@@ -42,11 +42,15 @@ public sealed partial class HanView : Grid
     private readonly Canvas _fx = new() { Width = 1920, Height = 1080, IsHitTestVisible = false };
     private readonly Grid _banner = new() { Width = 1920, Height = 1080, IsHitTestVisible = false };
     private readonly Canvas _hover = new() { Width = 1920, Height = 1080, IsHitTestVisible = false };
+    /// <summary>Havada süzülen tezgâh (Auto Chess gibi): önbelleksiz; kartlar tek tek önbellekte, yalnız konumları oynar.</summary>
+    private readonly Canvas _shop = new() { Width = 1920, Height = 1080 };
     /// <summary>Süre çubuğu ve sayaç: tek başına, önbelleksiz (her karede akıcı akar, başka hiçbir şeyi yeniden çizdirmez).</summary>
     private readonly Canvas _clockLayer = new() { Width = 1920, Height = 1080, IsHitTestVisible = false };
     private readonly FxEngine _engine = new();
     internal FxEngine Engine => _engine;
     private readonly Dictionary<int, FrameworkElement> _unitEls = new();
+    /// <summary>Masadaki kartların ekrandaki genişliği (efektler kart ölçeğinde).</summary>
+    private readonly Dictionary<int, double> _cardW = new();
     private readonly List<BitmapCache> _caches = new();
     private Screen _screen = Screen.School;
     private int? _sel;
@@ -82,7 +86,7 @@ public sealed partial class HanView : Grid
     private const double SideX = 12, SideW = 236;           // sol: sinerjiler / taraflar
     private const double TopX = 550, TopW = 820;            // üst yönlendirme şeridi
     // Kart: tasarım boyutu (masada ölçeklenir) ve masaya yaslanma (dikey basıklık)
-    private const double DesignW = 140, DesignH = 168, Lean = 0.9;
+    private const double DesignW = 140, DesignH = DesignW * HanCardView.CardAspect, Lean = 1.0;   // kart basılmaz: gerçek oranında durur
 
     private static readonly ControlTemplate BareTemplate = (ControlTemplate)XamlReader.Parse(
         "<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' TargetType='Button'><ContentPresenter/></ControlTemplate>");
@@ -95,7 +99,7 @@ public sealed partial class HanView : Grid
         _live = animate;
         Background = Brushes.Black;
         _scene = new HanScene(animate);
-        foreach (var layer in new UIElement[] { _scene, _rows, _anim, _units, _c, _fx, _engine, _clockLayer, _banner, _hover }) _stage.Children.Add(layer);
+        foreach (var layer in new UIElement[] { _scene, _rows, _anim, _units, _c, _shop, _fx, _engine, _clockLayer, _banner, _hover }) _stage.Children.Add(layer);
         // durağan katmanlar GPU dokusu olarak önbelleğe alınır (ölçek pencere boyuna göre ayarlanır: yazılar net kalır)
         foreach (var layer in new UIElement[] { _scene, _rows, _units, _c })
         {
@@ -117,6 +121,12 @@ public sealed partial class HanView : Grid
         _stage.MouseLeftButtonUp += (_, e) => { if (!e.Handled) Deselect(); };
         _stage.MouseRightButtonUp += (_, _) => Deselect();
         _stage.MouseLeave += (_, _) => EndDrag();
+        // kısayollar: Boşluk tezgâh, R yenile, F XP
+        Focusable = true;
+        FocusVisualStyle = null;
+        Loaded += (_, _) => Focus();
+        _stage.MouseDown += (_, _) => Focus();
+        PreviewKeyDown += OnKey;
         _screen = M.Phase switch { Phase.School => Screen.School, Phase.Finished => Screen.Final, _ => Screen.Prep };
         if (_screen == Screen.Prep) EnterPrep(); else Render();
     }
@@ -129,6 +139,18 @@ public sealed partial class HanView : Grid
         var s = Math.Min(ActualWidth / 1920, ActualHeight / 1080) * dpi;
         s = Math.Clamp(Math.Ceiling(s * 8) / 8, 0.5, 2);
         foreach (var c in _caches) if (Math.Abs(c.RenderAtScale - s) > 0.01) c.RenderAtScale = s;
+    }
+
+    private void OnKey(object sender, KeyEventArgs e)
+    {
+        if (_screen != Screen.Prep || _busy || _help) return;
+        if (Me.PotionOptions.Length > 0 || Me.RewardOptions.Length > 0) return;
+        switch (e.Key)
+        {
+            case Key.Space: ToggleShop(); e.Handled = true; break;
+            case Key.R: Do(() => M.Reroll(HanSession.Me), "han_reroll"); _shopOpen = true; Render(); e.Handled = true; break;
+            case Key.F: Do(() => M.BuyXp(HanSession.Me), "han_xp"); e.Handled = true; break;
+        }
     }
 
     /// <summary>Seçili kartı bırakır (boş yere tıklama, sağ tık).</summary>
@@ -179,9 +201,9 @@ public sealed partial class HanView : Grid
         return b;
     }
 
-    private HanCardView CardEl(CardDef d, int star, double w, string? tag, Action? click, int? value = null, bool selected = false, string? footer = null, bool dim = false, int? price = null, bool named = false, double aspect = 1.2)
+    private HanCardView CardEl(CardDef d, int star, double w, string? tag, Action? click, int? value = null, bool selected = false, string? footer = null, bool dim = false, int? price = null, bool named = false, double aspect = HanCardView.CardAspect, bool plain = false)
     {
-        var v = new HanCardView(d, star, w, value, selected, footer, dim, price, aspect: aspect, named: named) { Tag = tag, ToolTip = null };
+        var v = new HanCardView(d, star, w, value, selected, footer, dim, price, aspect: aspect, named: named, plain: plain) { Tag = tag, ToolTip = null };
         if (click != null) v.MouseLeftButtonUp += (_, e) => { e.Handled = true; click(); };
         else v.Cursor = Cursors.Arrow;
         v.MouseEnter += (_, _) => Inspect(v, d, star, value);
@@ -193,12 +215,11 @@ public sealed partial class HanView : Grid
     private void Inspect(FrameworkElement anchor, CardDef d, int star, int? value)
     {
         _hover.Children.Clear();
-        if (_dragging || !anchor.IsVisible) return;
+        if (_dragging) return;
         Rect r;
         try { r = anchor.TransformToAncestor(_stage).TransformBounds(new Rect(anchor.RenderSize)); }
         catch { return; }
         var g = new StackPanel { Orientation = Orientation.Horizontal };
-        g.Children.Add(new HanCardView(d, star, 200, value, aspect: 1.34, named: true) { ToolTip = null });
         var info = new StackPanel { Width = 300, Margin = new Thickness(16, 14, 16, 16) };
         var lines = HanCardView.Describe(d, star).Split('\n');
         var tier = HanCardView.TierColor(d);
@@ -223,8 +244,10 @@ public sealed partial class HanView : Grid
                 info.Children.Add(t);
             }
         info.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        g.Children.Add(HanUi.Frame(332, Math.Max(268, info.DesiredSize.Height + 4), info, 0xf6, tier, 10));
-        const double gw = 526, gh = 268;
+        g.Children.Add(HanUi.Frame(332, info.DesiredSize.Height + 4, info, 0xf6, tier, 10));
+        const double gw = 332;
+        g.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var gh = g.DesiredSize.Height;
         var x = r.Right + 14 + gw < 1906 ? r.Right + 14 : r.Left - 14 - gw;
         var y = Math.Clamp(r.Top + r.Height / 2 - gh / 2, 64, 1080 - gh - 8);
         if (r.Top > BarY - 10) y = BarY - gh - 8;   // alt şerit: üstünde aç
@@ -432,6 +455,7 @@ public sealed partial class HanView : Grid
         {
             var p = PlaceCard(cards[i].El, new Point(x0 + i * step, bottom), k, i);
             _unitEls[cards[i].Uid] = cards[i].El;
+            _cardW[cards[i].Uid] = sw;
             if (pos != null) pos[cards[i].Uid] = p;
         }
     }
@@ -632,9 +656,11 @@ public sealed partial class HanView : Grid
     {
         _rows.Children.Clear();
         _anim.Children.Clear();
+        _shop.Children.Clear();
         _units.Children.Clear();
         _c.Children.Clear();
         _unitEls.Clear();
+        _cardW.Clear();
         _hover.Children.Clear();
         _scene.Visibility = _screen is Screen.School or Screen.Final ? Visibility.Hidden : Visibility.Visible;
         switch (_screen)
@@ -647,6 +673,24 @@ public sealed partial class HanView : Grid
             default: DrawFinal(); break;
         }
         if (_help) DrawHelp();
+        foreach (var layer in new DependencyObject[] { _rows, _units, _c, _shop }) FastTips(layer);
+    }
+
+    /// <summary>
+    /// İpuçları beklemeden açılsın: WPF'te ipucu gecikmesi öğe başınadır (kalıtılmaz), bu yüzden ipucu taşıyan her öğeye tek tek
+    /// 0 ms verilir (işaret madalyonları, simya, sinerjiler, düğmeler).
+    /// </summary>
+    private static void FastTips(DependencyObject root)
+    {
+        if (root is FrameworkElement fe && fe.ToolTip != null)
+        {
+            ToolTipService.SetInitialShowDelay(fe, 0);
+            ToolTipService.SetBetweenShowDelay(fe, 0);
+            ToolTipService.SetShowDuration(fe, 60000);
+            if (fe.ToolTip is string text) fe.ToolTip = HanUi.Tip(text);
+        }
+        foreach (var child in LogicalTreeHelper.GetChildren(root))
+            if (child is DependencyObject d) FastTips(d);
     }
 
     private void Backdrop(double dim)

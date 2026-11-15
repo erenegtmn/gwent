@@ -409,11 +409,22 @@ public sealed class Match
         return b;
     }
 
-    /// <summary>PvE rakibi: oyuncunun seviyesinde rastgele bir tahta; gücü %50 (R1-2) ya da %80.</summary>
+    /// <summary>
+    /// PvE rakibi. Round 1-2 sabit öğretici sürülerdir (kesin kural): R1'de <b>tek kart, güç 1</b>; R2'de <b>her satırda bir kart,
+    /// güç 1</b> — tek kart her durumda kaybeder (en çok bir satır alır), farklı satırlarda iki kart (güç ≥ 2) kazanır. Bu iki
+    /// round'da canavar işaret/simya atmaz, hava yoktur. Sonraki PvE'ler oyuncunun seviyesinde rastgele tahtadır, gücü %80.
+    /// </summary>
     private BattleSide PveSide(PlayerState p)
     {
         var s = new BattleSide { PlayerId = -1, Name = Round <= 2 ? "Canavar Sürüsü" : "Vahşi Av Öncüleri", Level = p.Level };
-        var scale = Round <= 2 ? Tuning.PveEarly : Tuning.PveLater;
+        if (Round <= 2)
+        {
+            var ghoul = CardSet.Get("ghoul");
+            var rows = Round == 1 ? new[] { Enum.GetValues<Row>()[_misc.Next(3)] } : Enum.GetValues<Row>();
+            for (var i = 0; i < rows.Length; i++)
+                s.Units.Add(new BattleUnit { Uid = 900000 + i, Def = ghoul, Power = 1, Row = rows[i], Protected = true });   // hava, Kavurma ve Igni onu bozamaz
+            return s;
+        }
         var odds = Tuning.ShopOdds[p.Level - 1];
         for (var i = 0; i < p.Slots; i++)
         {
@@ -424,10 +435,9 @@ public sealed class Match
             var cands = CardSet.All.Where(d => d.IsUnit && !d.IsHero && d.Tier == tier && d.Has(Tag.Monster)).ToList();
             if (cands.Count == 0) cands = CardSet.All.Where(d => d.IsUnit && !d.IsHero && d.Tier == tier).ToList();
             var d = cands[_misc.Next(cands.Count)];
-            s.Units.Add(new BattleUnit { Uid = 900000 + i, Def = d, Power = Math.Max(1, Tuning.Round(d.Power * scale)), Row = d.Row });
+            s.Units.Add(new BattleUnit { Uid = 900000 + i, Def = d, Power = Math.Max(1, Tuning.Round(d.Power * Tuning.PveLater)), Row = d.Row });
         }
         // PvE'de etiket eşikleri sayılmaz (güç zaten ölçeklendi)
-        if (Round == 2) s.Specials.Add(Special.Frost);   // öğretici: hava
         return s;
     }
 

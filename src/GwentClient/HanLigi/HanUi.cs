@@ -221,7 +221,13 @@ public sealed class HanButton : Button
         Width = w;
         Height = h;
         Click += (_, _) => click();
-        if (tip != null) { ToolTip = HanUi.Tip(tip); ToolTipService.SetShowOnDisabled(this, true); }
+        if (tip != null)
+        {
+            ToolTip = HanUi.Tip(tip);
+            ToolTipService.SetShowOnDisabled(this, true);
+            ToolTipService.SetInitialShowDelay(this, 0);
+            ToolTipService.SetBetweenShowDelay(this, 0);
+        }
         var (edge, fillTop, fillBot, text) = kind switch
         {
             HanButtonKind.Primary => (HanUi.GoldEdge, Color.FromRgb(0x5a, 0x3e, 0x12), Color.FromRgb(0x22, 0x16, 0x06), HanUi.GoldText),
@@ -282,7 +288,6 @@ public sealed class HanButton : Button
             if (!IsEnabled) return;
             _glow.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(120)));
             _lift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-2, TimeSpan.FromMilliseconds(120)));
-            Sfx.Play("han_hover");
         };
         MouseLeave += (_, _) =>
         {

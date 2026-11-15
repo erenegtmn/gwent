@@ -25,11 +25,19 @@ public static class HanShots
         var v = new HanView(s, () => { }, () => { }, animate: false);
         save(v, "han_1_okul.png");
         s.ChooseSchool(s.Player.SchoolOptions[0]);
+        save(new HanView(s, () => { }, () => { }, animate: false), "han_2a_tezgah.png");
         // erken hazırlık: marketten alınabilenleri al, sahaya sür
         for (var i = 0; i < Tuning.ShopSize; i++) s.M.Buy(HanSession.Me, i);
         foreach (var c in s.Player.Cards.ToList()) s.M.Move(HanSession.Me, c.Uid, Match.ZonesFor(c.Def).First());
         v = new HanView(s, () => { }, () => { }, animate: false);
         save(v, "han_2_hazirlik_erken.png");
+        // kart incelemesi (fare kartın üstünde): yalnız bilgi penceresi
+        if (UiSelfTest.FindAll<HanCardView>(v, c => (c.Tag as string)?.StartsWith("han-card:") == true).FirstOrDefault() is { } hc)
+        {
+            hc.RaiseEvent(new System.Windows.Input.MouseEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0) { RoutedEvent = System.Windows.Input.Mouse.MouseEnterEvent });
+            UiSelfTest.Layout(v);
+            save(v, "han_4b_inceleme.png");
+        }
         Click(v, "han-help");
         save(v, "han_3_yardim.png");
         // orta oyun: insan koltuğunu bot oynatır
@@ -131,14 +139,18 @@ public static class HanShots
         if (UiSelfTest.FindAll<Button>(v, x => (x.Tag as string)?.StartsWith("han-use:") == true).FirstOrDefault() is { } pot) { UiSelfTest.Raise(pot, ButtonBase.ClickEvent); UiSelfTest.Layout(v); }
         save(v, "han_fx_0_secim.png");
         Click(v, "han-go");
-        Pump(450, v.Engine);
-        save(v, "han_fx_1_atis.png");
         Pump(700, v.Engine);
-        save(v, "han_fx_2_isabet.png");
-        Pump(500, v.Engine);
-        save(v, "han_fx_2b_isabet.png");
-        Pump(1000, v.Engine);
-        save(v, "han_fx_3_sonuc.png");
-        Pump(1400, v.Engine);
+        save(v, "han_fx_1_secimler.png");
+        Pump(2400, v.Engine);
+        save(v, "han_fx_2_isaret.png");
+        Pump(650, v.Engine);
+        save(v, "han_fx_3_isabet.png");
+        Pump(900, v.Engine);
+        save(v, "han_fx_4_isabet2.png");
+        Pump(2600, v.Engine);
+        save(v, "han_fx_5_sonraki.png");
+        Pump(4000, v.Engine);
+        save(v, "han_fx_6_sonuc.png");
+        Pump(1500, v.Engine);
     }
 }

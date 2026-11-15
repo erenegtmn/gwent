@@ -18,6 +18,9 @@ public sealed class HanCardView : Grid
 {
     public static FontFamily Sans => HanUi.Font;
 
+    /// <summary>Kartın yüksekliği / genişliği (masa, depo, pusu): gerçek kart oranına yakın, basık değil.</summary>
+    public const double CardAspect = 1.32;
+
     public static Color TierColor(CardDef d) => d.IsHero ? Color.FromRgb(0xf2, 0xc8, 0x5a) : d.Tier switch
     {
         1 => Color.FromRgb(0x9a, 0x94, 0x86), 2 => Color.FromRgb(0x5f, 0xb0, 0x5a), 3 => Color.FromRgb(0x52, 0x94, 0xdc), 4 => Color.FromRgb(0xa8, 0x6a, 0xdc), _ => Color.FromRgb(0xe8, 0x8a, 0x2c)
@@ -108,7 +111,7 @@ public sealed class HanCardView : Grid
 
     /// <param name="aspect">Yükseklik / genişlik. Masada ve depoda 1.2 (kısa kart), incelemede 1.34.</param>
     /// <param name="named">Ad ve yetenek özeti de yazılsın (tezgâh, inceleme, seçim).</param>
-    public HanCardView(CardDef d, int star, double width, int? value = null, bool selected = false, string? footer = null, bool dim = false, int? price = null, bool faceDown = false, double aspect = 1.2, bool named = false)
+    public HanCardView(CardDef d, int star, double width, int? value = null, bool selected = false, string? footer = null, bool dim = false, int? price = null, bool faceDown = false, double aspect = CardAspect, bool named = false, bool plain = false)
     {
         var w = width;
         var h = Math.Round(width * aspect);
@@ -145,7 +148,7 @@ public sealed class HanCardView : Grid
         }
         body.Child = art;
         Children.Add(body);
-        if (!faceDown) Children.Add(Plate(d, star, w, h, radius, tier, footer, named));
+        if (!faceDown && !plain) Children.Add(Plate(d, star, w, h, radius, tier, footer, named));
         // çerçeve: tier renginde metal
         Children.Add(new Border
         {
