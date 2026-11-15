@@ -226,6 +226,7 @@ public static class Screenshots
         }
 
         ThreeShots.Run(Save);
+        HanShots.Run(Save);
 
         {
             var d = DateTime.Now;

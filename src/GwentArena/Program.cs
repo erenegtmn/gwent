@@ -104,6 +104,27 @@ if (args.Length > 0 && args[0] == "runes")
     return;
 }
 
+if (args.Length > 0 && args[0] == "han-meta")
+{
+    // dotnet run --project src/GwentArena -c Release -- han-meta [maç] [tohum] [çıktı.md]
+    HanLigi.Tuning.AmbushTakesSlot = args.Contains("--ambush-slot");   // karşılaştırma: eski kural
+    // ayar denemesi: --xp 5, --interest 3
+    if (Array.IndexOf(args, "--xp") is var xi and >= 0) HanLigi.Tuning.XpCost = int.Parse(args[xi + 1]);
+    if (Array.IndexOf(args, "--interest") is var ii and >= 0) HanLigi.Tuning.InterestCap = int.Parse(args[ii + 1]);
+    if (Array.IndexOf(args, "--damage") is var di and >= 0) HanLigi.Tuning.DamageMode = int.Parse(args[di + 1]);
+    if (Array.IndexOf(args, "--streak") is var si and >= 0) HanLigi.Tuning.StreakMode = int.Parse(args[si + 1]);
+    if (Array.IndexOf(args, "--ramp") is var ri and >= 0) HanLigi.Tuning.RampMode = int.Parse(args[ri + 1]);
+    var mg = args.Length > 1 ? int.Parse(args[1]) : 1000;
+    var ms = args.Length > 2 ? int.Parse(args[2]) : 1;
+    var rep = HanLigi.Meta.Run(mg, ms, d => Console.Error.Write($"\r{d}/{mg}"));
+    Console.Error.WriteLine($"\r{mg} maç, {rep.Seconds:F0} sn");
+    var md = HanLigi.Meta.Markdown(rep, $"Meta ölçümü ({DateTime.Now:yyyy-MM-dd})");
+    Console.OutputEncoding = System.Text.Encoding.UTF8;
+    Console.WriteLine(md);
+    if (args.Length > 3) File.WriteAllText(args[3], md);
+    return;
+}
+
 if (args.Length > 0 && args[0] == "sweep")
 {
     // dotnet run --project src/GwentArena -c Release -- sweep [oyun/eşleşme]

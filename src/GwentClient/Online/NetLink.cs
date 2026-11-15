@@ -24,6 +24,7 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
     private volatile string _token = "";
     private volatile string _tcode = "";
     private volatile string _ttoken = "";
+    private volatile bool _han;
 
     private NetLink(HubConnection conn)
     {
@@ -48,6 +49,15 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
         _conn.On<string, int>(HubMethods.OnActionRejected, (reason, _) => ReceiveActionRejected(reason));
         _conn.On<MatchResult>(HubMethods.OnMatchEnded, ReceiveMatchEnded);
         _conn.On<string, string>(HubMethods.OnNotice, ReceiveNotice);
+        _conn.On<HanRoomState>(HubMethods.OnHanState, s =>
+        {
+            _code = s.Code;
+            _token = s.YourToken;
+            _han = true;
+            ReceiveHanState(s);
+        });
+        _conn.On<HanSetup>(HubMethods.OnHanStarted, ReceiveHanStarted);
+        _conn.On<HanBroadcast>(HubMethods.OnHanAction, ReceiveHanAction);
         _conn.Reconnecting += ex =>
         {
             ReceiveNotice("reconnecting", "Bağlantı koptu, yeniden bağlanılıyor…");
@@ -60,7 +70,7 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
             // Turnuvadaysam önce turnuvaya dönerim (sunucu sürmekte olan maç odasına da geri sokar); yoksa doğrudan odaya
             var r = _tcode.Length > 0
                 ? await InvokeAsync("RejoinTournament", _tcode, _ttoken, LastReceivedSeq).ConfigureAwait(false)
-                : await InvokeAsync("Rejoin", _code, _token, LastReceivedSeq).ConfigureAwait(false);
+                : await InvokeAsync("Rejoin", _code, _token, _han ? HanLastSeq : LastReceivedSeq).ConfigureAwait(false);
             ReceiveNotice(r.Ok ? "reconnected" : "room_closed", r.Ok ? "Bağlantı yenilendi." : "Odaya geri dönülemedi: " + r.Error);
         };
         _conn.Closed += ex =>
@@ -125,6 +135,11 @@ public sealed class NetLink : RoomLinkBase, IAsyncDisposable
     public override Task<Reply> TournamentWalkoverAsync() => InvokeAsync("TournamentClaimWalkover");
 
     public override Task<Reply> SetLoadoutAsync(LoadoutDto loadout) => InvokeAsync("SetLoadout", loadout);
+    public override Task<Reply> CreateHanRoomAsync(string nick, int size, string? avatar) => InvokeAsync("CreateHanRoom", nick, ProtocolInfo.Version, size, avatar);
+    public override Task<Reply> JoinRoomAvatarAsync(string code, string nick, string? avatar) => InvokeAsync("JoinRoomA", code, nick, ProtocolInfo.Version, avatar);
+    public override Task<Reply> HanSetSizeAsync(int size) => InvokeAsync("HanSetSize", size);
+    public override Task<Reply> HanSetReadyAsync(bool ready) => InvokeAsync("HanSetReady", ready);
+    public override void HanSubmit(global::HanLigi.HanAction action) => _ = InvokeAsync("HanSubmit", action);
     public override Task<Reply> SetReadyAsync(bool ready) => InvokeAsync("SetReady", ready);
     public override Task<Reply> SetDraftAsync(bool on) => InvokeAsync("SetDraft", on);
     public override Task<Reply> DraftChooseAsync(string kind, string id, string? avatar) => InvokeAsync("DraftChoose", kind, id, avatar);

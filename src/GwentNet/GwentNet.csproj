@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\GwentCore\GwentCore.csproj" />
     <ProjectReference Include="..\GwentAI\GwentAI.csproj" />
+    <ProjectReference Include="..\HanLigi.Core\HanLigi.Core.csproj" />
   </ItemGroup>
 
 </Project>

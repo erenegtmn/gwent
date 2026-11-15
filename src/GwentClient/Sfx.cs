@@ -37,7 +37,14 @@ public static class Sfx
         ["scorch"] = "scorch", ["horn"] = "horn", ["spy"] = "spy", ["resurrect"] = "medic", ["leader_change"] = "leader",
         ["summon_clones"] = "muster", ["battle_won"] = "round-win", ["battle_lost"] = "round-lose", ["battle_draw"] = "pass",
         ["clash_victory"] = "win", ["clash_defeat"] = "lose", ["coin_toss"] = "coin", ["your_turn"] = "click",
-        ["ske_mushroom"] = "horn", ["ske_berserker"] = "horn"
+        ["ske_mushroom"] = "horn", ["ske_berserker"] = "horn",
+        // Han Ligi: Witcher 3'ün kendi sesleri (tools/w3_han_sfx.py); yoksa en yakın yer tutucu
+        ["han_aard"] = "weather", ["han_igni"] = "scorch", ["han_igni_cast"] = "spy", ["han_quen"] = "medic", ["han_quen_hit"] = "horn",
+        ["han_yrden"] = "spy", ["han_yrden_shock"] = "spy", ["han_yrden_hit"] = "spy", ["han_glyph"] = "spy",
+        ["han_bomb_fire"] = "scorch", ["han_bomb_frost"] = "weather", ["han_explosion"] = "scorch", ["han_sizzle"] = "scorch",
+        ["han_buy"] = "coin", ["han_sell"] = "coin", ["han_reroll"] = "draw", ["han_levelup"] = "leader", ["han_xp"] = "coin", ["han_merge"] = "medic",
+        ["han_drink"] = "medic", ["han_potion"] = "medic", ["han_tick"] = "click", ["han_victory"] = "win", ["han_defeat"] = "lose", ["han_damage"] = "scorch",
+        ["han_whoosh"] = "draw", ["han_click"] = "click", ["han_denied"] = "pass", ["han_open"] = "draw", ["han_place"] = "place", ["han_medallion"] = "horn", ["han_round"] = "leader"
     };
     private static readonly Random Rng = new();
     private static readonly Dictionary<string, List<string>> Variants = new();
@@ -49,7 +56,7 @@ public static class Sfx
         {
             var path = Pick(name);
             if (path == null) return;
-            if (Pool.Count < 6) Pool.Add(new MediaPlayer());
+            if (Pool.Count < 12) Pool.Add(new MediaPlayer());
             var p = Pool[_next++ % Pool.Count];
             p.Volume = Settings.SfxVolume / 100.0;
             p.Stop();

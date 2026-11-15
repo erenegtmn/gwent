@@ -42,6 +42,7 @@ public sealed class LocalServer : IAsyncDisposable
         builder.Services.AddSingleton(rooms);
         builder.Services.AddSingleton<SessionRegistry>();
         builder.Services.AddHostedService<RoomSweeper>();
+        builder.Services.AddHostedService<HanTicker>();
         builder.Services.AddSignalR(o =>
         {
             o.MaximumReceiveMessageSize = 64 * 1024;   // eylem mesajları küçüktür
@@ -64,6 +65,23 @@ public sealed class LocalServer : IAsyncDisposable
 }
 
 /// <summary>Uzun süre kıpırdamayan odaları temizler.</summary>
+/// <summary>Han Ligi odalarının süre aşımları ve bot devralmaları: saniyede bir.</summary>
+internal sealed class HanTicker : BackgroundService
+{
+    private readonly RoomService _rooms;
+    public HanTicker(RoomService rooms) => _rooms = rooms;
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try { await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return; }
+            try { _rooms.TickHan(); } catch { /* bir odadaki hata ötekileri durdurmasın */ }
+        }
+    }
+}
+
 internal sealed class RoomSweeper : BackgroundService
 {
     private readonly RoomService _rooms;

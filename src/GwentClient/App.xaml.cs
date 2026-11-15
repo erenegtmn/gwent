@@ -182,6 +182,38 @@ public partial class App : Application
             Shutdown(UiSelfTest.RunOnline(games, viaNet) == 0 ? 0 : 1);
             return;
         }
+        var hon = Array.IndexOf(e.Args, "--selftest-online-han");
+        if (hon >= 0)
+        {
+            var games = hon + 1 < e.Args.Length && int.TryParse(e.Args[hon + 1], out var hn2) ? hn2 : 3;
+            Sfx.Enabled = false;
+            Shutdown(UiSelfTest.RunOnlineHan(games, e.Args.Contains("--net")) == 0 ? 0 : 1);
+            return;
+        }
+        if (e.Args.Contains("--perf-han"))
+        {
+            Sfx.Enabled = false;
+            Shutdown(UiSelfTest.RunHanPerf());
+            return;
+        }
+        if (e.Args.Contains("--selftest-han"))
+        {
+            Sfx.Enabled = false;
+            var hi = Array.IndexOf(e.Args, "--selftest-han");
+            var hg = hi + 1 < e.Args.Length && int.TryParse(e.Args[hi + 1], out var hn) ? hn : 3;
+            Shutdown(UiSelfTest.RunHanCheck(hg));
+            return;
+        }
+        var ih = Array.IndexOf(e.Args, "--shot-han");
+        if (ih >= 0 && ih + 1 < e.Args.Length)
+        {
+            // Yalnız Han Ligi ekranları (hızlı görsel doğrulama); tam --shot da bunları içerir
+            Sfx.Enabled = false;
+            System.IO.Directory.CreateDirectory(e.Args[ih + 1]);
+            HanShots.Run((el, name) => Ui.RenderToPng(el, 1920, 1080, System.IO.Path.Combine(e.Args[ih + 1], name)));
+            Shutdown();
+            return;
+        }
         var i3 = Array.IndexOf(e.Args, "--shot-three");
         if (i3 >= 0 && i3 + 1 < e.Args.Length)
         {
