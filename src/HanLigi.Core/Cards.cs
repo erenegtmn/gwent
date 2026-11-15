@@ -150,7 +150,7 @@ public static class Tuning
     /// </summary>
     public static int RampMode = 3;
 
-    public static double DamageRamp(int round) => RampMode switch
+    public static double DamageRamp(int round) => round <= 0 ? 1.0 : RampMode switch   // round bilinmiyorsa (doğrudan kurulan savaş) düz
     {
         3 => round <= 8 ? 0.6 : round <= 14 ? 1.0 : 1.3,
         4 => round <= 8 ? 0.75 : round <= 14 ? 1.0 : 1.15,

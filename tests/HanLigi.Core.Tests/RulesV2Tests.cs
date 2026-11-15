@@ -155,4 +155,11 @@ public class RulesV2Tests
         }
         Assert.Fail("Mantikor seçeneği olan tohum bulunamadı");
     }
+
+    [Fact]
+    public void Damage_is_light_early_and_heavy_late()
+    {
+        Assert.Equal(new[] { 0.6, 0.6, 1.0, 1.0, 1.3, 1.3 }, new[] { 1, 8, 9, 14, 15, 30 }.Select(Tuning.DamageRamp).ToArray());
+        Assert.Equal(1.0, Tuning.DamageRamp(0));
+    }
 }

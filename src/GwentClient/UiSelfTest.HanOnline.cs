@@ -89,7 +89,7 @@ public static partial class UiSelfTest
             }
             if (room.Actions.Count != lastCount) { lastCount = room.Actions.Count; lastProgress = DateTime.UtcNow; }
             else if ((DateTime.UtcNow - lastProgress).TotalSeconds > 20)
-                throw new Exception($"takıldı: round {room.Game!.M.Round} {room.Game.M.Phase}, bekleyen [{string.Join("; ", room.Game.PendingDefaults())}], host bekliyor {hs.Pending}, konuk {gs.Pending}");
+                throw new Exception($"takıldı: round {room.Game!.M.Round} {room.Game.M.Phase}, bekleyen [{string.Join("; ", room.Game.PendingDefaults())}], host bekliyor {hs.Pending}, konuk {gs.Pending}; host ekranı {hv.DebugState}; konuk ekranı {gv.DebugState}");
             if (net) System.Threading.Thread.Sleep(1);
         }
         // ekranlar bekletilen son round sonunu bıraksın ("Devam" tıklanınca)

@@ -57,6 +57,8 @@ public sealed partial class HanView : Grid
     private Screen _screen = Screen.School;
     private int? _sel;
     internal int? Selected => _sel;
+    /// <summary>Sınama teşhisi: ekran ve bekleme durumları.</summary>
+    internal string DebugState => $"{_screen} waitReady={_waitReady} waitAct={_waitAct} waitWindow={_waitWindow} waitRound={_waitRound} busy={_busy} shown={_resultShown} battle={(Session.MyBattle is { } b ? $"w{b.Window} done={b.Done} sub={b.Submitted(Session.MySide)} out={b.Outcomes.Count}" : "-")}";
     private bool _help;
     private Activation _act = new();
     private readonly List<Sign> _signs = new();
