@@ -38,6 +38,24 @@ public static class HanShots
             UiSelfTest.Layout(v);
             save(v, "han_4b_inceleme.png");
         }
+        // kahraman kartı ve bilgi paneli (güneş köşesi): görüntü için depoya geçici olarak Yennefer konur
+        var hero = new OwnedCard { Uid = 990001, Def = CardSet.Get("yennefer") };
+        s.Player.Cards.Add(hero);
+        v = new HanView(s, () => { }, () => { }, animate: false);
+        UiSelfTest.Layout(v);
+        if (UiSelfTest.FindAll<HanCardView>(v, c => (c.Tag as string) == "han-card:990001").FirstOrDefault() is { } yc)
+        {
+            yc.RaiseEvent(new System.Windows.Input.MouseEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0) { RoutedEvent = System.Windows.Input.Mouse.MouseEnterEvent });
+            UiSelfTest.Layout(v);
+            save(v, "han_4c_kahraman.png");
+        }
+        s.Player.Cards.Remove(hero);
+        // ekonomi şeridi uç durumda: üç basamaklı altın, uzun yenilgi serisi, hazine ve soylu geliri (taşma denetimi)
+        var (gold0, streak0) = (s.Player.Gold, s.Player.Streak);
+        s.Player.Gold = 137;
+        s.Player.Streak = -6;
+        save(new HanView(s, () => { }, () => { }, animate: false), "han_4d_ekonomi.png");
+        (s.Player.Gold, s.Player.Streak) = (gold0, streak0);
         Click(v, "han-help");
         save(v, "han_3_yardim.png");
         // orta oyun: insan koltuğunu bot oynatır

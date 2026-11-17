@@ -147,7 +147,11 @@ public sealed class HanSession
         if (M.Phase == Phase.Battle && MyBattle is { } b)
         {
             StartBattle(b.DefaultActivation(MySide));
-            while (!b.Done) Submit(HanBot.Window(b, MySide, rng));
+            for (var guard = 0; !b.Done; guard++)
+            {
+                if (guard > 20) throw new InvalidOperationException($"AutoRound ilerlemiyor: round {M.Round}, savaş başladı {b.Started}, pencere {b.Window}, gönderildi {b.Submitted(MySide)}/{b.Submitted(1 - MySide)}, aktif {G.Activated(MyBattleIndex, MySide)}/{G.Activated(MyBattleIndex, 1 - MySide)}, taraf {MySide}, karşı {b.Sides[1 - MySide].PlayerId} bot {G.IsBotSide(b, 1 - MySide)}");
+                Submit(HanBot.Window(b, MySide, rng));
+            }
         }
         FinishRound();
     }

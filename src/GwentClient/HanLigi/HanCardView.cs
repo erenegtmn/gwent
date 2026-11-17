@@ -85,7 +85,7 @@ public sealed class HanCardView : Grid
     };
 
     /// <summary>Yeteneğin Gwent simgesi (ab_*.png; görselin sol yarısı).</summary>
-    private static ImageSource? AbilityIcon(CardDef d)
+    internal static ImageSource? AbilityIcon(CardDef d)
     {
         var name = d.Ability switch
         {
@@ -157,8 +157,30 @@ public sealed class HanCardView : Grid
         });
         if (faceDown) return;
 
+        // kahraman: orijinal Gwent'in süslü güneş köşesi (güç sayısı güneşin ortasında); görsel yoksa altın rozet
+        if (d.IsHero && Assets.Ui("corner_sun") is { } sun)
+        {
+            var shownH = value ?? Tuning.Power(d, star);
+            var c = w * 0.54;
+            var corner = new Canvas { Width = c, Height = c, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
+            var cim = new Image { Source = sun, Width = c, Height = c, Stretch = Stretch.Uniform };
+            RenderOptions.SetBitmapScalingMode(cim, BitmapScalingMode.HighQuality);
+            corner.Children.Add(cim);
+            var holder = new Grid { Width = c * 0.44, Height = c * 0.44 };
+            holder.Children.Add(new TextBlock
+            {
+                Text = shownH.ToString(), FontFamily = HanUi.Font, FontWeight = FontWeights.Bold, FontSize = c * (shownH >= 10 ? 0.27 : 0.32),
+                Foreground = shownH > Tuning.Power(d, star) ? Theme.B("#b6ff9a") : shownH < Tuning.Power(d, star) ? Theme.B("#ff9a86") : Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 4, ShadowDepth = 0, Opacity = 0.9 }
+            });
+            Canvas.SetLeft(holder, c * 0.34 - c * 0.22);
+            Canvas.SetTop(holder, c * 0.34 - c * 0.22);
+            corner.Children.Add(holder);
+            Children.Add(corner);
+        }
         // güç rozeti
-        if (d.IsUnit)
+        else if (d.IsUnit)
         {
             var shown = value ?? Tuning.Power(d, star);
             var basePow = Tuning.Power(d, star);
@@ -176,6 +198,28 @@ public sealed class HanCardView : Grid
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, -size * 0.04, 0, 0)
             });
             Children.Add(badge);
+        }
+        // satır: sağ altta oyunun satır simgesi (çevikte iki simge), Gwent kartlarındaki gibi
+        if (d.IsUnit)
+        {
+            var rows = d.Agile ? new[] { "row_close", "row_ranged" } : new[] { d.Row switch { Row.Close => "row_close", Row.Ranged => "row_ranged", _ => "row_siege" } };
+            var rs = Math.Max(15, w * 0.2);
+            var strip = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, w * 0.035, w * 0.035), IsHitTestVisible = false };
+            foreach (var r in rows)
+            {
+                var cell = new Grid { Width = rs, Height = rs, Margin = new Thickness(w * 0.012, 0, 0, 0) };
+                cell.Children.Add(new Ellipse { Fill = new RadialGradientBrush(Color.FromRgb(0xf6, 0xdc, 0x96), Color.FromRgb(0xb0, 0x82, 0x34)) { GradientOrigin = new Point(0.4, 0.3) }, Stroke = Theme.B("#3a2a12"), StrokeThickness = Math.Max(1, rs * 0.06), Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 4, ShadowDepth = 1, Opacity = 0.8 } });
+                if (Assets.Ui(r) is { } ic)
+                {
+                    var im = new Image { Source = ic, Width = rs * 0.74, Height = rs * 0.74 };
+                    RenderOptions.SetBitmapScalingMode(im, BitmapScalingMode.HighQuality);
+                    cell.Children.Add(im);
+                }
+                else cell.Children.Add(new TextBlock { Text = r == "row_close" ? "Y" : r == "row_ranged" ? "M" : "K", FontFamily = HanUi.Font, FontWeight = FontWeights.Bold, FontSize = rs * 0.55, Foreground = Theme.B("#ffe2a0"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+                cell.ToolTip = r == "row_close" ? "Yakın" : r == "row_ranged" ? "Menzilli" : "Kuşatma";
+                strip.Children.Add(cell);
+            }
+            Children.Add(strip);
         }
         // yıldızlar
         if (star > 1)
@@ -202,7 +246,7 @@ public sealed class HanCardView : Grid
     /// <summary>Alt bilgi plakası: (ad) · yetenek simgesi + adı · sınıflar · (özet).</summary>
     private static FrameworkElement Plate(CardDef d, int star, double w, double h, double radius, Color tier, string? footer, bool named)
     {
-        var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(w * 0.05, 0, w * 0.04, w * 0.04), IsHitTestVisible = false };
+        var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(w * 0.05, 0, d.IsUnit ? (d.Agile ? w * 0.4 : w * 0.23) : w * 0.04, w * 0.04), IsHitTestVisible = false };   // sağ alt: satır simgesi
         var lines = 0;
         if (named)
         {

@@ -300,7 +300,7 @@ public sealed partial class HanView
         const double y0 = 646, h = 222;
         Put(Panel(SideW, h, null, 0xc8), SideX, y0);
         var amb = Me.Cards.Where(c => c.Zone == Zone.Ambush).ToList();
-        Put(Caption($"PUSU  {amb.Count}/{Me.AmbushCap}  · masa yeri yemez"), SideX + 12, y0 + 8);
+        Put(Caption($"PUSU  {amb.Count}/{Me.AmbushCap}"), SideX + 12, y0 + 8);
         if (M.Round >= Tuning.PotionsFromRound || Me.Potions.Count > 0)
         {
             var pots = new StackPanel { Orientation = Orientation.Horizontal };
@@ -317,13 +317,14 @@ public sealed partial class HanView
         }
         if (amb.Count == 0)
         {
-            var t = new TextBlock { Text = "Pusu kartları burada saklanır ve savaşta istediğin satıra canlı iner.", FontFamily = HanUi.Font, FontSize = HanUi.S(13), Foreground = Theme.B("#88e8dcc4"), TextWrapping = TextWrapping.Wrap, Width = SideW - 30, TextAlignment = TextAlignment.Center };
+            var t = new TextBlock { Text = "Pusu kartları burada saklanır ve savaşta istediğin satıra canlı iner. Masada yer kaplamazlar.", FontFamily = HanUi.Font, FontSize = HanUi.S(13), Foreground = Theme.B("#88e8dcc4"), TextWrapping = TextWrapping.Wrap, Width = SideW - 30, TextAlignment = TextAlignment.Center };
             Put(t, SideX + 15, y0 + 90);
         }
         if (sel != null && sel.Zone != Zone.Ambush && Match.ZonesFor(sel.Def).Contains(Zone.Ambush))
         {
             var uid = sel.Uid;
             var ok = M.CanMove(Session.Me, uid, Zone.Ambush);
+            // sürüklerken bırakma alanı pusudaki kartların üstüne çıkar (kartlar alanı doldurunca bırakmayı yutmasın)
             ScreenZone(new Rect(SideX + 6, y0 + 30, SideW - 12, h - 36), "han-move:" + Zone.Ambush, ok ? "Pusuya sakla" : "Pusu dolu", () => Do(() => Session.Act(HanActKind.Move, uid, (int)Zone.Ambush)), false, ok);
         }
         for (var i = 0; i < amb.Count; i++)
@@ -337,21 +338,32 @@ public sealed partial class HanView
     private void Economy(OwnedCard? sel)
     {
         var gold = new StackPanel { Orientation = Orientation.Horizontal };
-        gold.Children.Add(HanArt.Icon("icon_crowns", 36, "◉"));
-        var goldText = HanUi.Number(" " + Me.Gold, 42);
+        gold.Children.Add(HanArt.Icon("icon_crowns", 34, "◉"));
+        var goldText = HanUi.Number(" " + Me.Gold, Me.Gold >= 100 ? 32 : 40);
         gold.Children.Add(goldText);
-        Put(gold, EcoX + 14, BarY + 6);
-        var interest = Math.Min(Tuning.InterestCap, Me.Gold / Tuning.InterestPer);
-        var streak = Tuning.StreakGold(Me.Streak);
-        var next = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(12), Foreground = Theme.TextDim };
-        next.Inlines.Add(new System.Windows.Documents.Run($"sonraki round  +{Tuning.Income + interest + streak}"));
-        next.Inlines.Add(new System.Windows.Documents.Run($"\n{Tuning.Income} gelir · {interest} faiz") { Foreground = Theme.B("#88e8dcc4") });
-        if (Me.Streak <= -2 || Me.Streak >= 2)
-            next.Inlines.Add(new System.Windows.Documents.Run(Me.Streak < 0 ? $"\n{-Me.Streak} yenilgi serisi +{streak}" : $"\n{Me.Streak} galibiyet serisi +{streak}") { Foreground = Me.Streak < 0 ? Theme.B("#ffb070") : Theme.B("#a3e078"), FontWeight = FontWeights.Bold });
-        next.ToolTip = "Faiz: her 10 altına +1 (en çok +2).\nSeri: art arda yenilgi 2 → +1, 3 → +2, 4 → +3, 5+ → +4; art arda galibiyet 3-4 → +1, 5+ → +2.";
-        Put(next, EcoX + 110, BarY + 10);
-        next.Width = EcoW - 112;
-        next.TextWrapping = TextWrapping.Wrap;
+        Put(gold, EcoX + 12, BarY + 6);
+        gold.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        // sonraki round geliri: tek satır toplam + tek satır döküm (taşmaz, sığmazsa kısalır); ayrıntı ipucunda
+        var inc = NextIncome();
+        var nx = EcoX + 12 + gold.DesiredSize.Width + 8;
+        var next = new StackPanel { Width = Math.Max(60, EcoX + EcoW - nx - 6), Background = Brushes.Transparent, ClipToBounds = true };
+        var top = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(13), TextTrimming = TextTrimming.CharacterEllipsis };
+        top.Inlines.Add(new System.Windows.Documents.Run($"+{inc.Sum(x => x.Value)}") { FontWeight = FontWeights.Bold, Foreground = HanUi.GoldText });
+        top.Inlines.Add(new System.Windows.Documents.Run(" sonraki round") { Foreground = Theme.TextDim });
+        next.Children.Add(top);
+        var parts = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(11.5), TextTrimming = TextTrimming.CharacterEllipsis, Foreground = Theme.B("#99e8dcc4") };
+        var first = true;
+        foreach (var (name, v, c) in inc.Where(x => x.Value > 0 || x.Name is "gelir" or "faiz"))
+        {
+            if (!first) parts.Inlines.Add(new System.Windows.Documents.Run(" · "));
+            var run = new System.Windows.Documents.Run($"{v} {(name.EndsWith("serisi") ? "seri" : name)}");
+            if (c is { } cc) { run.Foreground = new SolidColorBrush(cc); run.FontWeight = FontWeights.Bold; }
+            parts.Inlines.Add(run);
+            first = false;
+        }
+        next.Children.Add(parts);
+        next.ToolTip = IncomeTip(inc);
+        Put(next, nx, BarY + 12);
         var lv = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(15), FontWeight = FontWeights.Bold, Foreground = Theme.B("#f4ead2") };
         lv.Inlines.Add(new System.Windows.Documents.Run($"Seviye {Me.Level}"));
         lv.Inlines.Add(new System.Windows.Documents.Run($"   masa {Me.Used}/{Me.Slots}") { Foreground = Me.Used < Me.Slots ? Theme.B("#ffe9a3") : Theme.TextDim, FontWeight = FontWeights.SemiBold });
@@ -381,6 +393,66 @@ public sealed partial class HanView
         }
         if (_live && _lastGold >= 0 && _lastGold != Me.Gold) Pop(goldText);
         if (_live && _lastLevel >= 0 && _lastLevel != Me.Level) { Pop(lv); Sfx.Play("han_levelup"); }
+    }
+
+    /// <summary>Sonraki round başında gelecek altın, kalem kalem (Match.BeginRound ile aynı sıra ve kurallar).</summary>
+    private List<(string Name, int Value, Color? Color)> NextIncome()
+    {
+        var interest = Math.Min(Tuning.InterestCap, Me.Gold / Tuning.InterestPer);
+        var streak = Tuning.StreakGold(Me.Streak);
+        var treasure = Math.Min(2, Me.Fielded.Count(c => c.Def.Ability == Ability.Treasure));
+        var noble = Me.Th(HTag.Noble) >= 3 ? 3 : Me.Th(HTag.Noble) >= 2 ? 1 : 0;
+        return new()
+        {
+            ("gelir", Tuning.Income, null),
+            ("faiz", interest, null),
+            (Me.Streak < 0 ? "yenilgi serisi" : "galibiyet serisi", streak, Me.Streak < 0 ? Color.FromRgb(0xff, 0xb0, 0x70) : Color.FromRgb(0xa3, 0xe0, 0x78)),
+            ("hazine", treasure, Color.FromRgb(0xff, 0xd7, 0x6a)),
+            ("soylu", noble, HanCardView.TagColor(HTag.Noble)),
+        };
+    }
+
+    /// <summary>Gelir ipucu: kalemler sağa hizalı tablo, altında kuralların kısa özeti; şu anki seri vurgulu.</summary>
+    private ToolTip IncomeTip(List<(string Name, int Value, Color? Color)> inc)
+    {
+        var sp = new StackPanel { Width = 270 };
+        sp.Children.Add(HanUi.Label("Sonraki round geliri", 11));
+        var grid = new Grid { Margin = new Thickness(0, 6, 0, 0) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        void Row(string a, string b, Brush? fg = null, bool bold = false)
+        {
+            grid.RowDefinitions.Add(new RowDefinition());
+            var l = HanUi.T(a, 14, fg ?? HanUi.Br(HanUi.Parchment), bold ? FontWeights.Bold : FontWeights.Normal);
+            var r = HanUi.T(b, 14, fg ?? HanUi.Br(HanUi.Parchment), FontWeights.Bold);
+            l.Margin = r.Margin = new Thickness(0, 2, 0, 2);
+            Grid.SetRow(l, grid.RowDefinitions.Count - 1);
+            Grid.SetRow(r, grid.RowDefinitions.Count - 1);
+            Grid.SetColumn(r, 1);
+            grid.Children.Add(l);
+            grid.Children.Add(r);
+        }
+        foreach (var (name, v, c) in inc.Where(x => x.Value > 0 || x.Name is "gelir" or "faiz"))
+            Row(char.ToUpper(name[0], new System.Globalization.CultureInfo("tr-TR")) + name[1..], $"+{v}", c is { } cc ? new SolidColorBrush(cc) : null);
+        sp.Children.Add(grid);
+        var rule = HanUi.Rule(270);
+        rule.Margin = new Thickness(0, 4, 0, 4);
+        sp.Children.Add(rule);
+        var total = HanUi.T($"Toplam  +{inc.Sum(x => x.Value)}", 15, HanUi.GoldText, FontWeights.Bold);
+        total.HorizontalAlignment = HorizontalAlignment.Right;
+        sp.Children.Add(total);
+        TextBlock Note(string head, string body)
+        {
+            var t = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(12.5), Foreground = HanUi.Br(HanUi.Muted), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
+            t.Inlines.Add(new System.Windows.Documents.Run(head + "  ") { FontWeight = FontWeights.Bold, Foreground = HanUi.Br(HanUi.Parchment) });
+            t.Inlines.Add(new System.Windows.Documents.Run(body));
+            return t;
+        }
+        sp.Children.Add(Note("Faiz", "her 10 altın +1, en çok +2"));
+        sp.Children.Add(Note("Yenilgi serisi", "2: +1  ·  3: +2  ·  4: +3  ·  5+: +4"));
+        sp.Children.Add(Note("Galibiyet serisi", "3-4: +1  ·  5+: +2"));
+        if (Me.Streak <= -2 || Me.Streak >= 2) sp.Children.Add(Note("Şu an", Me.Streak < 0 ? $"{-Me.Streak} yenilgi üst üste" : $"{Me.Streak} galibiyet üst üste"));
+        return new ToolTip { Content = sp, Background = Theme.B("#f4150f09"), BorderBrush = HanUi.Br(HanUi.Gold, 0xa0), Padding = new Thickness(14, 10, 14, 12) };
     }
 
     /// <summary>Sayı değişince kısa parlama (ölçek değil, renk): ekran oynamaz.</summary>

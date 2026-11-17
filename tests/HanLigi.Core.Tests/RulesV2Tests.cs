@@ -162,4 +162,41 @@ public class RulesV2Tests
         Assert.Equal(new[] { 0.6, 0.6, 1.0, 1.0, 1.3, 1.3 }, new[] { 1, 8, 9, 14, 15, 30 }.Select(Tuning.DamageRamp).ToArray());
         Assert.Equal(1.0, Tuning.DamageRamp(0));
     }
+
+    [Fact]
+    public void Row_breakdown_shown_to_players_always_matches_the_row_score()
+    {
+        var checkedRows = 0;
+        for (var seed = 1; seed <= 12; seed++)
+        {
+            var m = new Match(seed, Enumerable.Range(0, 8).Select(i => ($"B{i}", true)).ToList());
+            var rng = new Random(seed);
+            foreach (var p in m.Players) m.ChooseSchool(p.Id, p.SchoolOptions[rng.Next(3)]);
+            for (var guard = 0; guard < 60 && m.Phase != Phase.Finished; guard++)
+            {
+                foreach (var p in m.Alive.ToList()) ExpertBot.Prep(m, p.Id, rng);
+                if (m.Phase == Phase.Prep) m.ForceLock();
+                foreach (var b in m.Battles)
+                {
+                    b.Start();
+                    while (!b.Done)
+                    {
+                        for (var s = 0; s < 2; s++) b.Submit(s, HanBot.Window(b, s, rng));
+                        var o = b.Resolve()!;
+                        for (var side = 0; side < 2; side++)
+                        {
+                            var val = side == 0 ? o.ValueA : o.ValueB;
+                            var ciri = b.Sides[side].In(o.Row).Any(u => u.Landed && u.Def.Hero == Hero.Ciri);
+                            if (ciri || (b.Pve && b.NoDamage && side == 1)) continue;   // muaf kart ve öğretici tabanı ayrı kural
+                            Assert.Equal(val, Tuning.ApplyPct(o.RowBase[side], o.RowMods.Where(x => x.Side == side).Sum(x => x.Pct)));
+                            checkedRows++;
+                        }
+                    }
+                    m.Settle(b);
+                }
+                m.EndRound();
+            }
+        }
+        Assert.True(checkedRows > 1000);
+    }
 }

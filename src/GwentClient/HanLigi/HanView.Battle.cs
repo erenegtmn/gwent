@@ -187,6 +187,13 @@ public sealed partial class HanView
                 PutU(ScoreBadge("?", false), new Point(RowX + RowW - 36, RowY(false, r) + RowH / 2));
             }
 
+            // satır yüzdeleri: kart toplamı ile satır puanı farklıysa nedeni rozetin altında kalır (Σ7 · Aard −%10)
+            if (scored)
+            {
+                RowModChip(o!, Mine, true, r);
+                RowModChip(o!, 1 - Mine, false, r);
+            }
+
             // sıra numarası: satırın sol sütununda
             foreach (var mine in new[] { false, true })
             {
@@ -203,7 +210,7 @@ public sealed partial class HanView
             // Boynuz / Kalkan / Moral hedefleri: satırın sağ ucunda küçük işaretler
             var act = b.Started ? me.Act : _act;
             var marks = act.Horns.Where(h => h == r).Select(_ => "Boynuz +%50").Concat(act.Shields.Where(h => h == r).Select(_ => "Kalkan")).Concat(act.Morale.Where(kv => kv.Value == r).Select(_ => "Moral")).ToList();
-            if (marks.Count > 0)
+            if (marks.Count > 0 && !(scored && o!.RowMods.Any(m => m.Side == Mine)))   // çözülmüş satırda döküm çipi zaten gösterir
             {
                 var chip = new Border
                 {
@@ -234,6 +241,39 @@ public sealed partial class HanView
         else if (b.Done && !_busy) EndTray(b, me, op);
         else if (!_busy) SignTray(b, me);
         else ChoicesTray(b);
+    }
+
+    /// <summary>
+    /// Çözülmüş satırın puan rozetinin altına kalıcı döküm: kart toplamı ve satır yüzdeleri (kaynağıyla). Kart rozetleri yüzdeden
+    /// önceki değeri, satır rozeti sonrakini gösterir; aradaki fark böylece görünür. Üstüne gelince tam hesap.
+    /// </summary>
+    private void RowModChip(WindowOutcome o, int side, bool mine, Row r)
+    {
+        var mods = o.RowMods.Where(m => m.Side == side).ToList();
+        if (mods.Count == 0) return;
+        var sum = o.RowBase[side];
+        var val = side == 0 ? o.ValueA : o.ValueB;
+        static string Pct(double p) => (p < 0 ? "−" : "+") + "%" + Math.Round(Math.Abs(p) * 100);
+        var total = mods.Sum(m => m.Pct);
+        var color = total < 0 ? HanUi.Bad : total > 0 ? HanUi.Good : HanUi.Gold;
+        var tb = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(12), FontWeight = FontWeights.Bold, Foreground = HanUi.Br(HanUi.Parchment) };
+        tb.Inlines.Add(new System.Windows.Documents.Run($"Σ{sum}"));
+        foreach (var m in mods)
+            tb.Inlines.Add(new System.Windows.Documents.Run($"  {m.Source} {Pct(m.Pct)}") { Foreground = HanUi.Br(m.Pct < 0 ? HanUi.Bad : HanUi.Good) });
+        tb.Inlines.Add(new System.Windows.Documents.Run($"  = {val}"));
+        var chip = new Border
+        {
+            Background = Theme.B("#e8120c07"), BorderBrush = HanUi.Br(color, 0xc0), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5),
+            Padding = new Thickness(7, 1, 7, 2), Child = tb,
+            ToolTip = $"Kartların toplamı: {sum}\n" + string.Join("\n", mods.Select(m => $"{m.Source}: {Pct(m.Pct)}"))
+                      + $"\nSatır: {sum} × (1 {(total < 0 ? "−" : "+")} %{Math.Round(Math.Abs(total) * 100)}) = {val} (yuvarlanır; yüzde en az 1 puan değiştirir)"
+        };
+        chip.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var at = HanScene.ToScreen(new Point(RowX + RowW - 36, RowY(mine, r) + RowH / 2));
+        Canvas.SetLeft(chip, Math.Min(at.X + 30, ListX - 10) - chip.DesiredSize.Width);
+        Canvas.SetTop(chip, at.Y + 26);
+        System.Windows.Controls.Panel.SetZIndex(chip, 100001);
+        _units.Children.Add(chip);
     }
 
     private int PointsShown(int side, int shownWindows) => B.Outcomes.Take(shownWindows).Count(o => o.Winner == side);
@@ -414,7 +454,7 @@ public sealed partial class HanView
         for (var i = 0; i < _act.Shields.Count; i++) { var k = i; RowChoice("Kalkan: havaya ve Kavurma'ya karşı", CardSet.Get("shield"), "han-shield:" + i, _act.Shields[i], r => _act.Shields[k] = r); }
         foreach (var uid in _act.Morale.Keys.ToList())
         {
-            var u = me.Units.First(x => x.Uid == uid);
+            if (me.Units.FirstOrDefault(x => x.Uid == uid) is not { } u) { _act.Morale.Remove(uid); continue; }   // önceki savaştan kalmış hedef
             RowChoice($"Moral +{u.Star}", u.Def, "han-morale:" + uid, _act.Morale[uid], r => _act.Morale[uid] = r);
         }
         if (!any) sp.Children.Add(new TextBlock { Text = "Hedef seçecek kartın yok. Satırlar numara sırasıyla açılacak: üç çarpışmadan ikisini alan savaşı kazanır.", FontFamily = HanUi.Font, FontSize = HanUi.S(18), Foreground = Theme.Text, TextWrapping = TextWrapping.Wrap, Width = 1200 });
@@ -587,7 +627,11 @@ public sealed partial class HanView
     private readonly HashSet<int> _stepShown = new();
 
     /// <summary>Bir çözüm adımı: kim (SEN/RAKİP), ne (işaret/simya adı), ayrıntı (hedef, sonuç, kalan Odak), süre, oynatma.</summary>
-    private sealed record Step(bool Mine, string What, string Detail, Color Color, int Ms, Action Play);
+    /// <param name="Passive">Kalıcı satır bonusu (Yennefer, Boynuz, Cüce): ayrı adım değil, satır sonucuyla aynı anda oynar (süre eklemez).</param>
+    private sealed record Step(bool Mine, string What, string Detail, Color Color, int Ms, Action Play, bool Passive = false);
+
+    /// <summary>Bir satırın adım adım çözümüne ayrılan en uzun süre (müdahaleler çoksa adımlar hızlanır; HanTimes.WindowShow ile uyumlu).</summary>
+    private const int StepBudgetMs = 6000;
 
     /// <summary>
     /// Satırı aç: seçimler kilitlenir ve pencere <b>adım adım</b> çözülür (oyuncunun izleyebileceği hızda):
@@ -631,20 +675,26 @@ public sealed partial class HanView
         _hold = 1;
         Render();
         var (mc, tc) = Mine == 0 ? (o.ChoiceA, o.ChoiceB) : (o.ChoiceB, o.ChoiceA);
-        Caption(new Step(true, "Seçimler açıldı", $"Sen: {ChoiceText(mc)}   ·   Rakip: {ChoiceText(tc)}", HanUi.Gold, 1300, () => { }));
+        Caption(new Step(true, "Seçimler açıldı", $"Sen: {ChoiceText(mc)}   ·   Rakip: {ChoiceText(tc)}", HanUi.Gold, 1100, () => { }));
         Sfx.Play("han_open");
-        var t = 1400;
+        var t = 1100;
         After(t, gen, () =>
         {
             _hold = 2;
             Sfx.Play("draw_card");
             Render();
-            Caption(new Step(false, $"{HT.Name(row)} satırı açıldı", "Rakibin kartları masada", HanUi.Parchment, 1100, () => { }));
+            Caption(new Step(false, $"{HT.Name(row)} satırı açıldı", "Rakibin kartları masada", HanUi.Parchment, 1000, () => { }));
         });
-        t += 1300;
-        foreach (var st in Steps(o, b))
+        t += 1100;
+        // müdahaleler sırayla; çoksa hızlanır (bir satır ~10 sn'yi geçmesin: online'da süreler buna göre)
+        var all = Steps(o, b);
+        var active = all.Where(s => !s.Passive).ToList();
+        var passive = all.Where(s => s.Passive).ToList();
+        var total = active.Sum(s => s.Ms);
+        var speed = total > StepBudgetMs ? StepBudgetMs / (double)total : 1.0;
+        foreach (var st in active)
         {
-            var step = st;
+            var step = st with { Ms = (int)(st.Ms * speed) };
             After(t, gen, () => { Caption(step); step.Play(); });
             t += step.Ms;
         }
@@ -652,6 +702,7 @@ public sealed partial class HanView
         {
             _hold = 0;
             Render();
+            foreach (var p in passive) p.Play();   // Yennefer / Boynuz / Cüce: sonuçla aynı anda, satırın üstünde
             var won = o.Winner == Mine;
             var (mv, ov) = Mine == 0 ? (o.ValueA, o.ValueB) : (o.ValueB, o.ValueA);
             Sfx.Play(o.Winner < 0 ? "battle_draw" : won ? "battle_won" : "battle_lost");
@@ -669,7 +720,7 @@ public sealed partial class HanView
                 Fx.After(400, () => HanFx.Aura(_engine, new Point(at.X, at.Y + 20), 180, FxEngine.Ramp.Aard, 0.9));
             }
         });
-        t += 2200;
+        t += 1800;
         After(t, gen, () =>
         {
             _busy = false;
@@ -914,6 +965,33 @@ public sealed partial class HanView
                                 HanArt.FloatText(_fx, Delta(uid), new Point(c.C.X, c.C.Y - c.H * 0.7), ice ? Color.FromRgb(0xb0, 0xe0, 0xff) : Color.FromRgb(0xff, 0xa0, 0x40), 32, 1400);
                             });
                 }));
+            }
+        }
+
+        // kalıcı satır bonusları (Yennefer, Boynuz, Cüce sinerjisi): işaret ve simyalarla aynı toplama girer, ayrıca duyurulur
+        foreach (var side in new[] { Mine, 1 - Mine })
+        {
+            var mine = side == Mine;
+            var k = 0;
+            foreach (var (_, src, pct) in o.RowMods.Where(m => m.Side == side && m.Source is "Yennefer" or "Cüce sinerjisi" || (m.Side == side && m.Source.StartsWith("Boynuz"))))
+            {
+                var why = src switch
+                {
+                    "Yennefer" => "Yennefer önceki satırı kazandı",
+                    "Cüce sinerjisi" => "satırda Cüce var (Cüce sinerjisi)",
+                    _ => "Boynuz bu satıra çalıyor"
+                };
+                var units = b.Sides[side].In(row).Select(u => u.Uid).ToList();
+                var color = src == "Yennefer" ? Color.FromRgb(0xc8, 0x9a, 0xff) : src.StartsWith("Boynuz") ? Color.FromRgb(0xff, 0xd7, 0x6a) : Color.FromRgb(0xe8, 0xb0, 0x70);
+                var kk = k;   // kapanış için kopya (döngü sayacı değişir)
+                steps.Add(new Step(mine, src, $"{why}: {(mine ? "satırın" : "rakibin satırı")} +%{Math.Round(pct * 100)} · işaret ve simya yüzdeleriyle toplanır", color, Short, () =>
+                {
+                    Sfx.Play(src.StartsWith("Boynuz") ? "horn" : "han_potion");
+                    foreach (var uid in units) if (CardAt(uid) is { } c) HanFx.CardAura(_engine, c.C, c.W, c.H, src == "Yennefer" ? FxEngine.Ramp.Aard : FxEngine.Ramp.Gold, 1.0);
+                    var (rc, rw) = RowS(mine, row);
+                    HanArt.FloatText(_fx, $"{src}  +%{Math.Round(pct * 100)}", new Point(rc.X - rw * 0.3, rc.Y - 46 - 34 * kk), color, 26, 1900);
+                }, Passive: true));
+                k++;
             }
         }
         return steps;

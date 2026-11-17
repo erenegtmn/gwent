@@ -85,6 +85,11 @@ public sealed record WindowOutcome(int Index, Row Row, int ValueA, int ValueB, i
 {
     /// <summary>Kartların yüzdeler uygulanmadan önceki değeri (arayüz "8 → 4" gösterir).</summary>
     public IReadOnlyDictionary<int, int> BaseValues { get; init; } = new Dictionary<int, int>();
+    /// <summary>
+    /// Satır yüzdeleri ve kaynakları: (taraf, kaynak adı, yüzde). Satır değeri = yuvarla(kart toplamı × (1 + Σ yüzde)); arayüz
+    /// "Σ7 · Aard −%10 = 6" diye gösterir.
+    /// </summary>
+    public IReadOnlyList<(int Side, string Source, double Pct)> RowMods { get; init; } = Array.Empty<(int, string, double)>();
     /// <summary>[taraf] satırın, satır yüzdeleri (Aard, Gök Gürültüsü, Boynuz...) uygulanmadan önceki toplamı.</summary>
     public int[] RowBase { get; init; } = new int[2];
 }
@@ -338,6 +343,7 @@ public sealed class Battle
         var fx = new List<FxEvent>();
         var own = new double[2];   // kendi satır yüzdesi
         var foe = new double[2];   // rakibin işaretlerinden gelen satır yüzdesi (Ciri muaf)
+        var mods = new List<(int Side, string Source, double Pct)>();   // arayüz için: hangi yüzde nereden geldi
         var card = new Dictionary<BattleUnit, double>();
         var noWeather = new bool[2];
         var quenBlocks = new int[2];
@@ -399,7 +405,7 @@ public sealed class Battle
         // 4. iksirler
         for (var i = 0; i < 2; i++)
         {
-            if (potion[i] == Potion.Thunderbolt) { own[i] += 0.25; log.Add($"{Sides[i].Name}: Gök Gürültüsü (+%25)."); fx.Add(new FxEvent("thunderbolt", i)); }
+            if (potion[i] == Potion.Thunderbolt) { own[i] += 0.25; mods.Add((i, "Gök Gürültüsü", 0.25)); log.Add($"{Sides[i].Name}: Gök Gürültüsü (+%25)."); fx.Add(new FxEvent("thunderbolt", i)); }
             if (potion[i] == Potion.Swallow) { noWeather[i] = true; log.Add($"{Sides[i].Name}: Kırlangıç (hava etkisi kalktı)."); fx.Add(new FxEvent("swallow", i)); }
         }
         BattleUnit? Strongest(int side, IEnumerable<BattleUnit>? skip = null) =>
@@ -419,7 +425,7 @@ public sealed class Battle
             var o = 1 - i;
             foreach (var sg in ch[i].Signs)
             {
-                if (sg == Sign.Aard) { foe[o] -= 0.10 * Amp(i); log.Add($"{s.Name} Aard: {Sides[o].Name} satırı −%{0.10 * Amp(i) * 100:0}."); fx.Add(new FxEvent("aard", i, (int)Math.Round(0.10 * Amp(i) * 100))); }
+                if (sg == Sign.Aard) { foe[o] -= 0.10 * Amp(i); mods.Add((o, "Aard", -0.10 * Amp(i))); log.Add($"{s.Name} Aard: {Sides[o].Name} satırı −%{0.10 * Amp(i) * 100:0}."); fx.Add(new FxEvent("aard", i, (int)Math.Round(0.10 * Amp(i) * 100))); }
                 if (sg == Sign.Quen && !ch[o].Signs.Contains(Sign.Igni)) log.Add($"{s.Name} Quen attı, boşa gitti.");
                 if (sg == Sign.Quen) fx.Add(new FxEvent("quen", i, 0, ch[o].Signs.Contains(Sign.Igni) && potion[i] != Potion.BlackBlood));
                 if (sg != Sign.Igni) continue;
@@ -453,7 +459,7 @@ public sealed class Battle
             if (potion[i] == Potion.BlackBlood && !ch[o].Signs.Contains(Sign.Igni)) log.Add($"{Sides[i].Name} Kara Kan içti, boşa gitti.");
             if (potion[i] == Potion.BlackBlood) fx.Add(new FxEvent("blackblood", i, 0, ch[o].Signs.Contains(Sign.Igni)));
             if (Sides[i].EredinRow == row) foreach (var u in Sides[i].In(row).Where(u => !u.IsHero)) Pct(u, -0.30);
-            if (quenBlocks[i] > 0 && Sides[i].School == HanLigi.School.Bear) { foe[o] -= 0.10; log.Add($"{Sides[i].Name} (Ayı): karşı vuruş −%10."); }
+            if (quenBlocks[i] > 0 && Sides[i].School == HanLigi.School.Bear) { foe[o] -= 0.10; mods.Add((o, "Ayı karşı vuruşu", -0.10)); log.Add($"{Sides[i].Name} (Ayı): karşı vuruş −%10."); }
         }
         // 7. İntikam / Coşku, Yennefer, Cüce 6, Boynuz
         for (var i = 0; i < 2; i++)
@@ -464,9 +470,10 @@ public sealed class Battle
                 if (u.Def.Ability == Ability.Revenge && s.Prev < 0) Pct(u, 0.5);
                 if (u.Def.Ability == Ability.Zeal && s.Prev > 0) Pct(u, 0.3);
             }
-            if (s.YenPending) { own[i] += 0.2; s.YenPending = false; }
-            if (s.Th(Tag.Dwarf) >= 3 && s.In(row).Any(u => u.Has(Tag.Dwarf))) own[i] += 0.2;
-            own[i] += 0.5 * s.Act.Horns.Count(h => h == row);
+            if (s.YenPending) { own[i] += 0.2; s.YenPending = false; mods.Add((i, "Yennefer", 0.2)); }
+            if (s.Th(Tag.Dwarf) >= 3 && s.In(row).Any(u => u.Has(Tag.Dwarf))) { own[i] += 0.2; mods.Add((i, "Cüce sinerjisi", 0.2)); }
+            var horns = s.Act.Horns.Count(h => h == row);
+            if (horns > 0) { own[i] += 0.5 * horns; mods.Add((i, horns > 1 ? $"Boynuz ×{horns}" : "Boynuz", 0.5 * horns)); }
         }
         // 8. karşılaştırma
         var val = new int[2];
@@ -514,7 +521,7 @@ public sealed class Battle
             }
             else s.Prev = 0;
         }
-        var outcome = new WindowOutcome(Window, row, val[0], val[1], winner, ch[0], ch[1], log, fx, cardValues) { BaseValues = baseValues, RowBase = rowBase };
+        var outcome = new WindowOutcome(Window, row, val[0], val[1], winner, ch[0], ch[1], log, fx, cardValues) { BaseValues = baseValues, RowBase = rowBase, RowMods = mods };
         Outcomes.Add(outcome);
         Window++;
         return outcome;

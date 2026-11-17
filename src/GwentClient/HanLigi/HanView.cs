@@ -165,7 +165,7 @@ public sealed partial class HanView : Grid
                 else if (!_dragging && _pressUid == null) Render();
                 break;
             case Screen.Activation:
-                if (_waitAct && B.Started) BeginBattle();
+                if (Session.MyBattle is { Started: true }) BeginBattle();   // iki taraf da seçti (ya da süre doldu, sunucu benim yerime seçti)
                 else if (Session.MyBattle != null) Render();   // öteki masalar ilerledi (canlar, masa listesi)
                 break;
             case Screen.Battle:
@@ -373,6 +373,151 @@ public sealed partial class HanView : Grid
         return v;
     }
 
+    private const double CardInfoW = 360;
+
+    /// <summary>Metni yüzde ve sayılar vurgulanmış satıra çevirir ("+%20" bölünmez, sayılar altın ve kalın).</summary>
+    private static TextBlock Rich(string text, double size, Brush? fg = null, Brush? hi = null)
+    {
+        var t = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(size), Foreground = fg ?? HanUi.Br(HanUi.Parchment), TextWrapping = TextWrapping.Wrap, LineHeight = HanUi.S(size) * 1.32 };
+        var parts = System.Text.RegularExpressions.Regex.Split(text, @"([+−-]?%\d+|[+−-]?\d+(?:[.,]\d+)?)");
+        foreach (var part in parts)
+        {
+            if (part.Length == 0) continue;
+            var num = System.Text.RegularExpressions.Regex.IsMatch(part, @"^[+−-]?%?\d");
+            // satır sonu "%" ile sayının arasına düşmesin: kelime birleştirici
+            var txt = num ? part.Replace("%", "%\u2060").Replace("+", "+\u2060").Replace("−", "−\u2060") : part;
+            var run = new System.Windows.Documents.Run(txt);
+            if (num) { run.FontWeight = FontWeights.Bold; run.Foreground = hi ?? HanUi.GoldText; }   // sayı olmayan kısım TextBlock rengini alır
+            t.Inlines.Add(run);
+        }
+        return t;
+    }
+
+    /// <summary>
+    /// Kart bilgi paneli (Witcher 3'ün eşya ipucu düzeni, oyunun kendi yazısı PF Din ile): üstte tür etiketi ve ad, süslü ayraç,
+    /// güç / satır / kademe şeridi, yetenek (ikonu, adı, açıklaması; sayılar vurgulu), kahramanın gücü ve bağışıklığı, sınıflar ve
+    /// eşikleri, altta satış değeri.
+    /// </summary>
+    private StackPanel CardInfo(CardDef d, int star, int? value)
+    {
+        var tier = HanCardView.TierColor(d);
+        var w = CardInfoW - 40;
+        var info = new StackPanel { Width = w, Margin = new Thickness(20, 16, 20, 16) };
+        // tür etiketi
+        var kicker = new StackPanel { Orientation = Orientation.Horizontal };
+        kicker.Children.Add(new Ellipse { Width = 7, Height = 7, Fill = new SolidColorBrush(tier), Margin = new Thickness(0, 0, 8, 1), VerticalAlignment = VerticalAlignment.Center });
+        kicker.Children.Add(HanUi.Label(d.IsHero ? "Kahraman" : d.IsUnit ? $"Birim  ·  Kademe {d.Tier}" : $"Özel kart  ·  Kademe {d.Tier}", 11, HanUi.Br(tier)));
+        info.Children.Add(kicker);
+        // ad + yıldız
+        var title = HanUi.Title(d.Name, d.Name.Length > 18 ? 24 : 27, HanUi.GoldText);
+        title.TextWrapping = TextWrapping.Wrap;
+        title.Margin = new Thickness(0, 3, 0, 0);
+        title.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 0, Opacity = 0.9 };
+        info.Children.Add(title);
+        if (star > 1 && !d.IsHero) info.Children.Add(HanUi.T(new string('★', star) + (star == 3 ? "  en üst yıldız" : "  yıldız"), 14, HanUi.Br(Color.FromRgb(0xff, 0xd7, 0x6a)), FontWeights.Bold));
+        var rule = HanUi.Rule(w, tier);
+        rule.Margin = new Thickness(0, 9, 0, 10);
+        info.Children.Add(rule);
+
+        // güç · satır · kademe şeridi
+        if (d.IsUnit)
+        {
+            var strip = new Grid();
+            foreach (var stars in new[] { 0.7, 1.35, 1.0 }) strip.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(stars, GridUnitType.Star) });
+            FrameworkElement Cell(string label, string val, FrameworkElement? icon, Brush? vfg = null)
+            {
+                var c = new StackPanel { Margin = new Thickness(0, 0, 6, 0) };
+                c.Children.Add(HanUi.Label(label, 10));
+                var line = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
+                if (icon != null) { icon.Margin = new Thickness(0, 0, 6, 0); icon.VerticalAlignment = VerticalAlignment.Center; line.Children.Add(icon); }
+                var v = HanUi.Number(val, val.Length > 3 ? 18 : 21, vfg ?? HanUi.Br(HanUi.Parchment));
+                v.VerticalAlignment = VerticalAlignment.Center;
+                v.TextTrimming = TextTrimming.CharacterEllipsis;
+                line.Children.Add(v);
+                c.Children.Add(line);
+                return c;
+            }
+            var basePow = Tuning.Power(d, star);
+            var shown = value ?? basePow;
+            var pow = Cell("Güç", shown == basePow ? basePow.ToString() : $"{shown}", null, shown > basePow ? HanUi.Br(HanUi.Good) : shown < basePow ? HanUi.Br(HanUi.Bad) : HanUi.GoldText);
+            var rowIcon = d.Agile ? null : Assets.Ui(d.Row switch { Row.Close => "row_close", Row.Ranged => "row_ranged", _ => "row_siege" }) is { } ri ? new Image { Source = ri, Width = 22, Height = 22 } : null;
+            var row = Cell("Satır", d.Agile ? "Çevik" : HT.Name(d.Row), rowIcon);
+            var third = d.IsHero ? Cell("Durum", "Bağışık", null, HanUi.GoldText) : Cell("Satış", $"{Tuning.SellValue(d, star)} altın", null);
+            Grid.SetColumn(row, 1); Grid.SetColumn(third, 2);
+            strip.Children.Add(pow); strip.Children.Add(row); strip.Children.Add(third);
+            info.Children.Add(strip);
+            if (shown != basePow) info.Children.Add(HanUi.Small($"Kartın kendi gücü {basePow}; masadaki etkilerle {shown}.", 12.5));
+        }
+
+        // yetenek / kahraman gücü / özel kart etkisi
+        void Section(string head, string body, ImageSource? icon, Brush headFg)
+        {
+            var box = new Border
+            {
+                Background = Theme.B("#30000000"), BorderBrush = HanUi.Br(HanUi.GoldDeep, 0x70), BorderThickness = new Thickness(0, 1, 0, 0),
+                Padding = new Thickness(0, 10, 0, 2), Margin = new Thickness(0, 12, 0, 0)
+            };
+            var sp = new StackPanel();
+            var hl = new StackPanel { Orientation = Orientation.Horizontal };
+            if (icon != null) hl.Children.Add(new Image { Source = icon, Width = 22, Height = 22, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });
+            var ht = HanUi.T(HanUi.Tracked(HanUi.Upper(head), 1), 14, headFg, FontWeights.Bold);
+            ht.VerticalAlignment = VerticalAlignment.Center;
+            hl.Children.Add(ht);
+            sp.Children.Add(hl);
+            var bt = Rich(body, 15.5);
+            bt.Margin = new Thickness(0, 5, 0, 0);
+            sp.Children.Add(bt);
+            box.Child = sp;
+            info.Children.Add(box);
+        }
+        if (d.IsHero)
+        {
+            Section(d.Name.Split(' ').Last() + "'in gücü", HT.Describe(d.Hero), null, HanUi.GoldText);
+            if (d.Ability == Ability.Ambush) Section("Pusu", HT.Describe(Ability.Ambush), HanCardView.AbilityIcon(CardSet.All.First(x => x.Ability == Ability.Ambush && !x.IsHero)), HanUi.Br(Color.FromRgb(0xff, 0xe2, 0xa0)));
+            var imm = HanUi.T("Kahraman: hava, Kavurma ve karta hedefli etkiler işlemez.", 13, HanUi.Br(HanUi.Muted), FontWeights.Normal);
+            imm.FontStyle = FontStyles.Italic;
+            imm.TextWrapping = TextWrapping.Wrap;
+            imm.Margin = new Thickness(0, 8, 0, 0);
+            info.Children.Add(imm);
+        }
+        else if (!d.IsUnit) Section(HanCardView.Keyword(d), HT.Describe(d.Special), HanCardView.AbilityIcon(d), HanUi.Br(Color.FromRgb(0x9f, 0xd8, 0xff)));
+        else if (d.Ability != Ability.None) Section(HanCardView.Keyword(d), HT.Describe(d.Ability), HanCardView.AbilityIcon(d), HanUi.Br(Color.FromRgb(0xff, 0xe2, 0xa0)));
+        else if (d.Agile) Section("Çevik", "Yakın ya da Menzilli satıra konabilir.", HanCardView.AbilityIcon(d), HanUi.Br(Color.FromRgb(0xff, 0xe2, 0xa0)));
+
+        // sınıflar ve eşikleri (sahadaki sayınla)
+        if (d.IsUnit && !d.IsHero && d.Tags.Length > 0)
+        {
+            var counts = Me.TagCounts();
+            foreach (var tag in d.Tags)
+            {
+                var c = HanCardView.TagColor(tag);
+                var bp = Tuning.Breakpoints(tag);
+                var th = HT.Thresholds(tag);
+                var n = counts.GetValueOrDefault(tag);
+                var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 3) };
+                head.Children.Add(HanUi.Chip(HT.Name(tag), c, 12, true));
+                var cnt = HanUi.Small($"   sahanda {n}", 12.5);
+                cnt.VerticalAlignment = VerticalAlignment.Center;
+                head.Children.Add(cnt);
+                info.Children.Add(head);
+                for (var i = 0; i < 3; i++)
+                {
+                    var on = n >= bp[i];
+                    var line = new Grid { Margin = new Thickness(2, 2, 0, 0) };
+                    line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) });
+                    line.ColumnDefinitions.Add(new ColumnDefinition());
+                    var num = HanUi.Number(bp[i].ToString(), 15, on ? new SolidColorBrush(c) : HanUi.Br(HanUi.Muted, 0x90));
+                    var txt = Rich(th[i], 13.5, on ? HanUi.Br(HanUi.Parchment) : HanUi.Br(HanUi.Muted, 0xb0), on ? HanUi.GoldText : HanUi.Br(HanUi.Muted));
+                    Grid.SetColumn(txt, 1);
+                    line.Children.Add(num);
+                    line.Children.Add(txt);
+                    info.Children.Add(line);
+                }
+            }
+        }
+        return info;
+    }
+
     /// <summary>Anlık kart inceleme: büyük kart ve açıklaması, kartın yanında (ekrana sığacak tarafta).</summary>
     private void Inspect(FrameworkElement anchor, CardDef d, int star, int? value)
     {
@@ -382,33 +527,10 @@ public sealed partial class HanView : Grid
         try { r = anchor.TransformToAncestor(_stage).TransformBounds(new Rect(anchor.RenderSize)); }
         catch { return; }
         var g = new StackPanel { Orientation = Orientation.Horizontal };
-        var info = new StackPanel { Width = 300, Margin = new Thickness(16, 14, 16, 16) };
-        var lines = HanCardView.Describe(d, star).Split('\n');
-        var tier = HanCardView.TierColor(d);
-        info.Children.Add(HanUi.Label(d.IsHero ? "Kahraman" : d.IsUnit ? $"Tier {d.Tier}  ·  {(d.Agile ? "Çevik" : HT.Name(d.Row))}" : $"Özel kart  ·  Tier {d.Tier}", 11, HanUi.Br(tier)));
-        info.Children.Add(HanUi.Title(d.Name + (star > 1 && !d.IsHero ? "  " + new string('★', star) : ""), 24, HanUi.GoldText));
-        var rule = HanUi.Rule(268, tier);
-        rule.Margin = new Thickness(0, 6, 0, 4);
-        info.Children.Add(rule);
-        foreach (var l in lines.Skip(1))
-        {
-            var t = HanUi.Body(l, 15);
-            t.Margin = new Thickness(0, 6, 0, 0);
-            info.Children.Add(t);
-        }
-        if (d.IsUnit && !d.IsHero && d.Tags.Length > 0)
-            foreach (var tag in d.Tags)
-            {
-                var th = HT.Thresholds(tag);
-                var t = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(13), Foreground = HanUi.Br(HanUi.Muted), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
-                t.Inlines.Add(new System.Windows.Documents.Run(HanUi.Tracked(HanUi.Upper(HT.Name(tag))) + "   ") { Foreground = new SolidColorBrush(HanCardView.TagColor(tag)), FontWeight = FontWeights.Bold });
-                var bp = Tuning.Breakpoints(tag);
-                t.Inlines.Add(new System.Windows.Documents.Run($"{bp[0]}: {th[0]}  ·  {bp[1]}: {th[1]}  ·  {bp[2]}: {th[2]}"));
-                info.Children.Add(t);
-            }
+        var info = CardInfo(d, star, value);
         info.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        g.Children.Add(HanUi.Frame(332, info.DesiredSize.Height + 4, info, 0xf6, tier, 10));
-        const double gw = 332;
+        g.Children.Add(HanUi.Frame(CardInfoW, info.DesiredSize.Height + 4, info, 0xf8, HanCardView.TierColor(d), 12));
+        const double gw = CardInfoW;
         g.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var gh = g.DesiredSize.Height;
         var x = r.Right + 14 + gw < 1906 ? r.Right + 14 : r.Left - 14 - gw;
@@ -749,6 +871,9 @@ public sealed partial class HanView : Grid
             if ((p - _pressPoint).Length < 9) return;
             if (Me.Cards.FirstOrDefault(c => c.Uid == uid) is not { } card) return;
             _dragging = true;
+            _units.IsHitTestVisible = false;   // sürüklerken masadaki kartlar satır bırakma alanlarını örtmesin
+            // depo/pusu bırakma alanları, o alandaki kartların üstüne çıkar (yalnız sürüklerken: seçiliyken kartlara tıklanabilsin)
+            foreach (var z in _screenZones) System.Windows.Controls.Panel.SetZIndex(z, 1000);
             _hover.Children.Clear();
             _ghost = new HanCardView(card.Def, card.Star, 110) { Opacity = 0.92, IsHitTestVisible = false, RenderTransform = new RotateTransform(-4), RenderTransformOrigin = new Point(0.5, 0.5) };
             _fx.Children.Add(_ghost);
@@ -765,6 +890,7 @@ public sealed partial class HanView : Grid
         var was = _dragging || _pressUid != null;
         _pressUid = null;
         _dragging = false;
+        _units.IsHitTestVisible = true;
         if (was && _screen == Screen.Prep) Render();
     }
 
@@ -805,11 +931,14 @@ public sealed partial class HanView : Grid
         return b;
     }
 
+    private readonly List<Button> _screenZones = new();
+
     /// <summary>Ekrandaki dikdörtgen bölge için bırakma alanı (HUD katmanına eklenir).</summary>
     private Button ScreenZone(Rect r, string tag, string label, Action act, bool danger = false, bool enabled = true)
     {
         var b = DropZone(new RectangleGeometry(r, 8, 8), r, tag, label, act, danger, enabled);
         _c.Children.Add(b);
+        _screenZones.Add(b);
         return b;
     }
 
@@ -827,6 +956,7 @@ public sealed partial class HanView : Grid
 
     private void RenderCore()
     {
+        _screenZones.Clear();
         _rows.Children.Clear();
         _anim.Children.Clear();
         _shop.Children.Clear();
