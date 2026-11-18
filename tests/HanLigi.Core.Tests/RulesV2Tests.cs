@@ -66,15 +66,16 @@ public class RulesV2Tests
         foreach (var _ in Enumerable.Range(0, 4)) Assert.True(m.Move(p.Id, Give(m, p, "ghoul").Uid, Zone.Close));
         Assert.Equal(4, p.Used);
         var sk = Give(m, p, "elven_skirmisher");
-        Assert.False(m.CanMove(p.Id, sk.Uid, Zone.Ranged));      // masa dolu
+        Assert.True(m.WouldOverflow(p.Id, sk.Uid, Zone.Ranged)); // masa dolu (konabilir ama sınırı aşar)
         Assert.True(m.Move(p.Id, sk.Uid, Zone.Ambush));         // pusu yer yemez
         var sk2 = Give(m, p, "vrihedd_brigade_recruit");
         Assert.True(m.Move(p.Id, sk2.Uid, Zone.Ambush));
         Assert.Equal(4, p.Used);
         Assert.Equal(6, p.Fielded.Count());
         // pusudan satıra çıkmak masada yer ister
-        Assert.False(m.CanMove(p.Id, sk.Uid, Zone.Ranged));
+        Assert.True(m.WouldOverflow(p.Id, sk.Uid, Zone.Ranged));
         Assert.True(m.Move(p.Id, p.Cards.First(c => c.Zone == Zone.Close).Uid, Zone.Bench));
+        Assert.False(m.WouldOverflow(p.Id, sk.Uid, Zone.Ranged));
         Assert.True(m.Move(p.Id, sk.Uid, Zone.Ranged));
         // pusudakiler sınıf sayımına girer, savaşta pusu olarak gelir
         Assert.Contains(p.Cards, c => c.Zone == Zone.Ambush);

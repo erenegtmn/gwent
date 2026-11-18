@@ -27,8 +27,7 @@ public sealed class HanScene : Grid
         Height = 1080;
         IsHitTestVisible = true;
         // zemin: han içi
-        if (HanArt.Src("backdrop") is { } bg) Children.Add(new Image { Source = bg, Stretch = Stretch.Fill });
-        else Children.Add(new Rectangle { Fill = new RadialGradientBrush(Color.FromRgb(0x2a, 0x1a, 0x0c), Color.FromRgb(0x05, 0x03, 0x02)) { Center = new Point(0.5, 0.3), GradientOrigin = new Point(0.5, 0.3), RadiusX = 0.8, RadiusY = 0.8 } });
+        Children.Add(new Rectangle { Fill = new RadialGradientBrush(Color.FromRgb(0x2a, 0x1a, 0x0c), Color.FromRgb(0x05, 0x03, 0x02)) { Center = new Point(0.5, 0.3), GradientOrigin = new Point(0.5, 0.3), RadiusX = 0.8, RadiusY = 0.8 } });
 
         var rot = new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0, 0), Tilt));
         var place = new Transform3DGroup { Children = { rot, new TranslateTransform3D(ShiftX, Lift, 0) } };

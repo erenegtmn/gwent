@@ -99,6 +99,14 @@ public sealed partial class HanView
         StartTimer(HanTimes.Activation, OnActivationDone);
         Render();
         if (_live) VsIntro(b);
+        // masa sınırı aşılmıştı: kilitte rastgele seçilen fazla kartlar
+        if (_live && Me.Overflowed.Count > 0)
+        {
+            var down = Me.Overflowed.Where(o => !o.Lost).Select(o => o.Def.Name).ToList();
+            var lost = Me.Overflowed.Where(o => o.Lost).Select(o => o.Def.Name).ToList();
+            if (down.Count > 0) Toast("Masa sınırı: " + string.Join(", ", down) + " depoya indi", HanUi.Gold, 400);
+            if (lost.Count > 0) Toast("Depo dolu: " + string.Join(", ", lost) + " yandı", HanUi.Bad, 900);
+        }
     }
 
     private void Do(Func<bool> action, string sfx = "han_place")
@@ -118,14 +126,17 @@ public sealed partial class HanView
         if (Me.PotionOptions.Length > 0) return ("Bir simya kartı seç.", null);
         if (Me.RewardOptions.Length > 0 && Me.Bench.Count() >= Tuning.BenchSize) return ("Ödül kartın bekliyor: depoda yer aç (bir kartı masaya sür ya da sat).", Theme.B("#ffb070"));
         if (Me.RewardOptions.Length > 0) return ("Ödülünü seç: üç karttan birini al.", null);
+        if (Me.Overfull && _sel == null)
+            return ($"Masa sınırı aşıldı ({Me.Used}/{Me.Slots}): süre bitince fazla {Me.Used - Me.Slots} kart rastgele depoya iner, depo doluysa yanar.", HanUi.Br(HanUi.Bad));
         if (_sel is { } uid && Me.Cards.FirstOrDefault(c => c.Uid == uid) is { } c)
             return (c.Fielded ? $"{c.Def.Name}: depoya al, başka yere taşı ya da sat. Boş yere tıkla: vazgeç." : $"{c.Def.Name}: parlayan yere koy ya da sat. Boş yere tıkla: vazgeç.", Theme.B("#ffe9a3"));
         var free = Me.Slots - Me.Used;
         if (free > 0 && Me.Bench.Any()) return ($"Masada {free} boş yer var: depodaki kartları satırlarına sürükle.", Theme.B("#ffe9a3"));
         if (free > 0 && Me.Shop.Any(d => d != null && d.Price <= Me.Gold)) return ($"Masada {free} boş yer var: tezgâhtan kart al.", Theme.B("#ffe9a3"));
-        if (free > 0) return ($"{free} boş yer: tezgâhı yenile ya da Hazır'a bas.", null);
-        if (Me.Gold >= Tuning.XpCost && Me.Level < Tuning.MaxLevel) return ("Masan dolu: seviye atla, tezgâhı yenile ya da Hazır'a bas.", null);
-        return ("Hazırsan Hazır'a bas. Satır sırası savaşta açıklanır.", null);
+        var done = Session.Online ? "süreyi bekle" : "Hazır'a bas";
+        if (free > 0) return ($"{free} boş yer: tezgâhı yenile ya da {done}.", null);
+        if (Me.Gold >= Tuning.XpCost && Me.Level < Tuning.MaxLevel) return ($"Masan dolu: seviye atla, tezgâhı yenile ya da {done}.", null);
+        return (Session.Online ? "Masan hazır: süre dolunca kilitlenir. Satır sırası savaşta açıklanır." : "Hazırsan Hazır'a bas. Satır sırası savaşta açıklanır.", null);
     }
 
     private void DrawPrep()
@@ -203,8 +214,9 @@ public sealed partial class HanView
             if (sel != null && sel.Zone != zone && Match.ZonesFor(sel.Def).Contains(zone))
             {
                 var ok = M.CanMove(Session.Me, sel.Uid, zone);
+                var over = M.WouldOverflow(Session.Me, sel.Uid, zone);
                 var uid = sel.Uid;
-                BoardZone(RowRect(true, r), "han-move:" + zone, ok ? "Buraya koy" : "Masa dolu", () => Do(() => Session.Act(HanActKind.Move, uid, (int)zone)), ok, ok ? null : "Seviye atla ya da bir kartı depoya al.");
+                BoardZone(RowRect(true, r), "han-move:" + zone, !ok ? "Konamaz" : over ? "Buraya koy\nsınır aşılır" : "Buraya koy", () => Do(() => Session.Act(HanActKind.Move, uid, (int)zone)), ok, over ? OverTip : null);
             }
             var list = Me.Cards.Where(c => c.Zone == zone).Select(c =>
             {
@@ -229,10 +241,11 @@ public sealed partial class HanView
                 if (sel.Zone == Zone.Special && (!aimable || sel.Aim == r)) continue;
                 var rr = r;
                 var ok = M.CanMove(Session.Me, uid, Zone.Special, aimable ? rr : null);
-                var label = !ok ? "Masa\ndolu" : aimable ? (sel.Def.Special == Special.Horn ? "Boynuz\nburaya" : "Kalkan\nburaya") : "Özel\nkart";
+                var over = M.WouldOverflow(Session.Me, uid, Zone.Special);
+                var label = !ok ? "Konamaz" : (aimable ? (sel.Def.Special == Special.Horn ? "Boynuz\nburaya" : "Kalkan\nburaya") : "Özel\nkart") + (over ? "\nsınır aşılır" : "");
                 BoardZone(new Rect(ColX, RowY(true, rr), ColW, RowH), "han-move:" + Zone.Special + (aimable ? ":" + (int)rr : ""), label,
                     () => Do(() => Session.Act(HanActKind.Move, uid, (int)Zone.Special, aimable ? (int)rr : -1)), ok,
-                    ok ? null : "Seviye atla ya da bir kartı depoya al.");
+                    over ? OverTip : null);
             }
         }
         foreach (var grp in specials.GroupBy(SpecialRow))
@@ -259,7 +272,9 @@ public sealed partial class HanView
         Put(Act(_shopOpen ? "Tezgâhı kapat" : "Tezgâh", _shopOpen ? "Boşluk" : $"{Me.Shop.Count(d => d != null)} kart bekliyor · Boşluk", "han-shop-toggle", ToggleShop, _shopOpen ? HanButtonKind.Secondary : HanButtonKind.Primary, 236, 76, true, "Tezgâhı aç / kapat (Boşluk).", HanArt.Icon("icon_lager", 30, "")), ShopX, BarY + 14);
         Put(Act("Yenile", rc == 0 ? "bedava · R" : $"{rc} altın · R", "han-reroll", () => { Do(() => Session.Act(HanActKind.Reroll), "han_reroll"); if (!_shopOpen) { _shopOpen = true; Render(); } }, HanButtonKind.Secondary, 162, 76, Me.Gold >= rc, "Tezgâha beş yeni kart gelir (R).", HanGlyph.Reroll(22)), ShopX, BarY + 100);
         Put(LockButton(66, 76), ShopX + 170, BarY + 100);
-        Put(Act("Hazır", "savaşa geç", "han-ready", OnReady, HanButtonKind.Primary, 392, 162, true, "Masanı kilitle ve savaşa geç."), 1510, BarY + 14);
+        // online'da hazırlık herkes için ortak süreyle biter: "Hazır" düğmesi yok, yerinde süre bilgisi
+        if (!Session.Online) Put(Act("Hazır", "savaşa geç", "han-ready", OnReady, HanButtonKind.Primary, 392, 162, true, "Masanı kilitle ve savaşa geç."), 1510, BarY + 14);
+        else Put(OnlinePrepNote(), 1510, BarY + 14);
         // seçim penceresi (ödül, simya) ya da yardım açıkken tezgâh gizlenir: üst üste binmesin
         var modal = Me.PotionOptions.Length > 0 || (Me.RewardOptions.Length > 0 && Me.Bench.Count() < Tuning.BenchSize) || _help;
         if (_shopOpen && !modal) ShopOverlay(sel, shopEls);
@@ -368,8 +383,12 @@ public sealed partial class HanView
         Put(next, nx, BarY + 12);
         var lv = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(15), FontWeight = FontWeights.Bold, Foreground = Theme.B("#f4ead2") };
         lv.Inlines.Add(new System.Windows.Documents.Run($"Seviye {Me.Level}"));
-        lv.Inlines.Add(new System.Windows.Documents.Run($"   masa {Me.Used}/{Me.Slots}") { Foreground = Me.Used < Me.Slots ? Theme.B("#ffe9a3") : Theme.TextDim, FontWeight = FontWeights.SemiBold });
-        lv.ToolTip = "Masa sınırına satırlar ve özel kartlar sayılır; pusudakiler sayılmaz (pusunun kendi sınırı var).";
+        lv.Inlines.Add(new System.Windows.Documents.Run($"   masa {Me.Used}/{Me.Slots}" + (Me.Overfull ? " !" : ""))
+        {
+            Foreground = Me.Overfull ? HanUi.Br(HanUi.Bad) : Me.Used < Me.Slots ? Theme.B("#ffe9a3") : Theme.TextDim,
+            FontWeight = Me.Overfull ? FontWeights.Bold : FontWeights.SemiBold
+        });
+        lv.ToolTip = "Masa sınırına satırlar ve özel kartlar sayılır; pusudakiler sayılmaz (pusunun kendi sınırı var).\n" + OverTip;
         Put(lv, EcoX + 16, BarY + 62);
         if (Me.Level < Tuning.MaxLevel)
         {
@@ -395,6 +414,20 @@ public sealed partial class HanView
         }
         if (_live && _lastGold >= 0 && _lastGold != Me.Gold) Pop(goldText);
         if (_live && _lastLevel >= 0 && _lastLevel != Me.Level) { Pop(lv); Sfx.Play("han_levelup"); }
+    }
+
+    private const string OverTip = "Hazırlıkta sınırdan fazla kart koyabilirsin; süre bitince fazlası rastgele seçilip depoya iner, depo doluysa yanar.";
+
+    /// <summary>Online hazırlık: Hazır düğmesinin yerinde, hazırlığın ortak süreyle bittiğini anlatan not.</summary>
+    private FrameworkElement OnlinePrepNote()
+    {
+        var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(22, 0, 22, 0) };
+        sp.Children.Add(HanUi.Label("Savaş", 12));
+        sp.Children.Add(HanUi.Title("Süre dolunca", 26, HanUi.GoldText));
+        sp.Children.Add(HanUi.Body("Hazırlık herkes için ortak süreyle biter; masan o anki haliyle kilitlenir.", 14, HanUi.Br(HanUi.Muted)));
+        var g = Panel(392, 162, sp, 0xb0);
+        g.Tag = "han-prep-timer";
+        return g;
     }
 
     /// <summary>Sonraki round başında gelecek altın, kalem kalem (Match.BeginRound ile aynı sıra ve kurallar).</summary>

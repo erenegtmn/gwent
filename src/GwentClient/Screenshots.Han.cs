@@ -26,6 +26,10 @@ public static class HanShots
         save(v, "han_1_okul.png");
         s.ChooseSchool(s.Player.SchoolOptions[0]);
         save(new HanView(s, () => { }, () => { }, animate: false), "han_2a_tezgah.png");
+        // online hazırlık: Hazır düğmesi yok, yerinde ortak süre notu (eylemler sunucuya gitmez, kopya doğrudan ilerletilir)
+        var os = new HanSession(new GwentNet.HanSetup(20261113, new() { "Eren", "Lambert", "Eskel", "Keira" }, new() { false, true, true, true }, new() { null, null, null, null }, 0), _ => { });
+        os.G.Apply(new HanAction(HanActKind.School, 0, (int)os.Player.SchoolOptions[0]));
+        save(new HanView(os, () => { }, () => { }, animate: false), "han_2c_online_hazirlik.png");
         // erken hazırlık: marketten alınabilenleri al, sahaya sür
         for (var i = 0; i < Tuning.ShopSize; i++) s.Act(HanActKind.Buy, i);
         foreach (var c in s.Player.Cards.ToList()) s.Act(HanActKind.Move, c.Uid, (int)Match.ZonesFor(c.Def).First());
@@ -64,6 +68,14 @@ public static class HanShots
         {
             v = new HanView(s, () => { }, () => { }, animate: false);
             save(v, "han_4_hazirlik_gec.png");
+            if (s.Player.RewardOptions.Length > 0) s.Act(HanActKind.Reward, 0);
+            if (s.Player.PotionOptions.Length > 0) s.Act(HanActKind.Potion, 0);
+            // masa sınırı aşık (hazırlıkta esner): sayı kırmızı, üstte uyarı; görüntüden sonra geçici kartlar kalkar
+            var extras = new[] { "ghoul", "griffin" }.Select((id, i) => new OwnedCard { Uid = 990020 + i, Def = CardSet.Get(id), Zone = Zone.Close }).ToList();
+            while (s.Player.Used + extras.Count <= s.Player.Slots) extras.Add(new OwnedCard { Uid = 990020 + extras.Count, Def = CardSet.Get("ghoul"), Zone = Zone.Close });
+            s.Player.Cards.AddRange(extras);
+            save(new HanView(s, () => { }, () => { }, animate: false), "han_4e_sinir_asik.png");
+            foreach (var x in extras) s.Player.Cards.Remove(x);
             if (s.Player.RewardOptions.Length > 0) s.Act(HanActKind.Reward, 0);
             if (s.Player.PotionOptions.Length > 0) s.Act(HanActKind.Potion, 0);
             // özel kartlar savaşta görünsün: Boynuz (Yakın) ve Ayaz

@@ -59,6 +59,8 @@ public class LockstepTests
                     case 4: Send(new HanAction(HanActKind.Xp, pid)); break;
                     case 5: Send(new HanAction(HanActKind.Reroll, pid)); break;
                     case 6: if (p.Cards.Count > 0 && _rng.Next(4) == 0) Send(new HanAction(HanActKind.Sell, pid, p.Cards[_rng.Next(p.Cards.Count)].Uid)); break;
+                    case 7 when p.Cards.Count >= 2 && _rng.Next(2) == 0:
+                        Send(new HanAction(HanActKind.SwapCards, pid, p.Cards[_rng.Next(p.Cards.Count)].Uid, p.Cards[_rng.Next(p.Cards.Count)].Uid)); break;
                     default: Send(new HanAction(HanActKind.Buy, pid + 1, 0)); break;   // başkası adına: reddedilmeli
                 }
             }

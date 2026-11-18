@@ -22,7 +22,10 @@ public sealed partial class HanView
     /// <summary>Çözülen pencere: 1 = işaretler atılıyor (satır sisli), 2 = kartlar açıldı (sayılar gizli), 0 = hepsi görünür.</summary>
     private int _hold;
 
-    private Battle B => Session.MyBattle!;
+    private Battle B => (_screen == Screen.Result ? _resultBattle : null) ?? Session.MyBattle!;
+
+    /// <summary>Biten savaş: round kapanınca oturumdan silinir; sonuç paneli onu arkada (masada) göstermek için tutulur.</summary>
+    private Battle? _resultBattle;
     private int Mine => Session.MySide;
 
     private static string RowIcon(Row r) => r switch { Row.Close => "row_close", Row.Ranged => "row_ranged", _ => "row_siege" };
@@ -88,7 +91,8 @@ public sealed partial class HanView
 
     // ---------- arena ----------
 
-    private void DrawArena()
+    /// <param name="behindResult">Round sonucu panelinin arkasında: alt şerit (Devam) çizilmez, masa yalnız gösterilir.</param>
+    private void DrawArena(bool behindResult = false)
     {
         var b = B;
         var (me, op) = (b.Sides[Mine], b.Sides[1 - Mine]);
@@ -118,6 +122,7 @@ public sealed partial class HanView
             hint = $"{b.Window + 1}. çarpışma: {HT.Name(b.CurrentRow)}. İşaret ya da simya seç, sonra Satırı aç.";
             hc = Theme.B("#ffe9a3");
         }
+        if (behindResult) hint = "Round bitti.";
         if (activation) TopBar("SAVAŞ · HAZIRLAN", hint, hc);
         else ScoreBar(myPts, opPts, hint, hc);
         PlayerList();
@@ -230,10 +235,11 @@ public sealed partial class HanView
 
         // ---- sol: iki tarafın durumu ----
         SideCard(false, op, b.Pve ? (M.Round <= 2 ? "arachas" : "face_imlerith") : Face(op.PlayerId), PointsShown(1 - Mine, shownWindows), b.Started, 66);
-        TablesPanel(b, shownWindows, activation);
+        if (!behindResult) TablesPanel(b, shownWindows, activation);   // round kapanınca masalar sonuç panelinde
         SideCard(true, me, Face(Session.Me), PointsShown(Mine, shownWindows), b.Started, 742);
 
         // ---- alt şerit ----
+        if (behindResult) return;
         Put(Panel(1896, BarH, null, 0xec), 12, BarY);
         if (activation) ActivationTray(b, me);
         else if (b.Done && !_busy) EndTray(b, me, op);
@@ -1176,6 +1182,7 @@ public sealed partial class HanView
         _fx.Children.Clear();
         _engine.Clear();
         _banner.Children.Clear();
+        _resultBattle = Session.MyBattle;
         Session.FinishRound();
         if (Session.RoundClosed) ShowResult();
         else { _waitRound = true; Render(); }   // online: öteki masalar hâlâ oynuyor
@@ -1190,77 +1197,5 @@ public sealed partial class HanView
         if (Session.Online) { EnterPrep(); return; }
         _screen = Screen.Result;
         Render();
-    }
-
-    // ---------- round sonucu ----------
-
-    private void DrawResult()
-    {
-        var round = Session.LastRound;
-        PlayerList();
-        Put(new Rectangle { Width = ListX - 8, Height = 1080, Fill = Theme.B("#a8000000"), IsHitTestVisible = false }, 0, 0);
-        TopButtons();
-        var recs = M.History.Where(h => h.Round == round).ToList();
-        var mine = recs.FirstOrDefault(h => h.PlayerA == Session.Me || (!h.Pve && !h.Ghost && h.PlayerB == Session.Me));
-        var sp = new StackPanel { Margin = new Thickness(46, 32, 46, 28) };
-        sp.Children.Add(HanUi.Label($"Round {round} sonucu", 13));
-        if (mine != null)
-        {
-            var side = mine.PlayerA == Session.Me ? 0 : 1;
-            var (mp, opp) = side == 0 ? (mine.PointsA, mine.PointsB) : (mine.PointsB, mine.PointsA);
-            var lost = mine.Winner == 1 - side ? mine.Damage : 0;
-            var won = mine.Winner == side;
-            var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-            var h1 = HanUi.Display(mine.Winner < 0 ? "Berabere" : won ? "Zafer" : "Yenilgi", 54, TextAlignment.Left);
-            if (!won && mine.Winner >= 0) h1.Foreground = new LinearGradientBrush(Color.FromRgb(0xff, 0xb4, 0xa4), HanUi.Bad, 90);
-            head.Children.Add(h1);
-            var sc = HanUi.Number($"  {mp} – {opp}", 46, HanUi.Br(HanUi.Parchment));
-            sc.VerticalAlignment = VerticalAlignment.Bottom;
-            head.Children.Add(sc);
-            sp.Children.Add(head);
-            if (mp == opp && mine.Winner >= 0) sp.Children.Add(HanUi.Small("Çarpışmalar eşitti: üç satırın toplam gücü belirledi.", 14));
-            sp.Children.Add(HanUi.Body(lost > 0 ? $"{lost} can kaybettin. Kalan can: {Me.Hp}" : won ? $"+{Tuning.WinGold} altın kazandın. Can: {Me.Hp}" : $"Can kaybı yok. Can: {Me.Hp}", 18));
-            if (Me.Streak <= -2 || Me.Streak >= 3)
-            {
-                var chip = HanUi.Chip(Me.Streak < 0 ? $"{-Me.Streak} yenilgi serisi · sonraki round +{Tuning.StreakGold(Me.Streak)} altın" : $"{Me.Streak} galibiyet serisi · sonraki round +{Tuning.StreakGold(Me.Streak)} altın", Me.Streak < 0 ? HanUi.Ember : HanUi.Good, 12, true);
-                chip.HorizontalAlignment = HorizontalAlignment.Left;
-                chip.Margin = new Thickness(0, 8, 0, 0);
-                sp.Children.Add(chip);
-            }
-        }
-        var rule = HanUi.Rule(900);
-        rule.Margin = new Thickness(0, 18, 0, 10);
-        sp.Children.Add(rule);
-        sp.Children.Add(HanUi.Label("Diğer masalar", 12));
-        foreach (var h in recs)
-        {
-            var me = h.PlayerA == Session.Me || h.PlayerB == Session.Me && !h.Ghost;
-            var line = new Grid { Margin = new Thickness(0, 6, 0, 0) };
-            line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
-            line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-            line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
-            line.ColumnDefinitions.Add(new ColumnDefinition());
-            var a = HanUi.Title(h.NameA, 17, me ? HanUi.GoldText : null, TextAlignment.Right);
-            var sc = HanUi.Number($"{h.PointsA} – {h.PointsB}", 17, HanUi.Br(HanUi.Parchment));
-            sc.HorizontalAlignment = HorizontalAlignment.Center;
-            var b = HanUi.Title(h.NameB, 17, me ? HanUi.GoldText : null);
-            var res = HanUi.Small(h.Winner < 0 ? "berabere" : $"{(h.Winner == 0 ? h.NameA : h.NameB)} kazandı" + (h.Damage > 0 ? $" · {h.Damage} hasar" : ""), 14);
-            Grid.SetColumn(sc, 1); Grid.SetColumn(b, 2); Grid.SetColumn(res, 3);
-            res.Margin = new Thickness(16, 0, 0, 0);
-            foreach (var el in new UIElement[] { a, sc, b, res }) line.Children.Add(el);
-            sp.Children.Add(line);
-        }
-        var dead = M.Players.Where(p => !p.Alive && p.EliminatedRound == round).ToList();
-        if (dead.Count > 0)
-        {
-            var d = HanUi.Title("Elenenler: " + string.Join(", ", dead.Select(p => $"{p.Name} ({p.Place}.)")), 17, HanUi.Br(HanUi.Bad));
-            d.Margin = new Thickness(0, 12, 0, 0);
-            sp.Children.Add(d);
-        }
-        var next = Btn($"Round {M.Round}", "han-next", EnterPrep, true, width: 280, height: 56, sub: "hazırlığa geç");
-        next.HorizontalAlignment = HorizontalAlignment.Left;
-        next.Margin = new Thickness(0, 26, 0, 0);
-        sp.Children.Add(next);
-        Put(Panel(1040, 620, sp, 0xf0, null, 16), 330, 220);
     }
 }

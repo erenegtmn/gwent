@@ -34,7 +34,9 @@ public enum HanActKind
     /// <summary>Tezgâh kilidi aç/kapa (sonraki round tezgâh aynen kalır).</summary>
     LockShop,
     /// <summary>Oyuncu kendi savaşının sonunu ekranda izledi (sinematik bitti). Sunucu herkes izleyince round'u kapatır.</summary>
-    RoundSeen
+    RoundSeen,
+    /// <summary>İki kartın yeri değişir (sürükle-bırak): A, B = kart uid'leri.</summary>
+    SwapCards
 }
 
 /// <summary>
@@ -204,6 +206,7 @@ public sealed class HanGame
             case HanActKind.Reward: return Human(pid) && M.PickReward(pid, a.A);
             case HanActKind.Potion: return Human(pid) && M.ChoosePotion(pid, a.A);
             case HanActKind.Swap: return Human(pid) && M.SwapOrder(pid, a.A, a.B);
+            case HanActKind.SwapCards: return Human(pid) && M.SwapCards(pid, a.A, a.B);
             case HanActKind.Ready:
                 if (!Human(pid) || !M.SetReady(pid)) return false;
                 if (M.Phase == Phase.Battle) AfterLock();

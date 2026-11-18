@@ -56,12 +56,16 @@ public sealed class PlayerState
     public int Streak { get; set; }
     /// <summary>Tezgâh kilitli: sonraki round'un başında tezgâh yenilenmez, kalan kartlar aynen durur (bir kez).</summary>
     public bool ShopLocked { get; set; }
+    /// <summary>Son kilitte masa sınırını aşan kartlar: depoya giden (<c>Lost</c> false) ya da depo dolu olduğu için yanan (true).</summary>
+    public List<(CardDef Def, int Star, bool Lost)> Overflowed { get; } = new();
 
     public int Slots => Tuning.Slots(Level);
     public int PotionCap => School is HanLigi.School.Viper or HanLigi.School.Manticore ? 3 : 2;
     public IEnumerable<OwnedCard> Fielded => Cards.Where(c => c.Fielded);
     /// <summary>Masa sınırına sayılan kart sayısı (pusu hariç).</summary>
     public int Used => Cards.Count(c => c.TakesSlot);
+    /// <summary>Hazırlıkta masa sınırı esner: sınırı aşan kart kilitte rastgele seçilip depoya gider ya da yanar (§15.4).</summary>
+    public bool Overfull => Used > Slots;
     public IEnumerable<OwnedCard> Bench => Cards.Where(c => !c.Fielded);
     public int XpNeeded => Level >= Tuning.MaxLevel ? 0 : Tuning.XpThresholds[Level - 1];
 
@@ -138,6 +142,7 @@ public sealed class Match
         foreach (var p in Alive)
         {
             p.Ready = false;
+            p.Overflowed.Clear();
             p.FreeRerollUsed = false;
             p.OrderSwapped = false;
             if (Round >= 2) p.Gold += Math.Min(Tuning.InterestCap, p.Gold / Tuning.InterestPer);
@@ -411,8 +416,9 @@ public sealed class Match
 
     /// <summary>
     /// Kart taşınabilir mi. Masa sınırı (<see cref="PlayerState.Slots"/>) satırları ve özel kartları sayar; <b>pusu sayılmaz</b>
-    /// (yalnız kendi sınırı vardır), böylece pusu/casus düzeni masadan yer yemez. <paramref name="aim"/>: hedefli özel kartın satırı;
-    /// yerindeki özel kartın yalnız satırı da değiştirilebilir.
+    /// (yalnız kendi sınırı vardır), böylece pusu/casus düzeni masadan yer yemez. Hazırlıkta masa sınırı <b>esner</b>: sınırdan
+    /// fazla kart konabilir, fazlası kilitte ayıklanır (<see cref="TrimOverflow"/>). <paramref name="aim"/>: hedefli özel kartın
+    /// satırı; yerindeki özel kartın yalnız satırı da değiştirilebilir.
     /// </summary>
     public bool CanMove(int pid, int uid, Zone to, Row? aim = null)
     {
@@ -422,7 +428,6 @@ public sealed class Match
         if (c.Zone == to) return to == Zone.Special && aim != null && aim != c.Aim;
         if (to == Zone.Bench) return p.Bench.Count() < Tuning.BenchSize;
         if (!ZonesFor(c.Def).Contains(to)) return false;
-        if (to != Zone.Ambush && !c.TakesSlot && p.Used >= p.Slots) return false;
         if (to == Zone.Ambush && p.Cards.Count(x => x.Zone == Zone.Ambush) >= p.AmbushCap) return false;
         return true;
     }
@@ -433,6 +438,44 @@ public sealed class Match
         var c = Players[pid].Cards.First(c => c.Uid == uid);
         c.Zone = to;
         c.Aim = to == Zone.Special && Aimable(c.Def) ? aim ?? c.Aim : null;
+        return true;
+    }
+
+    /// <summary>Taşıma masa sınırını aşar mı (botlar sınırın içinde kalır; insan aşabilir, fazlası kilitte ayıklanır).</summary>
+    public bool WouldOverflow(int pid, int uid, Zone to)
+    {
+        var p = Players[pid];
+        if (p.Cards.FirstOrDefault(c => c.Uid == uid) is not { } c || to is Zone.Bench || (to == Zone.Ambush && !Tuning.AmbushTakesSlot) || c.TakesSlot) return false;
+        return p.Used >= p.Slots;
+    }
+
+    /// <summary>
+    /// İki kartın yeri değişir (sürükle-bırak): depo ↔ saha, saha ↔ saha, depo ↔ depo. Her kart ötekinin yerine gidebilmeli
+    /// (satırı, pusu yeteneği, özel kart); depo her kartı alır. Aynı yerdeyseler yalnız sıraları değişir. Hedefli özel kart
+    /// (Boynuz/Kalkan) yerine geçtiği özel kartın satırını alır. Masa sınırı denetlenmez (hazırlıkta esner).
+    /// </summary>
+    public bool CanSwapCards(int pid, int uidA, int uidB)
+    {
+        var p = Players[pid];
+        if (!InPrep(p) || uidA == uidB || p.Cards.FirstOrDefault(c => c.Uid == uidA) is not { } a || p.Cards.FirstOrDefault(c => c.Uid == uidB) is not { } b) return false;
+        if (a.Zone == b.Zone) return true;
+        bool Fits(OwnedCard c, Zone z) => z == Zone.Bench || ZonesFor(c.Def).Contains(z);
+        return Fits(a, b.Zone) && Fits(b, a.Zone);
+    }
+
+    public bool SwapCards(int pid, int uidA, int uidB)
+    {
+        if (!CanSwapCards(pid, uidA, uidB)) return false;
+        var p = Players[pid];
+        int ia = p.Cards.FindIndex(c => c.Uid == uidA), ib = p.Cards.FindIndex(c => c.Uid == uidB);
+        var (a, b) = (p.Cards[ia], p.Cards[ib]);
+        (p.Cards[ia], p.Cards[ib]) = (b, a);
+        if (a.Zone == b.Zone) return true;
+        var (za, aa, zb, ab) = (a.Zone, a.Aim, b.Zone, b.Aim);
+        a.Zone = zb;
+        b.Zone = za;
+        a.Aim = zb == Zone.Special && Aimable(a.Def) ? ab ?? aa : null;
+        b.Aim = za == Zone.Special && Aimable(b.Def) ? aa ?? ab : null;
         return true;
     }
 
@@ -557,8 +600,33 @@ public sealed class Match
         return s;
     }
 
+    /// <summary>
+    /// Kilitte masa sınırını uygular (§15.4): önce pusu sınırını aşan pusu kartı kendi satırına çıkar; sonra masa sınırını aşan
+    /// kartlar (satırlar + özel kartlar) <b>tohumlu rastgelelikle tek tek</b> seçilir: depoda yer varsa depoya gider, yoksa kart
+    /// yanar (ceza; kopyaları havuza döner). Bir kartın çıkması eşik kaybettirip pusu sınırını düşürebilir; sınırlar oturana
+    /// kadar sürer.
+    /// </summary>
+    private void TrimOverflow(PlayerState p)
+    {
+        while (true)
+        {
+            var amb = p.Cards.Where(c => c.Zone == Zone.Ambush).ToList();
+            if (amb.Count > p.AmbushCap) { amb[^1].Zone = ZonesFor(amb[^1].Def).First(); continue; }
+            if (p.Used <= p.Slots) return;
+            var over = p.Cards.Where(c => c.TakesSlot).ToList();
+            var c = over[_misc.Next(over.Count)];
+            var lost = p.Bench.Count() >= Tuning.BenchSize;
+            p.Overflowed.Add((c.Def, c.Star, lost));
+            if (!lost) { c.Zone = Zone.Bench; c.Aim = null; continue; }
+            Pool[c.Def.Id] += c.Def.IsHero ? 1 : c.Star == 1 ? 1 : c.Star == 2 ? 3 : 9;
+            p.Cards.Remove(c);
+        }
+    }
+
     private void Lock()
     {
+        // masa sınırı (fazla kart depoya ya da yanar), sonra seçilmemiş ödül: oyuncunun kartı, almadığı ödülden önce yer bulur
+        foreach (var p in Alive) TrimOverflow(p);
         foreach (var p in Alive.ToList())
         {
             // seçilmemiş ödül: yer varsa ilk seçenek, yoksa havuza döner

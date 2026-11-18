@@ -212,7 +212,7 @@ public static class ExpertBot
             foreach (var c in p.Bench.ToList())
                 foreach (var z in Match.ZonesFor(c.Def))
                 {
-                    if (!m.CanMove(pid, c.Uid, z)) continue;
+                    if (!m.CanMove(pid, c.Uid, z) || m.WouldOverflow(pid, c.Uid, z)) continue;
                     m.Move(pid, c.Uid, z);
                     var s = Score(m, p);
                     if (s > best + 1e-6) { best = s; improved = true; break; }
@@ -230,7 +230,7 @@ public static class ExpertBot
                     var done = false;
                     foreach (var z in Match.ZonesFor(c.Def))
                     {
-                        if (!m.CanMove(pid, c.Uid, z)) continue;
+                        if (!m.CanMove(pid, c.Uid, z) || m.WouldOverflow(pid, c.Uid, z)) continue;
                         m.Move(pid, c.Uid, z);
                         var s = Score(m, p);
                         if (s > best + 1e-6) { best = s; improved = true; done = true; break; }
@@ -247,7 +247,7 @@ public static class ExpertBot
                 var from = f.Zone;
                 foreach (var z in zones)
                 {
-                    if (!m.CanMove(pid, f.Uid, z)) continue;
+                    if (!m.CanMove(pid, f.Uid, z) || m.WouldOverflow(pid, f.Uid, z)) continue;
                     m.Move(pid, f.Uid, z);
                     var s = Score(m, p);
                     if (s > best + 1e-6) { best = s; improved = true; break; }

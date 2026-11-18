@@ -84,6 +84,8 @@ public static partial class UiSelfTest
             foreach (var v in new[] { hv, gv })
             {
                 Layout(v);
+                // online hazırlıkta "Hazır" düğmesi yok: hazırlık ortak süreyle biter
+                Check(!FindAll<Button>(v, b => (b.Tag as string) == "han-ready").Any(), "online hazırlıkta Hazır düğmesi var");
                 HanClick(v, rng);
                 host.Pump(); guest.Pump();
             }
@@ -120,13 +122,16 @@ public static partial class UiSelfTest
         var cards = FindAll<HanCardView>(view, c => T(c).StartsWith("han-")).ToList();
         var modal = buttons.Where(b => T(b).StartsWith("han-potion:")).Cast<FrameworkElement>().Concat(cards.Where(c => T(c).StartsWith("han-reward:"))).ToList();
         FrameworkElement? pick;
+        Button? ready = null;
         if (modal.Count > 0) pick = modal[rng.Next(modal.Count)];
         else
         {
-            var ready = buttons.FirstOrDefault(b => T(b) is "han-ready" or "han-act-go" or "han-go" or "han-continue" or "han-next");
+            ready = buttons.FirstOrDefault(b => T(b) is "han-ready" or "han-act-go" or "han-go" or "han-continue" or "han-next");
             var all = buttons.Where(b => b != ready).Cast<FrameworkElement>().Concat(cards).ToList();
             pick = ready != null && (rng.Next(100) < 25 || all.Count == 0) ? ready : all.Count > 0 ? all[rng.Next(all.Count)] : null;
         }
+        // online hazırlıkta Hazır düğmesi yok: arada bir hazırlık süresi dolmuş sayılır (canlı olmayan kipte sayaç çalışmaz)
+        if (ready == null && rng.Next(100) < 20 && view.PrepTimeUp()) return;
         if (pick == null) return;
         if (pick is Button btn) Raise(btn, ButtonBase.ClickEvent);
         else Raise(pick, UIElement.MouseLeftButtonUpEvent);

@@ -26,6 +26,8 @@ public static partial class UiSelfTest
         void Check(bool ok, string what) { if (!ok) { failures++; Console.WriteLine("[HATA] han: " + what); } }
         var totalRounds = 0;
         var deselects = 0;
+        var swaps = 0;
+        var overfull = 0;
         for (var g = 0; g < games; g++)
         {
             try
@@ -80,6 +82,42 @@ public static partial class UiSelfTest
                             else pick = all[rng.Next(all.Count)];
                         }
                     }
+                    // depodaki birimleri masaya sür (masa dolu olsa da): hazırlıkta sınır esner, kilitte fazlası ayıklanır
+                    if (s.M.Phase == Phase.Prep && modal.Count == 0 && s.Player.Bench.Any(c => c.Def.IsUnit) && rng.Next(10) == 0)
+                    {
+                        foreach (var extra in s.Player.Bench.Where(c => c.Def.IsUnit).ToList())
+                        {
+                            var zone = Match.ZonesFor(extra.Def).First(z => z != Zone.Ambush);
+                            if (FindAll<HanCardView>(view, c => T(c) == "han-card:" + extra.Uid).FirstOrDefault() is not { } ce) continue;
+                            view.Deselect(); Layout(view);
+                            Raise(ce, UIElement.MouseLeftButtonUpEvent); Layout(view);
+                            if (FindAll<Button>(view, b => T(b) == "han-move:" + zone).FirstOrDefault() is { IsEnabled: true } mv) { Raise(mv, ButtonBase.ClickEvent); Layout(view); }
+                            Check(extra.Zone == zone, $"{extra.Def.Id} masaya konamadı (masa {s.Player.Used}/{s.Player.Slots})");
+                        }
+                        if (s.Player.Overfull) overfull++;
+                        continue;
+                    }
+                    // sürükle-bırak takası: kartımı gerçek bırakma yolundan başka bir kartımın üstüne bırak
+                    if (s.M.Phase == Phase.Prep && s.Player.Cards.Count >= 2 && rng.Next(8) == 0)
+                    {
+                        var cs = s.Player.Cards;
+                        var (a, b2) = (cs[rng.Next(cs.Count)], cs[rng.Next(cs.Count)]);
+                        var before = string.Join(",", cs.Select(c => c.Uid + ":" + c.Zone));
+                        var can = a != b2 && s.M.CanSwapCards(s.Me, a.Uid, b2.Uid);
+                        var (za, zb) = (a.Zone, b2.Zone);
+                        if (view.TestDragOnto(a.Uid, b2.Uid))
+                        {
+                            Layout(view);
+                            var after = string.Join(",", s.Player.Cards.Select(c => c.Uid + ":" + c.Zone));
+                            if (can)
+                            {
+                                Check(a.Zone == zb && b2.Zone == za && before != after, $"takas olmadı: {a.Def.Id} {za} ↔ {b2.Def.Id} {zb}");
+                                swaps++;
+                            }
+                            else Check(before == after, "geçersiz takas durumu değiştirdi");
+                        }
+                        continue;
+                    }
                     // Her şey ekran katmanında: kartlarda gerçek isabet denetimi yapılır (görünmeyen öğeye tıklama doğrudan gönderilir).
                     if (pick is Button btn) Raise(btn, ButtonBase.ClickEvent);
                     else if (IsOnScreen(view, pick)) ClickAt(view, pick);
@@ -97,7 +135,8 @@ public static partial class UiSelfTest
                     }
                     var p = s.Player;
                     Check(p.Gold >= 0, "altın eksiye düştü");
-                    Check(p.Used <= p.Slots && p.Cards.Count(c => c.Zone == Zone.Ambush) <= p.AmbushCap, "saha slot sınırı aşıldı");
+                    // hazırlıkta masa sınırı esner (kırmızı uyarı); kilitten sonra sınır içinde olmalı
+                    if (s.M.Phase != Phase.Prep) Check(p.Used <= p.Slots && p.Cards.Count(c => c.Zone == Zone.Ambush) <= p.AmbushCap, "kilitten sonra saha slot sınırı aşık");
                     Check(p.Bench.Count() <= Tuning.BenchSize, "depo sınırı aşıldı");
                     if (s.MyBattle is { } b) Check(b.Sides[s.MySide].Focus >= 0, "Odak eksiye düştü");
                 }
@@ -120,7 +159,9 @@ public static partial class UiSelfTest
             }
         }
         Check(deselects > 0, "boş yere tıklama hiç denenmedi");
-        Console.WriteLine($"Han Ligi: {games} maç, {totalRounds} round, {deselects} boş tıklama, {failures} hata.");
+        Check(swaps > 0, "sürükle-bırak takası hiç olmadı");
+        Check(overfull > 0, "masa sınırı hiç aşılmadı");
+        Console.WriteLine($"Han Ligi: {games} maç, {totalRounds} round, {deselects} boş tıklama, {swaps} takas, {overfull} kez sınır aşıldı, {failures} hata.");
         return failures;
     }
 }

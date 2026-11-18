@@ -120,9 +120,15 @@ public class MatchTests(ITestOutputHelper output)
         var fiend = p.Cards.First(c => c.Def.Id == "fiend");
         Assert.False(m.Move(0, fiend.Uid, Zone.Ranged));            // satır sabit
         Assert.False(m.Move(0, fiend.Uid, Zone.Ambush));            // Pusu yeteneği yok
+        // hazırlıkta masa sınırı esner: beşi de konur, sayı sınırı aşar; kilitte fazlası depoya iner (§15.4)
         var placed = 0;
         foreach (var c in p.Cards.ToList()) if (m.Move(0, c.Uid, Match.ZonesFor(c.Def).First())) placed++;
-        Assert.Equal(p.Slots, placed);                               // L2: 4 slot
+        Assert.Equal(5, placed);
+        Assert.Equal(4, p.Slots);                                    // L2: 4 slot
+        Assert.True(p.Overfull);
+        m.ForceLock();
+        Assert.Equal(p.Slots, p.Used);
+        Assert.Single(p.Bench);
     }
 
     [Fact]

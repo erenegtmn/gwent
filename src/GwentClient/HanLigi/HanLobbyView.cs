@@ -51,7 +51,8 @@ public sealed class HanLobbyView : Grid
     {
         _busy = false;
         _root.Children.Clear();
-        if (HanArt.Src("backdrop") is { } bg) Put(new Image { Source = bg, Width = 1920, Height = 1080, Stretch = Stretch.Fill }, 0, 0);
+        // zemin: oyundaki masanın ahşabı (partiküllü han görseli yerine)
+        if (HanArt.Src("table") is { } wood) Put(new Rectangle { Width = 1920, Height = 1080, Fill = new ImageBrush(wood) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 0.25, 0.4), ViewportUnits = BrushMappingMode.RelativeToBoundingBox } }, 0, 0);
         Put(new Rectangle { Width = 1920, Height = 1080, Fill = new SolidColorBrush(Color.FromArgb(0xa8, 6, 4, 2)) }, 0, 0);
 
         var head = new StackPanel { Width = 1920 };

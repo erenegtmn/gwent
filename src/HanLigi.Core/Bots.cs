@@ -157,7 +157,7 @@ public static class HanBot
                 }
                 to = rows.OrderBy(z => p.Cards.Where(x => x != c && x.Zone == z).Sum(x => x.Power)).First();
             }
-            if (c.Zone != to) m.Move(p.Id, c.Uid, to);
+            if (c.Zone != to && !m.WouldOverflow(p.Id, c.Uid, to)) m.Move(p.Id, c.Uid, to);
         }
     }
 
