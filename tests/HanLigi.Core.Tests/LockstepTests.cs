@@ -87,6 +87,8 @@ public class LockstepTests
                 }
                 if (m.Phase == Phase.Battle)
                 {
+                    // savaş sırasında tezgâh kilidi (savaşı biten ya da sürenler)
+                    if (_rng.Next(6) == 0 && Humans.ToList() is { Count: > 0 } hl) Send(new HanAction(HanActKind.LockShop, hl[_rng.Next(hl.Count)]));
                     var moved = false;
                     for (var i = 0; i < m.Battles.Count && !moved; i++)
                     {

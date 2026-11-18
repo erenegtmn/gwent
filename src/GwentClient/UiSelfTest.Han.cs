@@ -27,6 +27,7 @@ public static partial class UiSelfTest
         var totalRounds = 0;
         var deselects = 0;
         var swaps = 0;
+        var battleShops = 0;
         var overfull = 0;
         for (var g = 0; g < games; g++)
         {
@@ -81,6 +82,29 @@ public static partial class UiSelfTest
                             }
                             else pick = all[rng.Next(all.Count)];
                         }
+                    }
+                    // savaşta tezgâh: alt şerit depo satırına döner, tezgâh yalnız bakılır, kilit çalışır, kapanınca şerit geri gelir
+                    if (FindAll<Button>(view, b => T(b) == "han-battle-shop" && b.IsEnabled).FirstOrDefault() is { } bs && rng.Next(6) == 0)
+                    {
+                        // rastgele tıklamalar tezgâhı zaten açmış olabilir: önce kapat
+                        if (FindAll<FrameworkElement>(view, f => T(f) == "han-battle-bench").Any())
+                        {
+                            Raise(bs, ButtonBase.ClickEvent); Layout(view);
+                            Check(!FindAll<FrameworkElement>(view, f => T(f) == "han-battle-bench").Any(), "savaşta tezgâh kapanmadı");
+                            if (FindAll<Button>(view, b => T(b) == "han-battle-shop" && b.IsEnabled).FirstOrDefault() is not { } reopen) continue;
+                            bs = reopen;
+                        }
+                        Raise(bs, ButtonBase.ClickEvent); Layout(view);
+                        Check(FindAll<FrameworkElement>(view, f => T(f) == "han-battle-bench").Any(), "savaşta tezgâh açılınca depo satırı yok");
+                        Check(!FindAll<FrameworkElement>(view, f => T(f).StartsWith("han-shop:") || T(f) == "han-reroll-band").Any(), "savaşta tezgâhtan alınabiliyor ya da yenilenebiliyor");
+                        Check(s.Player.Shop.All(d => d == null) || FindAll<FrameworkElement>(view, f => T(f).StartsWith("han-shop-view:")).Any(), "savaşta tezgâh kartları görünmüyor");
+                        var locked = s.Player.ShopLocked;
+                        if (FindAll<Button>(view, b => T(b) == "han-lock" && b.IsEnabled).FirstOrDefault() is { } lk) { Raise(lk, ButtonBase.ClickEvent); Layout(view); }
+                        Check(s.Player.ShopLocked != locked, $"savaşta tezgâh kilitlenemedi ({view.DebugState}, faz {s.M.Phase}, kilit düğmesi {FindAll<Button>(view, b => T(b) == "han-lock").Count()}/{FindAll<Button>(view, b => T(b) == "han-lock" && b.IsEnabled).Count()}, depo {FindAll<FrameworkElement>(view, f => T(f) == "han-battle-bench").Count()})");
+                        if (FindAll<Button>(view, b => T(b) == "han-battle-shop" && b.IsEnabled).FirstOrDefault() is { } bs2) { Raise(bs2, ButtonBase.ClickEvent); Layout(view); }
+                        Check(!FindAll<FrameworkElement>(view, f => T(f) == "han-battle-bench").Any(), "tezgâh kapanınca depo satırı hâlâ duruyor");
+                        battleShops++;
+                        continue;
                     }
                     // depodaki birimleri masaya sür (masa dolu olsa da): hazırlıkta sınır esner, kilitte fazlası ayıklanır
                     if (s.M.Phase == Phase.Prep && modal.Count == 0 && s.Player.Bench.Any(c => c.Def.IsUnit) && rng.Next(10) == 0)
@@ -161,7 +185,8 @@ public static partial class UiSelfTest
         Check(deselects > 0, "boş yere tıklama hiç denenmedi");
         Check(swaps > 0, "sürükle-bırak takası hiç olmadı");
         Check(overfull > 0, "masa sınırı hiç aşılmadı");
-        Console.WriteLine($"Han Ligi: {games} maç, {totalRounds} round, {deselects} boş tıklama, {swaps} takas, {overfull} kez sınır aşıldı, {failures} hata.");
+        Check(battleShops > 0, "savaşta tezgâh hiç açılmadı");
+        Console.WriteLine($"Han Ligi: {games} maç, {totalRounds} round, {deselects} boş tıklama, {swaps} takas, {overfull} kez sınır aşıldı, {battleShops} kez savaşta tezgâh, {failures} hata.");
         return failures;
     }
 }

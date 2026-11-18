@@ -61,34 +61,40 @@ public class OverflowSwapTests
         Assert.Equal(5, p.Bench.Count());
         Assert.Equal(cards, p.Cards.Count);
         Assert.Equal(2, p.Overflowed.Count);
-        Assert.All(p.Overflowed, o => Assert.False(o.Lost));
+        Assert.All(p.Overflowed, o => Assert.False(o.Sold));
         Assert.Equal(start, Copies(m));
     }
 
     [Fact]
-    public void Overflow_burns_cards_when_the_bench_is_full()
+    public void Overflow_sells_cards_when_the_bench_is_full()
     {
         var m = Ready(6);
         var start = Copies(m);
         var p = Overfill(m, 2, Tuning.BenchSize);
         var cards = p.Cards.Count;
+        var gold = p.Gold;
         m.ForceLock();
         Assert.Equal(p.Slots, p.Used);
         Assert.Equal(Tuning.BenchSize, p.Bench.Count());
         Assert.Equal(cards - 2, p.Cards.Count);
-        Assert.Equal(2, p.Overflowed.Count(o => o.Lost));
-        Assert.Equal(start, Copies(m));   // yanan kartın kopyaları havuza döner
+        Assert.Equal(2, p.Overflowed.Count(o => o.Sold));
+        Assert.All(p.Overflowed, o => Assert.Equal(Tuning.SellValue(o.Def, o.Star), o.Gold));
+        Assert.Equal(gold + p.Overflowed.Sum(o => o.Gold), p.Gold);   // satış değeri altın olarak gelir
+        Assert.All(p.Overflowed, o => Assert.DoesNotContain(p.Cards, c => c.Uid == o.Uid));
+        Assert.Equal(start, Copies(m));   // satılan kartın kopyaları havuza döner
     }
 
     [Fact]
-    public void Overflow_fills_the_bench_then_burns_the_rest()
+    public void Overflow_fills_the_bench_then_sells_the_rest()
     {
         var m = Ready(8);
         var p = Overfill(m, 3, Tuning.BenchSize - 1);
         m.ForceLock();
         Assert.Equal(p.Slots, p.Used);
         Assert.Equal(Tuning.BenchSize, p.Bench.Count());
-        Assert.Equal(new[] { false, true, true }, p.Overflowed.Select(o => o.Lost).ToArray());
+        Assert.Equal(new[] { false, true, true }, p.Overflowed.Select(o => o.Sold).ToArray());
+        // depoya inen kart sahadakilerden rastgele seçilir: depoda, sahada değil
+        Assert.Equal(Zone.Bench, p.Cards.First(c => c.Uid == p.Overflowed[0].Uid).Zone);
     }
 
     [Fact]
@@ -99,12 +105,43 @@ public class OverflowSwapTests
             var m = Ready(seed);
             var p = Overfill(m, 3, 0);
             m.ForceLock();
-            return string.Join(",", p.Bench.Select(c => c.Uid).OrderBy(x => x));
+            return string.Join(",", p.Overflowed.Select(o => o.Uid));
         }
         Assert.Equal(Run(11), Run(11));
         Assert.Equal(Run(12), Run(12));
         // farklı tohumlar en az bir kez farklı kart seçer (rastgele, hep aynı kart değil)
         Assert.True(Enumerable.Range(20, 10).Select(Run).Distinct().Count() > 1);
+    }
+
+    [Fact]
+    public void Sold_overflow_choice_is_random_too()
+    {
+        // depo doluyken satılan kartlar da tohuma göre değişir (hep aynı kart değil)
+        string Run(int seed)
+        {
+            var m = Ready(seed);
+            var p = Overfill(m, 2, Tuning.BenchSize);
+            m.ForceLock();
+            return string.Join(",", p.Overflowed.Select(o => o.Def.Id + o.Uid));
+        }
+        Assert.True(Enumerable.Range(40, 12).Select(Run).Distinct().Count() > 1);
+    }
+
+    [Fact]
+    public void Shop_stays_the_same_from_prep_into_battle_and_rolls_at_next_prep()
+    {
+        var m = Ready(17, 2);
+        var p = m.Players[0];
+        var prep = p.Shop.Select(d => d?.Id).ToArray();
+        foreach (var x in m.Players) m.SetReady(x.Id);
+        Assert.Equal(Phase.Battle, m.Phase);
+        Assert.Equal(prep, p.Shop.Select(d => d?.Id).ToArray());   // savaşta aynı tezgâh
+        foreach (var b in m.Battles) { b.Start(); while (!b.Done) { b.Submit(0, WindowChoice.None); b.Submit(1, WindowChoice.None); b.Resolve(); } }
+        foreach (var b in m.Battles) m.Settle(b);
+        Assert.Equal(prep, p.Shop.Select(d => d?.Id).ToArray());   // savaş bitince de
+        Assert.True(m.EndRound());
+        Assert.Equal(Phase.Prep, m.Phase);
+        Assert.NotEqual(prep, p.Shop.Select(d => d?.Id).ToArray()); // yenileme yalnız sonraki hazırlığın başında
     }
 
     [Fact]

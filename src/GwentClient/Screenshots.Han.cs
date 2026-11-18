@@ -162,11 +162,17 @@ public static class HanShots
         if (s.Over || !s.Player.Alive) return;
         if (s.Player.RewardOptions.Length > 0) s.Act(HanActKind.Reward, 0);
         if (s.Player.PotionOptions.Length > 0) s.Act(HanActKind.Potion, 0);
+        // masa sınırını aş: depodaki birimler masaya (kilitte fazlası depoya iner ya da satılır; gidişleri görünür)
+        foreach (var c in s.Player.Bench.Where(c => c.Def.IsUnit).Take(3).ToList()) s.Act(HanActKind.Move, c.Uid, (int)Match.ZonesFor(c.Def).First(z => z != Zone.Ambush));
         var v = new HanView(s, () => { }, () => { }, animate: true);
         UiSelfTest.Layout(v);
         Pump(300);
+        save(v, "han_fx_t0_fazla_uyari.png");
         Click(v, "han-ready");
-        Pump(300);
+        // (görüntü kaydı yaklaşık bir saniye sürer: gidişin ortası tek kareyle alınır)
+        Pump(820, v.Engine);
+        save(v, "han_fx_t1_fazla_gidis.png");
+        Pump(1500, v.Engine);
         Click(v, "han-act-go");
         Pump(2600, v.Engine);
         UiSelfTest.Layout(v);
@@ -174,6 +180,18 @@ public static class HanShots
             if (UiSelfTest.FindAll<Button>(v, x => (x.Tag as string) == tag && x.IsEnabled).FirstOrDefault() is { } b) { UiSelfTest.Raise(b, ButtonBase.ClickEvent); UiSelfTest.Layout(v); break; }
         if (UiSelfTest.FindAll<Button>(v, x => (x.Tag as string)?.StartsWith("han-use:") == true).FirstOrDefault() is { } pot) { UiSelfTest.Raise(pot, ButtonBase.ClickEvent); UiSelfTest.Layout(v); }
         save(v, "han_fx_0_secim.png");
+        // savaşta tezgâh: alt şerit zar gibi dönerek depo satırına geçer (dönüşün ortası ve sonu), sonra geri döner
+        UiSelfTest.Raise(UiSelfTest.FindAll<Button>(v, x => (x.Tag as string) == "han-battle-shop").First(), ButtonBase.ClickEvent);
+        Pump(90, v.Engine);
+        save(v, "han_fx_s1_zar.png");
+        Pump(110, v.Engine);
+        save(v, "han_fx_s2_zar.png");
+        Pump(800, v.Engine);
+        save(v, "han_fx_s3_tezgah.png");
+        Click(v, "han-battle-shop");
+        Pump(240, v.Engine);
+        save(v, "han_fx_s4_zar_geri.png");
+        Pump(800, v.Engine);
         Click(v, "han-go");
         Pump(700, v.Engine);
         save(v, "han_fx_1_secimler.png");

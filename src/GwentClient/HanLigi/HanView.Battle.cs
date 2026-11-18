@@ -241,10 +241,13 @@ public sealed partial class HanView
         // ---- alt şerit ----
         if (behindResult) return;
         Put(Panel(1896, BarH, null, 0xec), 12, BarY);
-        if (activation) ActivationTray(b, me);
+        if (_battleShop) BattleBenchTray();   // savaşta tezgâh açık: şerit depo satırıdır (HanView.BattleShop.cs)
+        else if (activation) ActivationTray(b, me);
         else if (b.Done && !_busy) EndTray(b, me, op);
         else if (!_busy) SignTray(b, me);
         else ChoicesTray(b);
+        BattleShopButton();
+        if (_battleShop) ShopOverlay(null, new());
     }
 
     /// <summary>

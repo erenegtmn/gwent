@@ -38,6 +38,7 @@ public sealed partial class HanView
         _engine.Clear();
         _banner.Children.Clear();
         _screen = Screen.Prep;
+        _battleShop = false;
         _sel = null;
         _waitReady = false;
         _shopOpen = true;
@@ -89,24 +90,93 @@ public sealed partial class HanView
         _scoreShown = (-1, -1);
         StopTimer();
         EndDrag();
+        // fazla kartların hazırlık masasındaki yerleri (ekran baştan çizilmeden önce): oradan depoya ya da satışa giderler
+        var leaving = Me.Overflowed.Select(o => (o, _ownEls.TryGetValue(o.Uid, out var el) ? StageBounds(el) : null)).ToList();
         if (Session.MyBattle is not { } b) { _screen = Screen.Final; Render(); return; }
         _act = b.DefaultActivation(Session.MySide);
         _screen = Screen.Activation;
+        _battleShop = false;
         _weatherShown.Clear();
         _hold = 0;
         _sel = null;
         Sfx.Play("lock_in");
         StartTimer(HanTimes.Activation, OnActivationDone);
         Render();
-        if (_live) VsIntro(b);
-        // masa sınırı aşılmıştı: kilitte rastgele seçilen fazla kartlar
-        if (_live && Me.Overflowed.Count > 0)
+        // masa sınırı aşılmıştı: kilitte rastgele seçilen fazla kartlar masadaki yerlerinden depoya ya da satışa gider; VS girişi
+        // onlardan sonra gelir (karartma gidişleri örtmesin)
+        if (_live && leaving.Count > 0)
         {
-            var down = Me.Overflowed.Where(o => !o.Lost).Select(o => o.Def.Name).ToList();
-            var lost = Me.Overflowed.Where(o => o.Lost).Select(o => o.Def.Name).ToList();
-            if (down.Count > 0) Toast("Masa sınırı: " + string.Join(", ", down) + " depoya indi", HanUi.Gold, 400);
-            if (lost.Count > 0) Toast("Depo dolu: " + string.Join(", ", lost) + " yandı", HanUi.Bad, 900);
+            OverflowLeave(leaving);
+            var gen = _gen;
+            Fx.After(250 + leaving.Count * 380 + 1000, () => { if (gen == _gen && _screen == Screen.Activation && Session.MyBattle == b) VsIntro(b); });
         }
+        else if (_live) VsIntro(b);
+    }
+
+    /// <summary>
+    /// Fazla kartların gidişi: her kart masadaki yerinde kırmızı çerçeveyle belirir ("Fazla"), sonra sırayla depoya (alt şeride
+    /// süzülüp küçülerek) ya da satışa (yükselip sönerek, "+n altın") gider; böylece hangi kartın gittiği görülür. Yeri
+    /// bilinmeyen kart alt şeridin üstünden başlar. Özet bildirim de çıkar.
+    /// </summary>
+    private void OverflowLeave(List<(OverflowCard Card, Rect? From)> leaving)
+    {
+        var gen = _gen;
+        for (var i = 0; i < leaving.Count; i++)
+        {
+            var (o, from) = leaving[i];
+            var r = from ?? new Rect(900 + i * 40, BarY - 190, 100, 140);
+            var w = Math.Clamp(r.Width, 70, 140);
+            var g = new Grid { Width = w, Height = w * HanCardView.CardAspect, IsHitTestVisible = false, RenderTransformOrigin = new Point(0.5, 0.5), Opacity = 0 };
+            g.Children.Add(new HanCardView(o.Def, o.Star, w) { IsHitTestVisible = false });
+            g.Children.Add(new Border { BorderBrush = HanUi.Br(HanUi.Bad), BorderThickness = new Thickness(3), CornerRadius = new CornerRadius(6), Effect = new DropShadowEffect { Color = HanUi.Bad, BlurRadius = 14, ShadowDepth = 0, Opacity = 0.9 } });
+            var tag = HanUi.Shadow(HanUi.Label(o.Sold ? "Fazla · satıldı" : "Fazla · depoya", 11, HanUi.Br(HanUi.Bad)));
+            tag.HorizontalAlignment = HorizontalAlignment.Center;
+            tag.VerticalAlignment = VerticalAlignment.Top;
+            tag.Margin = new Thickness(-40, -20, -40, 0);
+            g.Children.Add(tag);
+            var start = new Point(r.X + r.Width / 2 - w / 2, r.Y + r.Height / 2 - g.Height / 2);
+            Canvas.SetLeft(g, start.X);
+            Canvas.SetTop(g, start.Y);
+            var move = new TranslateTransform();
+            var scale = new ScaleTransform(1, 1);
+            g.RenderTransform = new TransformGroup { Children = { scale, move } };
+            _fx.Children.Add(g);
+            var delay = 250 + i * 380;
+            var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
+            // belir, kısa dur, git, sön
+            g.BeginAnimation(OpacityProperty, new DoubleAnimationUsingKeyFrames
+            {
+                BeginTime = TimeSpan.FromMilliseconds(delay), Duration = TimeSpan.FromMilliseconds(1250),
+                KeyFrames = { new LinearDoubleKeyFrame(0, KeyTime.FromPercent(0)), new LinearDoubleKeyFrame(1, KeyTime.FromPercent(0.12)), new LinearDoubleKeyFrame(1, KeyTime.FromPercent(0.8)), new LinearDoubleKeyFrame(0, KeyTime.FromPercent(1)) }
+            });
+            Vector to;
+            double endScale;
+            if (o.Sold) { to = new Vector(0, -90); endScale = 0.55; }
+            else { to = new Point(BenchX + 120 + (i % 6) * 120, BarY + 40) - start; endScale = 0.7; }   // depo: alt şeridin depo bölümüne
+            var go = TimeSpan.FromMilliseconds(delay + 420);
+            var flight = TimeSpan.FromMilliseconds(760);
+            move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, to.X, flight) { BeginTime = go, EasingFunction = ease });
+            move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, to.Y, flight) { BeginTime = go, EasingFunction = ease });
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, endScale, flight) { BeginTime = go, EasingFunction = ease });
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, endScale, flight) { BeginTime = go, EasingFunction = ease });
+            var oo = o;
+            var center = new Point(start.X + w / 2 + to.X, start.Y + g.Height / 2 + to.Y);
+            Fx.After(delay + 980, () =>
+            {
+                if (gen != _gen) return;
+                if (oo.Sold)
+                {
+                    Sfx.Play("han_sell");
+                    HanArt.FloatText(_fx, $"+{oo.Gold} altın", new Point(center.X, center.Y - 30), Color.FromRgb(0xff, 0xd7, 0x6a), 24, 1300);
+                }
+                else Sfx.Play("han_place");
+            });
+            Fx.After(delay + 1300, () => _fx.Children.Remove(g));
+        }
+        var down = leaving.Where(x => !x.Card.Sold).Select(x => x.Card.Def.Name).ToList();
+        var sold = leaving.Where(x => x.Card.Sold).ToList();
+        if (down.Count > 0) Toast("Fazla kart: " + string.Join(", ", down) + " depoya indi", HanUi.Gold, 400);
+        if (sold.Count > 0) Toast("Depo dolu: " + string.Join(", ", sold.Select(x => x.Card.Def.Name)) + $" satıldı (+{sold.Sum(x => x.Card.Gold)} altın)", HanUi.Bad, 900);
     }
 
     private void Do(Func<bool> action, string sfx = "han_place")
@@ -127,7 +197,7 @@ public sealed partial class HanView
         if (Me.RewardOptions.Length > 0 && Me.Bench.Count() >= Tuning.BenchSize) return ("Ödül kartın bekliyor: depoda yer aç (bir kartı masaya sür ya da sat).", Theme.B("#ffb070"));
         if (Me.RewardOptions.Length > 0) return ("Ödülünü seç: üç karttan birini al.", null);
         if (Me.Overfull && _sel == null)
-            return ($"Masa sınırı aşıldı ({Me.Used}/{Me.Slots}): süre bitince fazla {Me.Used - Me.Slots} kart rastgele depoya iner, depo doluysa yanar.", HanUi.Br(HanUi.Bad));
+            return ($"Masa sınırı aşıldı ({Me.Used}/{Me.Slots}): süre bitince fazla {Me.Used - Me.Slots} kart rastgele depoya iner, depo doluysa satılır.", HanUi.Br(HanUi.Bad));
         if (_sel is { } uid && Me.Cards.FirstOrDefault(c => c.Uid == uid) is { } c)
             return (c.Fielded ? $"{c.Def.Name}: depoya al, başka yere taşı ya da sat. Boş yere tıkla: vazgeç." : $"{c.Def.Name}: parlayan yere koy ya da sat. Boş yere tıkla: vazgeç.", Theme.B("#ffe9a3"));
         var free = Me.Slots - Me.Used;
@@ -264,6 +334,24 @@ public sealed partial class HanView
         PotionsAndAmbush(sel, Mine);
 
         // ---- alt şerit ----
+        // fazla kart uyarısı: şeridin hemen üstünde, masanın ortasında (sol alttaki sayı gözden kaçıyordu)
+        if (Me.Overfull)
+        {
+            var extra = Me.Used - Me.Slots;
+            var warn = new StackPanel { Orientation = Orientation.Horizontal };
+            warn.Children.Add(HanUi.Shadow(HanUi.Title("Fazla kart var", 22, HanUi.Br(Color.FromRgb(0xff, 0x8a, 0x5c)))));
+            var sub = HanUi.Shadow(HanUi.T($"   {Me.Used}/{Me.Slots} · süre bitince {extra} kart rastgele depoya iner{(Me.Bench.Count() + extra > Tuning.BenchSize ? ", sığmayan satılır" : "")}", 15, HanUi.Br(Color.FromRgb(0xff, 0xc0, 0x9a))));
+            sub.VerticalAlignment = VerticalAlignment.Center;
+            warn.Children.Add(sub);
+            // hafif saydam koyu şerit: masadaki kartların üstünde de okunur
+            var pill = new Border
+            {
+                Child = warn, Padding = new Thickness(18, 2, 18, 3), CornerRadius = new CornerRadius(14), IsHitTestVisible = false, Opacity = 0.9, Tag = "han-overfull",
+                Background = Theme.B("#c0140806"), BorderBrush = HanUi.Br(Color.FromRgb(0xff, 0x8a, 0x5c), 0x90), BorderThickness = new Thickness(1)
+            };
+            pill.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Put(pill, RowX + RowW / 2 - pill.DesiredSize.Width / 2, BarY - pill.DesiredSize.Height - 4);
+        }
         Put(Panel(1896, BarH, null, 0xec), 12, BarY);
         var shopEls = new List<FrameworkElement>();
         Economy(sel);
@@ -416,7 +504,7 @@ public sealed partial class HanView
         if (_live && _lastLevel >= 0 && _lastLevel != Me.Level) { Pop(lv); Sfx.Play("han_levelup"); }
     }
 
-    private const string OverTip = "Hazırlıkta sınırdan fazla kart koyabilirsin; süre bitince fazlası rastgele seçilip depoya iner, depo doluysa yanar.";
+    private const string OverTip = "Hazırlıkta sınırdan fazla kart koyabilirsin; süre bitince fazlası rastgele seçilip depoya iner, depo doluysa satılır.";
 
     /// <summary>Online hazırlık: Hazır düğmesinin yerinde, hazırlığın ortak süreyle bittiğini anlatan not.</summary>
     private FrameworkElement OnlinePrepNote()
@@ -523,7 +611,8 @@ public sealed partial class HanView
 
     private void ToggleLock()
     {
-        if (_screen != Screen.Prep) return;
+        // hazırlıkta ve savaşta (tezgâha bakarken); savaş adımı çözülürken yeniden çizim olmaz
+        if (_screen is not (Screen.Prep or Screen.Activation or Screen.Battle) || (_screen != Screen.Prep && (_busy || !BattleShopAllowed))) return;
         Do(() => Session.Act(HanActKind.LockShop), "han_click");
     }
 
@@ -563,10 +652,15 @@ public sealed partial class HanView
         _shop.Children.Add(head);
         // sol: yenile, sağ: kapat
         var rc = M.RerollCost(Session.Me);
-        var rr = Act("", rc == 0 ? "bedava" : $"{rc} altın", "han-reroll-band", () => Do(() => Session.Act(HanActKind.Reroll), "han_reroll"), HanButtonKind.Ghost, 64, 64, Me.Gold >= rc, "Yenile (R): tezgâha beş yeni kart gelir.", HanGlyph.Reroll(26));
-        Canvas.SetLeft(rr, bx + 18);
-        Canvas.SetTop(rr, ShopBandY + (ShopBandH - 64) / 2);
-        _shop.Children.Add(rr);
+        // savaşta tezgâha yalnız bakılır ve kilitlenir: yenileme ve alım yok
+        var browse = _screen != Screen.Prep;
+        if (!browse)
+        {
+            var rr = Act("", rc == 0 ? "bedava" : $"{rc} altın", "han-reroll-band", () => Do(() => Session.Act(HanActKind.Reroll), "han_reroll"), HanButtonKind.Ghost, 64, 64, Me.Gold >= rc, "Yenile (R): tezgâha beş yeni kart gelir.", HanGlyph.Reroll(26));
+            Canvas.SetLeft(rr, bx + 18);
+            Canvas.SetTop(rr, ShopBandY + (ShopBandH - 64) / 2);
+            _shop.Children.Add(rr);
+        }
         var lk = LockButton(40, 40, "han-lock-band");
         Canvas.SetLeft(lk, bx + bw - 58);
         Canvas.SetTop(lk, ShopBandY + (ShopBandH - 40) / 2 - 22);
@@ -578,7 +672,7 @@ public sealed partial class HanView
             Canvas.SetTop(note, ShopBandY - 22);
             _shop.Children.Add(note);
         }
-        var close = Act("✕", null, "han-shop-close", ToggleShop, HanButtonKind.Ghost, 40, 40, true, "Kapat (Boşluk)");
+        var close = Act("✕", null, "han-shop-close", browse ? ToggleBattleShop : ToggleShop, HanButtonKind.Ghost, 40, 40, !browse || !_busy, "Kapat (Boşluk)");
         Canvas.SetLeft(close, bx + bw - 58);
         Canvas.SetTop(close, ShopBandY + (ShopBandH - 40) / 2 + 22);
         _shop.Children.Add(close);
@@ -600,9 +694,10 @@ public sealed partial class HanView
             _shop.Children.Add(ped);
             if (Me.Shop[i] is not { } d) continue;
             // alınamayan kart (altın yetmiyor ya da depo dolu) soluk ve tıklanamaz; durum değişince (satış, gelir) yeniden çizimde açılır
-            var can = M.CanBuy(Session.Me, i);
+            var can = !browse && M.CanBuy(Session.Me, i);
             void Buy() => Do(() => Session.Act(HanActKind.Buy, idx), "han_buy");
-            var card = CardEl(d, 1, DesignW, can ? "han-shop:" + i : "han-shop-off:" + i, can ? Buy : null, dim: !can, plain: true);
+            // savaşta (yalnız bakış) kartlar soluk değil, tıklanmaz
+            var card = CardEl(d, 1, DesignW, browse ? "han-shop-view:" + i : can ? "han-shop:" + i : "han-shop-off:" + i, can ? Buy : null, dim: !can && !browse, plain: true);
             card.CacheMode = new BitmapCache(Math.Max(1, k)) { SnapsToDevicePixels = true };
             var holder = new Grid { Width = DesignW, Height = DesignH, RenderTransformOrigin = new Point(0.5, 1) };
             var bob = new TranslateTransform();
@@ -620,7 +715,7 @@ public sealed partial class HanView
                 holder.MouseLeave += (_, _) => bob.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(140)) { EasingFunction = ease });
             }
             // bantta bilgi: ad ★ · yetenek · sınıflar · fiyat (tıklayınca da alınır)
-            var info = new StackPanel { Width = ShopCardW + ShopGap - 8, Background = Brushes.Transparent, Cursor = can ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow, Opacity = can ? 1 : 0.45 };
+            var info = new StackPanel { Width = ShopCardW + ShopGap - 8, Background = Brushes.Transparent, Cursor = can ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow, Opacity = can || browse ? 1 : 0.45 };
             var name = HanUi.Title(d.Name, 16.5, d.IsHero ? HanUi.GoldText : HanUi.Br(HanUi.Parchment), TextAlignment.Center);
             name.HorizontalAlignment = HorizontalAlignment.Center;
             info.Children.Add(name);
@@ -636,7 +731,7 @@ public sealed partial class HanView
             info.Children.Add(cls);
             var price = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 3, 0, 0) };
             price.Children.Add(HanArt.Icon("icon_crowns", 20, "◉"));
-            price.Children.Add(HanUi.Number(" " + d.Price, 18, can ? HanUi.GoldText : HanUi.Br(HanUi.Bad)));
+            price.Children.Add(HanUi.Number(" " + d.Price, 18, can || browse ? HanUi.GoldText : HanUi.Br(HanUi.Bad)));
             info.Children.Add(price);
             info.MouseLeftButtonUp += (_, e) => { e.Handled = true; if (can) Buy(); };
             Canvas.SetLeft(info, cx - info.Width / 2);

@@ -22,6 +22,9 @@ public sealed class OwnedCard
 
 public enum OpponentKind { Player, Ghost, Pve }
 
+/// <summary>Kilitte masa sınırını aşıp sahadan çıkan kart: depoya indi ya da (depo doluysa) <paramref name="Gold"/> altına satıldı.</summary>
+public sealed record OverflowCard(int Uid, CardDef Def, int Star, bool Sold, int Gold);
+
 public sealed class PlayerState
 {
     public int Id { get; init; }
@@ -56,8 +59,8 @@ public sealed class PlayerState
     public int Streak { get; set; }
     /// <summary>Tezgâh kilitli: sonraki round'un başında tezgâh yenilenmez, kalan kartlar aynen durur (bir kez).</summary>
     public bool ShopLocked { get; set; }
-    /// <summary>Son kilitte masa sınırını aşan kartlar: depoya giden (<c>Lost</c> false) ya da depo dolu olduğu için yanan (true).</summary>
-    public List<(CardDef Def, int Star, bool Lost)> Overflowed { get; } = new();
+    /// <summary>Son kilitte masa sınırını aşan kartlar (seçilme sırasıyla): depoya inen ya da depo dolu olduğu için satılan.</summary>
+    public List<OverflowCard> Overflowed { get; } = new();
 
     public int Slots => Tuning.Slots(Level);
     public int PotionCap => School is HanLigi.School.Viper or HanLigi.School.Manticore ? 3 : 2;
@@ -327,11 +330,14 @@ public sealed class Match
         return true;
     }
 
-    /// <summary>Tezgâhı kilitler ya da kilidi açar: kilitliyse sonraki round tezgâh yenilenmez.</summary>
+    /// <summary>
+    /// Tezgâhı kilitler ya da kilidi açar: kilitliyse sonraki round tezgâh yenilenmez. Hazırlıkta ve <b>savaş sırasında</b> da
+    /// yapılabilir (oyuncu savaşta tezgâha bakıp kalan kartları sonraki round'a saklayabilir); yalnız yaşayan oyuncu.
+    /// </summary>
     public bool ToggleShopLock(int pid)
     {
         var p = Players[pid];
-        if (!InPrep(p)) return false;
+        if (!p.Alive || Phase is not (Phase.Prep or Phase.Battle)) return false;
         p.ShopLocked = !p.ShopLocked;
         return true;
     }
@@ -603,7 +609,7 @@ public sealed class Match
     /// <summary>
     /// Kilitte masa sınırını uygular (§15.4): önce pusu sınırını aşan pusu kartı kendi satırına çıkar; sonra masa sınırını aşan
     /// kartlar (satırlar + özel kartlar) <b>tohumlu rastgelelikle tek tek</b> seçilir: depoda yer varsa depoya gider, yoksa kart
-    /// yanar (ceza; kopyaları havuza döner). Bir kartın çıkması eşik kaybettirip pusu sınırını düşürebilir; sınırlar oturana
+    /// <b>satılır</b> (satış değeri altın, kopyaları havuza döner). Bir kartın çıkması eşik kaybettirip pusu sınırını düşürebilir; sınırlar oturana
     /// kadar sürer.
     /// </summary>
     private void TrimOverflow(PlayerState p)
@@ -615,9 +621,11 @@ public sealed class Match
             if (p.Used <= p.Slots) return;
             var over = p.Cards.Where(c => c.TakesSlot).ToList();
             var c = over[_misc.Next(over.Count)];
-            var lost = p.Bench.Count() >= Tuning.BenchSize;
-            p.Overflowed.Add((c.Def, c.Star, lost));
-            if (!lost) { c.Zone = Zone.Bench; c.Aim = null; continue; }
+            var sold = p.Bench.Count() >= Tuning.BenchSize;
+            var gold = sold ? Tuning.SellValue(c.Def, c.Star) : 0;
+            p.Overflowed.Add(new OverflowCard(c.Uid, c.Def, c.Star, sold, gold));
+            if (!sold) { c.Zone = Zone.Bench; c.Aim = null; continue; }
+            p.Gold += gold;
             Pool[c.Def.Id] += c.Def.IsHero ? 1 : c.Star == 1 ? 1 : c.Star == 2 ? 3 : 9;
             p.Cards.Remove(c);
         }

@@ -324,6 +324,13 @@ public sealed partial class HanView : Grid
         }
         if (_exitAsk) return;
         if (_screen == Screen.Result && !_help && e.Key is Key.Enter or Key.Space) { e.Handled = true; EnterPrep(); return; }
+        // savaşta: Boşluk tezgâh (alt şerit depo satırına döner), L kilit
+        if (_screen is Screen.Activation or Screen.Battle && !_help && !_busy && e.Key is Key.Space or Key.L)
+        {
+            e.Handled = true;
+            if (e.Key == Key.Space) ToggleBattleShop(); else if (_battleShop) ToggleLock();
+            return;
+        }
         if (_screen != Screen.Prep || _busy || _help) return;
         if (Me.PotionOptions.Length > 0 || Me.RewardOptions.Length > 0) return;
         switch (e.Key)

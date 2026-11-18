@@ -105,6 +105,28 @@ public class RulesV2Tests
     }
 
     [Fact]
+    public void Shop_can_be_locked_during_the_battle()
+    {
+        var m = Ready(11, 2);
+        var p = m.Players[0];
+        var expect = p.Shop.Select(d => d?.Id).ToArray();
+        foreach (var x in m.Players) m.SetReady(x.Id);
+        Assert.Equal(Phase.Battle, m.Phase);
+        Assert.False(m.Reroll(p.Id));                                   // savaşta yalnız kilit: alım/yenileme yok
+        Assert.False(m.Buy(p.Id, 0));
+        Assert.True(m.ToggleShopLock(p.Id));
+        Assert.True(m.ToggleShopLock(p.Id));                            // aç / kapa
+        Assert.True(m.ToggleShopLock(p.Id));
+        foreach (var b in m.Battles) { b.Start(); while (!b.Done) { b.Submit(0, WindowChoice.None); b.Submit(1, WindowChoice.None); b.Resolve(); } }
+        Assert.True(m.ToggleShopLock(p.Id) && m.ToggleShopLock(p.Id)); // savaş bittikten sonra da (round kapanana kadar)
+        Assert.True(m.EndRound());
+        Assert.Equal(expect, p.Shop.Select(d => d?.Id).ToArray());
+        // elenmiş oyuncu ve bitmiş maç kilitleyemez
+        p.Alive = false;
+        Assert.False(m.ToggleShopLock(p.Id));
+    }
+
+    [Fact]
     public void Horn_row_chosen_in_prep_is_the_battle_default()
     {
         var m = Ready(4, 2);
