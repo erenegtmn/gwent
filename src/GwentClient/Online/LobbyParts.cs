@@ -13,7 +13,7 @@ internal static class LobbyParts
     {
         var panel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right };
         var codeRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Tag = "lobby-code" };
-        var codeLabel = Ui.Text(label, 13, Theme.TextDim, true);
+        var codeLabel = Ui.Text(Ornate.Sentence(label), 16, Theme.B("#c9b27a"), true);
         codeLabel.VerticalAlignment = VerticalAlignment.Center;
         codeLabel.Margin = new Thickness(0, 0, 16, 0);
         codeRow.Children.Add(codeLabel);
@@ -52,7 +52,7 @@ internal static class LobbyParts
         }
         var best = invites[0];
         var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
-        var label = Ui.Text("DAVET KODU", 13, Theme.TextDim, true);
+        var label = Ui.Text("Davet kodu", 16, Theme.B("#c9b27a"), true);
         label.VerticalAlignment = VerticalAlignment.Center;
         label.Margin = new Thickness(0, 0, 16, 0);
         row.Children.Add(label);

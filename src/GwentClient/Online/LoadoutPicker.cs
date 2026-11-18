@@ -55,7 +55,7 @@ public sealed class LoadoutPicker : StackPanel
 
     private static TextBlock Label(string t)
     {
-        var l = Ui.Text(Ornate.Spaced(t), 13, Theme.B("#a8905a"), true);
+        var l = Ui.Text(Ornate.Spaced(t), 16, Theme.B("#c9b27a"), true);
         l.Margin = new Thickness(0, 14, 0, 8);
         return l;
     }

@@ -31,7 +31,7 @@ public sealed class BracketView : Grid
         _c = controller;
         _leave = leave;
         _toMenu = toMenu;
-        Children.Add(Ornate.Stage(_host, "pano_novigrad"));
+        Children.Add(Ornate.Stage(_host, HubArt.Wide("online", "pano_novigrad"), 1.05));
         _c.Link.TournamentChanged += OnState;
         Unloaded += (_, _) => { _c.Link.TournamentChanged -= OnState; _timer?.Stop(); };
         Rebuild();
@@ -104,7 +104,7 @@ public sealed class BracketView : Grid
             var x = m.Round * (CardW + ColGap);
             if (m.Index == 0)
             {
-                var title = Ui.Text(Ornate.Spaced(RoundName(m.Round, rounds)), 13, Theme.B("#a8905a"), true, TextAlignment.Center);
+                var title = Ui.Text(Ornate.Spaced(RoundName(m.Round, rounds)), 16, Theme.B("#c9b27a"), true, TextAlignment.Center);
                 title.Width = CardW;
                 Canvas.SetLeft(title, x);
                 Canvas.SetTop(title, -6);

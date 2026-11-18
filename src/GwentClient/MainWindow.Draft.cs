@@ -13,7 +13,7 @@ public partial class MainWindow
         Host.Content = new DraftView(save, () => StartDraftMatch(save), () =>
         {
             _career = null;   // draft ödülü Collect 'Em All kesesine diskten yazıldı: bellekteki kopya yeniden okunsun
-            ShowMenu();
+            ShowPlayHub();
         }, last);
     }
 

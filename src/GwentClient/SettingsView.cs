@@ -61,43 +61,95 @@ public sealed class SettingsView : Grid
         _back = onBack;
         Background = embedded ? Brushes.Transparent : Theme.Bg;   // oyun içinde: oyun alanının üstünde yüzer
         ClipToBounds = true;
+        void Back() { Settings.Save(); _back(); }
 
-        var root = new StackPanel { Width = 760 };
-        root.Children.Add(Ornate.Heading("Ayarlar", "Ses, müzik ve görüntü"));
-        root.Children.Add(Ornate.Rule(560, 16));
-        ((FrameworkElement)root.Children[^1]).HorizontalAlignment = HorizontalAlignment.Left;
-
-        root.Children.Add(VolumeRow("Ses efektleri", () => Sfx.Enabled, v => Sfx.Enabled = v, () => Settings.SfxVolume,
-            v => Settings.SfxVolume = v, () => Sfx.Play("lock_in")));
-        root.Children.Add(VolumeRow("Müzik", () => Music.Enabled, v => { if (v != Music.Enabled) Music.Toggle(); }, () => Settings.MusicVolume,
-            v => { Settings.MusicVolume = v; Music.ApplyVolume(); }, null));
-        root.Children.Add(MusicPanel());
-        root.Children.Add(ToggleRow("Tam ekran", "F11 ile de değiştirebilirsin", () => Settings.Fullscreen, v =>
+        UIElement SfxRow() => VolumeRow("Ses efektleri", () => Sfx.Enabled, v => Sfx.Enabled = v, () => Settings.SfxVolume,
+            v => Settings.SfxVolume = v, () => Sfx.Play("lock_in"));
+        UIElement MusicRow() => VolumeRow("Müzik", () => Music.Enabled, v => { if (v != Music.Enabled) Music.Toggle(); }, () => Settings.MusicVolume,
+            v => { Settings.MusicVolume = v; Music.ApplyVolume(); }, null);
+        UIElement FullRow() => ToggleRow("Tam ekran", "F11 ile de değiştirebilirsin", () => Settings.Fullscreen, v =>
         {
             Settings.Fullscreen = v;
             if (Application.Current.MainWindow is { } w) Settings.ApplyWindow(w);
-        }));
+        });
 
-        var backBtn = Ui.Button("Geri", () => { Settings.Save(); _back(); }, primary: true);
-        backBtn.FontSize = 20;
-        backBtn.Padding = new Thickness(44, 12, 44, 12);
-        backBtn.HorizontalAlignment = HorizontalAlignment.Left;
-        backBtn.Margin = new Thickness(0, 26, 0, 0);
-        root.Children.Add(backBtn);
+        if (embedded)
+        {
+            // Oyun içi: tek, sıkı panel (masanın üstünde yüzer)
+            var root = new StackPanel { Width = 760 };
+            root.Children.Add(Ornate.Heading("Ayarlar", "Ses, müzik ve görüntü"));
+            root.Children.Add(Ornate.Rule(560, 16));
+            ((FrameworkElement)root.Children[^1]).HorizontalAlignment = HorizontalAlignment.Left;
+            root.Children.Add(SfxRow());
+            root.Children.Add(MusicRow());
+            root.Children.Add(MusicPanel(false));
+            root.Children.Add(FullRow());
+            var backBtn = Ui.Button("Geri", Back, primary: true);
+            backBtn.FontSize = 20;
+            backBtn.Padding = new Thickness(44, 12, 44, 12);
+            backBtn.HorizontalAlignment = HorizontalAlignment.Left;
+            backBtn.Margin = new Thickness(0, 26, 0, 0);
+            root.Children.Add(backBtn);
+            var panel = Ornate.Panel(root, new Thickness(54, 42, 54, 46));
+            panel.HorizontalAlignment = HorizontalAlignment.Center;
+            panel.VerticalAlignment = VerticalAlignment.Center;
+            Children.Add(panel);
+            Ornate.Reveal(root.Children.Cast<UIElement>());
+            KeyDown += (_, e) => { if (e.Key == Key.Escape) Back(); };
+            Focusable = true;
+            Loaded += (_, _) => Focus();
+            return;
+        }
 
-        var panel = Ornate.Panel(root, new Thickness(54, 42, 54, 46));
-        panel.HorizontalAlignment = HorizontalAlignment.Center;
-        panel.VerticalAlignment = VerticalAlignment.Center;
-        if (embedded) Children.Add(panel);
-        else Children.Add(Ornate.Stage(panel));
-        Ornate.Reveal(root.Children.Cast<UIElement>());
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) { Settings.Save(); _back(); } };
-        Focusable = true;
-        Loaded += (_, _) => Focus();
+        // Tam ekran: solda gruplanmış ayarlar, sağda müzik çalar (ARAYUZ.md)
+        var settings = new StackPanel();
+        settings.Children.Add(Section("Ses", "Değişiklik hemen uygulanır ve kaydedilir."));
+        settings.Children.Add(SfxRow());
+        settings.Children.Add(MusicRow());
+        settings.Children.Add(Section("Görüntü", null));
+        settings.Children.Add(FullRow());
+
+        var player = new StackPanel();
+        player.Children.Add(Section("Şimdi çalıyor", null, 0));
+        player.Children.Add(MusicPanel(true));
+
+        var left = Ornate.Panel(settings, new Thickness(50, 34, 50, 40), 20, 54);
+        var right = Ornate.Panel(player, new Thickness(44, 34, 44, 40), 20, 54);
+        var cols = new Grid { MaxWidth = 1560, Margin = new Thickness(44, 20, 44, 30), VerticalAlignment = VerticalAlignment.Top };
+        cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(11, GridUnitType.Star) });
+        cols.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(7, GridUnitType.Star) });
+        left.Margin = new Thickness(0, 0, 14, 0);
+        right.Margin = new Thickness(14, 0, 0, 0);
+        left.VerticalAlignment = VerticalAlignment.Top;
+        right.VerticalAlignment = VerticalAlignment.Top;
+        Grid.SetColumn(right, 1);
+        cols.Children.Add(left);
+        cols.Children.Add(right);
+
+        var backdrop = new HubBackdrop(Ornate.Animate);
+        backdrop.Show(HubArt.Wide("gwent", "pano_kaer_morhen"));
+        var screen = HubKit.Screen(new ScrollViewer { Content = cols, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }, backdrop,
+            new (string, Action?)[] { ("Ayarlar", null) }, Back, null, hints: new[] { "Esc|Geri" });
+        Children.Add(screen);
+        Ornate.Reveal(new UIElement[] { left, right }, 30, 60, 120, 560);
+    }
+
+    /// <summary>Bölüm başlığı: büyük altın ad, istenirse altında kısa açıklama, ince ayraç.</summary>
+    private static UIElement Section(string title, string? sub, double top = 18)
+    {
+        var sp = new StackPanel { Margin = new Thickness(0, top, 0, 6) };
+        var t = Ui.Text(title, 30, Theme.B("#f0d890"), true);
+        t.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 2, Opacity = 0.9 };
+        sp.Children.Add(t);
+        if (sub != null) sp.Children.Add(Ui.Text(sub, 15, Theme.TextDim));
+        var rule = Ornate.Rule(420, 8);
+        rule.HorizontalAlignment = HorizontalAlignment.Left;
+        sp.Children.Add(rule);
+        return sp;
     }
 
     /// <summary>Müzik: şimdi çalan parça, önceki/sonraki, karışık çalma ve (açılır) parça listesi. Çalan parça değişince kendiliğinden güncellenir.</summary>
-    private UIElement MusicPanel()
+    private UIElement MusicPanel(bool large)
     {
         var box = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
         if (Music.Tracks.Count == 0)
@@ -105,14 +157,14 @@ public sealed class SettingsView : Grid
             box.Children.Add(Ui.Text("Müzik dosyası bulunamadı (assets/music).", 15, Theme.TextDim));
             return box;
         }
-        var now = Ui.Text("", 18, Theme.B("#f0d890"), true);
+        var now = Ui.Text("", large ? 26 : 18, Theme.B("#f0d890"), true);
         now.TextTrimming = TextTrimming.CharacterEllipsis;
         now.Tag = "music-now";
         var row = new Grid { Margin = new Thickness(0, 0, 0, 4) };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        left.Children.Add(Ui.Text(Ornate.Spaced("ŞİMDİ ÇALIYOR"), 12, Theme.B("#a8905a"), true));
+        if (!large) left.Children.Add(Ui.Text("Şimdi çalıyor", 16, Theme.B("#c9b27a"), true));
         left.Children.Add(now);
         row.Children.Add(left);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -131,7 +183,7 @@ public sealed class SettingsView : Grid
         box.Children.Add(row);
 
         // Açılır parça listesi
-        var list = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 4) };
+        var list = new StackPanel { Visibility = large ? Visibility.Visible : Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 4) };
         var rows = new List<(TextBlock Text, int Index)>();
         for (var i = 0; i < Music.Tracks.Count; i++)
         {
@@ -152,7 +204,18 @@ public sealed class SettingsView : Grid
             list.Visibility = list.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
             toggle.Text = $"Parçalar ({Music.Tracks.Count}) " + (list.Visibility == Visibility.Visible ? "▴" : "▾");
         };
-        box.Children.Add(toggle);
+        if (large)
+        {
+            // Büyük çalarda liste hep açık: ad ve düğmeler üstte, altında parçalar
+            row.ColumnDefinitions.Clear();
+            Grid.SetColumn(buttons, 0);
+            row.Children.Remove(buttons);
+            buttons.Margin = new Thickness(-8, 12, 0, 6);
+            box.Children.Add(buttons);
+            box.Children.Add(Ui.Text($"Parçalar ({Music.Tracks.Count})", 16, Theme.B("#c9b27a"), true));
+            ((FrameworkElement)box.Children[^1]).Margin = new Thickness(0, 14, 0, 2);
+        }
+        else box.Children.Add(toggle);
         box.Children.Add(list);
 
         void Sync()

@@ -93,6 +93,13 @@ public partial class App : Application
             Shutdown(UiSelfTest.RunOnlineDraftCheck());
             return;
         }
+        if (e.Args.Contains("--selftest-hub"))
+        {
+            Sfx.Enabled = false;
+            Ornate.Animate = false;
+            Shutdown(UiSelfTest.RunHubCheck());
+            return;
+        }
         if (e.Args.Contains("--selftest-draft"))
         {
             Sfx.Enabled = false;

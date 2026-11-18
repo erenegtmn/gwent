@@ -183,7 +183,7 @@ public sealed class VsScreen : Grid
         sp.Children.Add(portrait);
 
         // Oyuncu adı: büyük, aralıklı harfler; altında fraksiyon kalkanı
-        var name = Ui.Text(Ornate.Spaced(info.Name.ToUpper(new System.Globalization.CultureInfo("tr-TR"))), info.Name.Length <= 7 ? 50 : info.Name.Length <= 10 ? 40 : info.Name.Length <= 13 ? 32 : 26, Theme.B("#f4e2a8"), true, TextAlignment.Center);
+        var name = Ui.Text(Ornate.Tracked(info.Name.ToUpper(new System.Globalization.CultureInfo("tr-TR"))), info.Name.Length <= 7 ? 50 : info.Name.Length <= 10 ? 40 : info.Name.Length <= 13 ? 32 : 26, Theme.B("#f4e2a8"), true, TextAlignment.Center);
         name.FontFamily = Theme.Serif;
         name.HorizontalAlignment = HorizontalAlignment.Center;
         name.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 10, ShadowDepth = 3, Opacity = 1 };

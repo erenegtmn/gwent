@@ -26,6 +26,7 @@ public sealed class GuideView : Grid
     private readonly TextBlock _kicker = Ornate.Caption("", 0);
     private readonly StackPanel _dots = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _prev;
+    private readonly List<(Border Item, TextBlock Num, TextBlock Name)> _chapters = new();
     private readonly Button _next;
     private int _page = -1;
 
@@ -83,12 +84,42 @@ public sealed class GuideView : Grid
         col.Children.Add(head);
         col.Children.Add(_body);
         col.Children.Add(foot);
-
         var panel = Ornate.Panel(col, new Thickness(54, 34, 54, 36));
-        panel.HorizontalAlignment = HorizontalAlignment.Center;
-        panel.VerticalAlignment = VerticalAlignment.Center;
-        var fit = new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Margin = new Thickness(24, 40, 24, 40), Child = panel };
-        Children.Add(Ornate.Stage(fit));
+
+        // Solda bölüm listesi: sayfalar sırayla okunur, numara bu yüzden anlamlı
+        var toc = new StackPanel { Width = 330, Margin = new Thickness(0, 30, 30, 0) };
+        for (var i = 0; i < _pages.Count; i++)
+        {
+            var at = i;
+            var num = Ui.Text((i + 1).ToString(), 26, Theme.B("#8a7236"), true);
+            num.Width = 40;
+            num.VerticalAlignment = VerticalAlignment.Center;
+            var name = Ui.Text(_pages[i].Title, 21, Theme.B("#b9ae94"), false, TextAlignment.Left, true);
+            name.VerticalAlignment = VerticalAlignment.Center;
+            var row = new StackPanel { Orientation = Orientation.Horizontal, IsHitTestVisible = false };
+            row.Children.Add(num);
+            row.Children.Add(name);
+            var item = new Border
+            {
+                Child = row, Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(0, 0, 0, 4), Cursor = Cursors.Hand,
+                Background = Brushes.Transparent, BorderThickness = new Thickness(3, 0, 0, 0), BorderBrush = Brushes.Transparent, Tag = "guide-chapter"
+            };
+            item.MouseLeftButtonUp += (_, e) => { e.Handled = true; Go(at); };
+            item.MouseEnter += (_, _) => { if (at != _page) item.Background = Theme.B("#331a130c"); };
+            item.MouseLeave += (_, _) => { if (at != _page) item.Background = Brushes.Transparent; };
+            _chapters.Add((item, num, name));
+            toc.Children.Add(item);
+        }
+        var book = new StackPanel { Orientation = Orientation.Horizontal };
+        book.Children.Add(toc);
+        book.Children.Add(panel);
+        var fit = new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Margin = new Thickness(44, 10, 44, 20), Child = book, VerticalAlignment = VerticalAlignment.Top };
+
+        var backdrop = new HubBackdrop(Ornate.Animate);
+        backdrop.Show(keep ? HubArt.Wide("keep", "pano_kaer_morhen") : HubArt.Wide("quick", "pano_kaer_morhen"));
+        var screen = HubKit.Screen(fit, backdrop, new (string, Action?)[] { (keep ? "Kaer Morhen rehberi" : "Nasıl oynanır", null) }, null, null,
+            hints: new[] { "←→|Sayfa çevir", "Esc|" + (keep ? "Kaleye dön" : "Menüye dön") });
+        Children.Add(screen);
 
         for (var i = 0; i < _pages.Count; i++)
         {
@@ -115,7 +146,7 @@ public sealed class GuideView : Grid
         if (page == _page) return;
         _page = page;
         var p = _pages[page];
-        _kicker.Text = Ornate.Spaced($"NASIL OYNANIR  ·  SAYFA {page + 1} / {_pages.Count}");
+        _kicker.Text = $"Bölüm {page + 1} / {_pages.Count}";
         _titleHost.Content = Ornate.Heading(p.Title, null, 42);
         var content = p.Build();
         _body.Content = content;
@@ -124,6 +155,16 @@ public sealed class GuideView : Grid
             var d = (TextBlock)_dots.Children[i];
             d.Text = i == page ? "◆" : "◇";
             d.Opacity = i == page ? 1 : 0.6;
+        }
+        for (var i = 0; i < _chapters.Count; i++)
+        {
+            var (item, num, name) = _chapters[i];
+            var on = i == page;
+            item.Background = on ? Theme.B("#cc2a1f12") : Brushes.Transparent;
+            item.BorderBrush = on ? Theme.B("#e0bf6a") : Brushes.Transparent;
+            num.Foreground = on ? Theme.B("#f0d890") : Theme.B("#8a7236");
+            name.Foreground = on ? Theme.B("#f4e6bf") : Theme.B("#b9ae94");
+            name.FontWeight = on ? FontWeights.SemiBold : FontWeights.Normal;
         }
         _prev.IsEnabled = page > 0;
         _next.IsEnabled = page < _pages.Count - 1;

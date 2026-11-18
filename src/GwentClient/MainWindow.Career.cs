@@ -32,7 +32,7 @@ public partial class MainWindow
             StartCareerMatch,
             () => Host.Content = new DeckBuilderView(s.ActiveFaction, false, () => ShowCareer(select), s),
             r => Host.Content = new CareerShopView(s, r, () => ShowCareer(select)),
-            () => { CareerStore.Save(s); ShowMenu(); },
+            () => { CareerStore.Save(s); ShowPlayHub(); },
             () => { CareerStore.Delete(); _career = null; ShowCareer(null); }), reward, select);
     }
 

@@ -20,6 +20,12 @@ public static class Screenshots
         DeckStore.Save(new SavedDeck("Hızlı Saldırı", rec.Faction, rec.LeaderId, rec.CardIds.ToList()));
         DeckStore.Save(new SavedDeck("Yarım deste", "northern_realms", rec.LeaderId, rec.CardIds.Take(8).ToList()));
         Save(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }, openGuide: () => { }, openCareer: () => { }, openDraft: () => { }), "menu.png");
+        // Merkez: ana menü (dört kapı), Gwent merkezi, merkezden açılan Hızlı Gwent
+        void Nop() { }
+        Save(new HubView(Nop, Nop, Nop, Nop, Nop, Nop, Nop, animate: false), "hub.png");
+        Ui.RenderToPng(new HubView(Nop, Nop, Nop, Nop, Nop, Nop, Nop, animate: false), 1366, 768, System.IO.Path.Combine(dir, "hub_small.png"));
+        Save(new PlayHubView(Nop, Nop, Nop, Nop, Nop, Nop, animate: false), "playhub.png");
+        Save(new MenuView(_ => { }, (_, _) => { }, animate: false, exit: Nop), "quick_gwent.png");
         UpdateCheck.SetResult(new ReleaseInfo("v0.7", new Version(0, 7, 0), UpdateCheck.ReleasesPage));
         Save(new MenuView(_ => { }, (_, _) => { }, animate: false, openSettings: () => { }, openOnline: () => { }, openStats: () => { }, openGuide: () => { }, openCareer: () => { }), "menu_update.png");
         UpdateCheck.SetResult(null);
@@ -308,6 +314,18 @@ public static class Screenshots
         }
         // Online: giriş ekranı, bekleme odası (iki oyuncu), oyun içi onay ve rakip koptu çubuğu
         Save(new OnlineMenuView(() => { }, _ => { }), "online_menu.png");
+        {
+            // Turnuva türü seçili, hata şeridi ve bağlanma perdesi
+            var om = new OnlineMenuView(() => { }, _ => { });
+            UiSelfTest.Layout(om);
+            UiSelfTest.Raise(UiSelfTest.FindAll<System.Windows.FrameworkElement>(om, x => (x.Tag as string) == "online-mode-tournament").First(), System.Windows.UIElement.MouseLeftButtonUpEvent);
+            Save(om, "online_tournament.png");
+            var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(OnlineMenuView).GetMethod("Error", flags)!.Invoke(om, new object[] { "Takma ad 2-16 karakter olmalı." });
+            Save(om, "online_error.png");
+            typeof(OnlineMenuView).GetMethod("SetBusy", flags)!.Invoke(om, new object?[] { true, "Sunucu başlatılıyor…" });
+            Save(om, "online_busy.png");
+        }
         {
             // Yarım kalan maç şeridi: geçici bir kayıtla çizilir
             var rdir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gwent-shot-resume-" + Guid.NewGuid().ToString("N"));

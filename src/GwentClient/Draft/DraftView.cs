@@ -28,7 +28,7 @@ public sealed class DraftView : Grid
         _play = play;
         _back = back;
         _last = lastResult;
-        Children.Add(Ornate.Stage(new Viewbox { Stretch = Stretch.Uniform, Child = _content }, "pano_novigrad", 0.8));
+        Children.Add(Ornate.Stage(new Viewbox { Stretch = Stretch.Uniform, Child = _content }, HubArt.Wide("draft", "pano_novigrad"), 0.82));
         Focusable = true;
         Loaded += (_, _) => Focus();
         KeyDown += (_, e) => { if (e.Key == Key.Escape) _back(); };

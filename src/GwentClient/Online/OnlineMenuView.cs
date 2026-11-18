@@ -1,14 +1,22 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 
 namespace GwentClient;
 
-/// <summary>Online giriş ekranı: takma ad levhası, iki kapı — "Oda kur" ve "Odaya katıl".</summary>
+/// <summary>
+/// Çevrimiçi giriş ekranı (tasarım: ARAYUZ.md). Üstte kimlik şeridi, solda "Odaya katıl" (tek kod kutusu), sağda "Oda kur"
+/// (önce oyun türü, sonra o türün kısa ayarı, en sonda tek satırlık bağlantı özeti). Bağlanırken tam ekran perde.
+/// </summary>
 public sealed class OnlineMenuView : Grid
 {
+    /// <summary>Oda kurarken seçilen oyun türü.</summary>
+    private enum Mode { Duel, Three, Tournament, Han }
+
     private readonly Action _back;
     private readonly Action<OnlineController> _connected;
     private readonly TextBox _nick = new() { MaxLength = 16, Tag = "online-nick" };
@@ -18,16 +26,23 @@ public sealed class OnlineMenuView : Grid
     private readonly ToggleButton _lan;
     private readonly ToggleButton _tunnel;
     private readonly ToggleButton _upnp;
-    private readonly ToggleButton _three;
-    private readonly ToggleButton _han;
     private readonly TextBox _invite = new() { Tag = "online-invite", AcceptsReturn = false };
-    private readonly TextBlock _status = new() { FontFamily = Theme.Serif, FontSize = 17 * Theme.FontScale, TextWrapping = TextWrapping.Wrap, MinHeight = 28, HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center };
+    private readonly TextBlock _status = new() { FontFamily = Theme.Serif, FontSize = 20 * Theme.FontScale, TextWrapping = TextWrapping.Wrap, MinHeight = 28, TextAlignment = TextAlignment.Center, Foreground = Theme.B("#e8c970"), MaxWidth = 460 };
+    private readonly TextBlock _error = new() { FontFamily = Theme.Serif, FontSize = 18 * Theme.FontScale, TextWrapping = TextWrapping.Wrap, Foreground = Theme.B("#f0b4a4"), VerticalAlignment = VerticalAlignment.Center };
+    private readonly Border _errorBox = new() { Visibility = Visibility.Collapsed, Tag = "online-error", Margin = new Thickness(0, 18, 0, 0), Padding = new Thickness(18, 12, 18, 12), Background = Theme.B("#cc3a1612"), BorderBrush = Theme.B("#b8604f"), BorderThickness = new Thickness(1.5) };
+    private readonly Grid _busyLayer = new() { Visibility = Visibility.Collapsed, Background = Theme.B("#e8000000"), Tag = "online-busy" };
     private readonly Button _create;
     private readonly Button _join;
-    private readonly Button _tour;
-    private readonly ToggleButton _size4, _size8;
+    private ToggleButton _size4 = null!, _size8 = null!;
     private readonly List<ToggleButton> _feeButtons = new();
+    private readonly Dictionary<Mode, Border> _modeCards = new();
+    private readonly TextBlock _modeDesc = new() { FontFamily = Theme.Serif, FontSize = 18 * Theme.FontScale, Foreground = Theme.TextDim, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 16, 0, 10) };
+    private readonly StackPanel _tourPanel = new() { Tag = "online-tournament-options" };
+    private readonly TextBlock _connSummary = new() { FontFamily = Theme.Serif, FontSize = 18 * Theme.FontScale, VerticalAlignment = VerticalAlignment.Center };
+    private Mode _mode = Mode.Duel;
     private bool _busy;
+
+    private static readonly Color Teal = HubColors.Online;
 
     public OnlineMenuView(Action back, Action<OnlineController> connected)
     {
@@ -38,67 +53,89 @@ public sealed class OnlineMenuView : Grid
         {
             tb.Style = (Style)Application.Current.FindResource("GText");
             tb.FontFamily = Theme.Serif;
-            tb.FontSize = 20;
+            tb.FontSize = 22;
         }
         _code.CharacterCasing = CharacterCasing.Upper;
         _nick.Text = Settings.Nick;
         _address.Text = Settings.LastAddress;
         _nick.Width = 300;
-        _nick.TextAlignment = TextAlignment.Center;
         _code.Width = 150;
 
         _nextGen = Ornate.Option("Yeni nesil içerik", "Roach, Geralt/Ciri Toplanma", false);
-        _tunnel = Ornate.Option("İnternetten bağlanılsın", "Tünel — önerilir; arkadaşın hiçbir şey kurmaz", true);
+        _tunnel = Ornate.Option("İnternetten bağlanılsın", "Önerilir; arkadaşın hiçbir şey kurmaz", true);
         _lan = Ornate.Option("Yerel ağdakiler bağlanabilsin", "Aynı modemdeki arkadaşlar için", true);
         _upnp = Ornate.Option("Modemde port aç (UPnP)", "Gelişmiş; her modemde çalışmaz", false);
-        _three = Ornate.Option("Üç kişilik maç", "Herkes herkese; ilk 2 raundu kazanan alır, sırayı zar belirler", false);
-        _three.Tag = "online-three";
-        _han = Ornate.Option("Han Ligi", "Gwent × auto chess, 2-8 kişi; boş koltukları güçlü botlar doldurur", false);
-        _han.Tag = "online-han";
-        _han.Checked += (_, _) => _three.IsChecked = false;
-        _three.Checked += (_, _) => _han.IsChecked = false;
+        foreach (var t in new[] { _tunnel, _lan, _upnp }) { t.Checked += (_, _) => SyncConnection(); t.Unchecked += (_, _) => SyncConnection(); }
 
-        // ---- Sol kapı: oda kur ----
-        var host = new StackPanel { Width = 480 };
-        host.Children.Add(Door("ODA KUR", "Oyun senin bilgisayarında sunucu olur; arkadaşın sana bağlanır."));
-        if (ResumeStore.LoadHost() is { } resume) host.Children.Add(ResumeStrip(resume));
-        host.Children.Add(_tunnel);
-        host.Children.Add(_lan);
-        host.Children.Add(_upnp);
-        host.Children.Add(_nextGen);
-        host.Children.Add(_three);
-        host.Children.Add(_han);
-        _create = Ui.Button("Oda kur", () => CreateClicked(), primary: true);
-        _create.FontSize = 24;
-        _create.Padding = new Thickness(0, 12, 0, 12);
-        _create.Margin = new Thickness(0, 22, 0, 0);
-        _create.Tag = "online-create";
-        host.Children.Add(_create);
+        // ---- Kimlik şeridi: portre, takma ad, Crown ----
+        var identity = new Grid { Margin = new Thickness(0, 0, 0, 22) };
+        identity.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        identity.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        identity.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        identity.Children.Add(Portraits.Medallion(Settings.Portrait, 66, glow: true));
+        var nickBox = new StackPanel { Margin = new Thickness(18, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        nickBox.Children.Add(Ui.Text("Takma adın", 15, Theme.TextDim));
+        _nick.Margin = new Thickness(0, 3, 0, 0);
+        nickBox.Children.Add(_nick);
+        Grid.SetColumn(nickBox, 1);
+        identity.Children.Add(nickBox);
+        var crowns = Ui.Text($"◆ {Settings.Crowns} Crown", 22, Theme.B("#e8c970"), true);
+        crowns.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(crowns, 2);
+        identity.Children.Add(crowns);
+        ((FrameworkElement)identity.Children[0]).HorizontalAlignment = HorizontalAlignment.Left;
+        nickBox.HorizontalAlignment = HorizontalAlignment.Left;
 
-        // ---- Sağ kapı: odaya katıl ----
-        var join = new StackPanel { Width = 480 };
-        join.Children.Add(Door("ODAYA KATIL", "Host'un sana verdiği davet kodunu yapıştır."));
-        if (ResumeStore.LoadGuest() is { } guestSave)
+        // ---- Devam eden maç / turnuva bildirimi (varsa) ----
+        var resume = new StackPanel();
+        if (ResumeStore.LoadHost() is { } hostSave) resume.Children.Add(ResumeStrip(hostSave));
+        if (ResumeStore.LoadHostTournament() is { } tsave) resume.Children.Add(TournamentResumeStrip(tsave));
+        if (ResumeStore.LoadGuest() is { } guestSave) resume.Children.Add(GuestNote(guestSave));
+        UIElement? resumeBox = null;
+        if (resume.Children.Count > 0)
         {
-            var note = Ui.Text($"Yarım kalan maçın var ({guestSave.HostNick} ile, oda {guestSave.RoomCode}). Host maçı yeniden açınca yeni davet kodunu yapıştır: kaldığın yerden dönersin.", 15, Theme.B("#e8c970"), false, TextAlignment.Left, true);
-            note.Margin = new Thickness(0, 4, 0, 4);
-            var drop = new TextBlock { Text = "Bu kaydı sil", FontFamily = Theme.Serif, FontSize = 14 * Theme.FontScale, Foreground = Theme.B("#a8905a"), Cursor = System.Windows.Input.Cursors.Hand, Margin = new Thickness(0, 0, 0, 6) };
-            drop.MouseLeftButtonUp += (_, _) => { ResumeStore.ClearGuest(); note.Visibility = Visibility.Collapsed; drop.Visibility = Visibility.Collapsed; };
-            join.Children.Add(note);
-            join.Children.Add(drop);
+            var g = new Grid { Margin = new Thickness(0, 0, 0, 22) };
+            g.Children.Add(new ChamferFrame { Fill = Theme.B("#e61a120a"), Edge = new SolidColorBrush(Teal), Inner = Ornate.GoldThin, Cut = 12, Inset = 5 });
+            resume.Margin = new Thickness(26, 14, 26, 8);
+            g.Children.Add(resume);
+            resumeBox = g;
         }
-        join.Children.Add(Label("DAVET KODU"));
-        join.Children.Add(_invite);
+
+        // ---- Sol: odaya katıl ----
+        var join = new StackPanel();
+        join.Children.Add(Head("Odaya katıl", "Arkadaşının sana verdiği davet kodunu yapıştır."));
+        join.Children.Add(Label("Davet kodu"));
+        var inviteRow = new Grid();
+        inviteRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        inviteRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var inviteHost = new Grid();
+        inviteHost.Children.Add(_invite);
+        var hint = new TextBlock { Text = "Kodu buraya yapıştır", FontFamily = Theme.Serif, FontSize = 20 * Theme.FontScale, Foreground = Theme.B("#6e6450"), IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) };
+        inviteHost.Children.Add(hint);
+        _invite.TextChanged += (_, _) => hint.Visibility = _invite.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        _invite.KeyDown += (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; JoinClicked(); } };
+        inviteRow.Children.Add(inviteHost);
+        var paste = Ui.Button("Yapıştır", () =>
+        {
+            try { if (Clipboard.ContainsText()) _invite.Text = Clipboard.GetText().Trim(); } catch { }
+            _invite.Focus();
+        });
+        paste.Margin = new Thickness(10, 0, 0, 0);
+        paste.Padding = new Thickness(18, 9, 18, 9);
+        paste.Tag = "online-paste";
+        Grid.SetColumn(paste, 1);
+        inviteRow.Children.Add(paste);
+        join.Children.Add(inviteRow);
 
         var manual = new StackPanel { Visibility = Visibility.Collapsed, Tag = "online-manual", Margin = new Thickness(0, 6, 0, 0) };
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var a = new StackPanel();
-        a.Children.Add(Label("HOST ADRESİ (örn. 192.168.1.5:5000)"));
+        a.Children.Add(Label("Host adresi (örn. 192.168.1.5:5000)"));
         a.Children.Add(_address);
         var c = new StackPanel { Margin = new Thickness(16, 0, 0, 0) };
-        c.Children.Add(Label("ODA KODU"));
+        c.Children.Add(Label("Oda kodu"));
         c.Children.Add(_code);
         Grid.SetColumn(c, 1);
         row.Children.Add(a);
@@ -106,35 +143,164 @@ public sealed class OnlineMenuView : Grid
         manual.Children.Add(row);
         var manualToggle = new TextBlock
         {
-            Text = "Davet kodu yoksa: adres ve oda kodunu elle gir ▾", FontFamily = Theme.Serif, FontSize = 14 * Theme.FontScale, Foreground = Theme.B("#a8905a"),
-            Margin = new Thickness(0, 12, 0, 0), Cursor = System.Windows.Input.Cursors.Hand
+            Text = "Davet kodu yok mu? Adres ve oda kodunu elle gir ▾", FontFamily = Theme.Serif, FontSize = 16 * Theme.FontScale, Foreground = Theme.B("#a8905a"),
+            Margin = new Thickness(0, 16, 0, 0), Cursor = Cursors.Hand
         };
         manualToggle.MouseLeftButtonUp += (_, _) =>
         {
             manual.Visibility = manual.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
-            manualToggle.Text = manual.Visibility == Visibility.Visible ? "Elle girişi gizle ▴" : "Davet kodu yoksa: adres ve oda kodunu elle gir ▾";
+            manualToggle.Text = manual.Visibility == Visibility.Visible ? "Elle girişi gizle ▴" : "Davet kodu yok mu? Adres ve oda kodunu elle gir ▾";
         };
         join.Children.Add(manualToggle);
         join.Children.Add(manual);
-
         _join = Ui.Button("Katıl", () => JoinClicked(), primary: true);
         _join.FontSize = 24;
         _join.Padding = new Thickness(0, 12, 0, 12);
-        _join.Margin = new Thickness(0, 22, 0, 0);
+        _join.Margin = new Thickness(0, 26, 0, 0);
         _join.Tag = "online-join";
         join.Children.Add(_join);
+        join.Children.Add(Ornate.Rule(380, 22));
+        join.Children.Add(Label("Nasıl katılırım?"));
+        join.Children.Add(Step("1", "Arkadaşın oda kurar; bekleme odasında davet kodu çıkar."));
+        join.Children.Add(Step("2", "Kodu buraya yapıştırıp Katıl'a bas."));
+        join.Children.Add(Step("3", "İkiniz de hazır deyince maç başlar."));
 
-        // ---- Orta kapı: turnuva kur ----
-        var tour = new StackPanel { Width = 480 };
-        tour.Children.Add(Door("TURNUVA", "3–8 kişilik tek eleme; ödül havuzu Crown ile."));
-        if (ResumeStore.LoadHostTournament() is { } tresume) tour.Children.Add(TournamentResumeStrip(tresume));
-        tour.Children.Add(Ornate.Caption("Kişi sayısı", 6));
+        // ---- Sağ: oda kur ----
+        var host = new StackPanel();
+        host.Children.Add(Head("Oda kur", "Oyun senin bilgisayarında sunucu olur; arkadaşların sana bağlanır."));
+        host.Children.Add(Label("Oyun türü"));
+        var modes = new UniformGrid { Rows = 1 };
+        modes.Children.Add(ModeCard(Mode.Duel, "Düello", "Klasik, bire bir", "2"));
+        modes.Children.Add(ModeCard(Mode.Three, "Üçlü", "Herkes herkese", "3"));
+        modes.Children.Add(ModeCard(Mode.Tournament, "Turnuva", "Tek eleme, Crown ödüllü", "3–8"));
+        modes.Children.Add(ModeCard(Mode.Han, "Han Ligi", "Kart topla, son ayakta kal", "2–8"));
+        host.Children.Add(modes);
+
+        host.Children.Add(_modeDesc);
+        BuildTournamentOptions();
+        host.Children.Add(_tourPanel);
+        _nextGen.Margin = new Thickness(0, 4, 0, 0);
+        host.Children.Add(_nextGen);
+
+        host.Children.Add(Label("Bağlantı"));
+        var connRow = new Grid();
+        connRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        connRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        connRow.Children.Add(_connSummary);
+        var connOptions = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 6, 0, 0), Tag = "online-connection" };
+        connOptions.Children.Add(_tunnel);
+        connOptions.Children.Add(_lan);
+        connOptions.Children.Add(_upnp);
+        var change = Ui.Button("Değiştir ▾", () => { });
+        change.Padding = new Thickness(16, 6, 16, 6);
+        change.FontSize = 15;
+        change.Click += (_, _) =>
+        {
+            var open = connOptions.Visibility != Visibility.Visible;
+            connOptions.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            change.Content = open ? "Gizle ▴" : "Değiştir ▾";
+        };
+        Grid.SetColumn(change, 1);
+        connRow.Children.Add(change);
+        host.Children.Add(connRow);
+        host.Children.Add(connOptions);
+
+        _create = Ui.Button("Odayı aç", () => CreateClicked(), primary: true);
+        _create.FontSize = 24;
+        _create.Padding = new Thickness(0, 12, 0, 12);
+        _create.Margin = new Thickness(0, 26, 0, 0);
+        _create.Tag = "online-create";
+        host.Children.Add(_create);
+
+        var joinPanel = Ornate.Panel(join, new Thickness(36, 30, 36, 36), 20, 54);
+        var hostPanel = Ornate.Panel(host, new Thickness(36, 30, 36, 36), 20, 54);
+
+        var panels = new Grid();
+        panels.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(5, GridUnitType.Star), MinWidth = 360 });
+        panels.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(9, GridUnitType.Star), MinWidth = 560 });
+        SetColumn(hostPanel, 1);
+        joinPanel.Margin = new Thickness(0, 0, 14, 0);
+        hostPanel.Margin = new Thickness(14, 0, 0, 0);
+        panels.Children.Add(joinPanel);
+        panels.Children.Add(hostPanel);
+
+        _errorBox.Child = _error;
+
+        var content = new StackPanel { MaxWidth = 1480, Margin = new Thickness(44, 14, 44, 20), VerticalAlignment = VerticalAlignment.Top };
+        content.Children.Add(identity);
+        if (resumeBox != null) content.Children.Add(resumeBox);
+        content.Children.Add(panels);
+        content.Children.Add(_errorBox);
+        var scroll = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalAlignment = HorizontalAlignment.Stretch };
+
+        var backdrop = new HubBackdrop(Ornate.Animate);
+        backdrop.Show("map_skellige");
+        var screen = HubKit.Screen(scroll, backdrop, new (string, Action?)[] { ("Çevrimiçi", null) }, () => { if (!_busy) _back(); }, null, hints: new[] { "Enter|Katıl (kod kutusunda)", "Esc|Geri" });
+
+        // ---- Bağlanırken perde ----
+        var card = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        card.Children.Add(Spinner());
+        _status.Margin = new Thickness(0, 22, 0, 0);
+        card.Children.Add(_status);
+        _busyLayer.Children.Add(new Border { Child = card, Padding = new Thickness(70, 46, 70, 46), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Background = Theme.B("#f01a130c"), BorderBrush = Theme.B("#8a7236"), BorderThickness = new Thickness(1.5) });
+        screen.Children.Add(_busyLayer);
+
+        Children.Add(screen);
+        Ornate.Reveal(new UIElement[] { identity, joinPanel, hostPanel }, 28, 40, 120, 560);
+        Focusable = true;
+        UpdateMode();
+        SyncConnection();
+    }
+
+    private static UIElement Spinner()
+    {
+        var spin = new RotateTransform(45, 20, 20);
+        var outer = new System.Windows.Shapes.Rectangle { Width = 40, Height = 40, Stroke = Theme.B("#e0bf6a"), StrokeThickness = 3, RenderTransform = spin };
+        var inner = new System.Windows.Shapes.Rectangle { Width = 14, Height = 14, Fill = Theme.B("#e0bf6a"), RenderTransform = new RotateTransform(45, 7, 7), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var g = new Grid { Width = 60, Height = 60, HorizontalAlignment = HorizontalAlignment.Center };
+        g.Children.Add(new Canvas { Children = { outer } });
+        Canvas.SetLeft(outer, 10);
+        Canvas.SetTop(outer, 10);
+        g.Children.Add(inner);
+        if (Ornate.Animate) spin.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(45, 405, TimeSpan.FromSeconds(2.4)) { RepeatBehavior = RepeatBehavior.Forever });
+        return g;
+    }
+
+    /// <summary>Oyun türü kartı: seçiliyken altın çerçeve ve parlak zemin.</summary>
+    private Border ModeCard(Mode mode, string title, string desc, string players)
+    {
+        var sp = new StackPanel { IsHitTestVisible = false };
+        var top = new Grid();
+        top.Children.Add(Ui.Text(title, 24, Theme.B("#f4e6bf"), true));
+        var chip = Ui.Text(players + " kişi", 13, Theme.B("#e8c970"), true);
+        chip.HorizontalAlignment = HorizontalAlignment.Right;
+        chip.VerticalAlignment = VerticalAlignment.Center;
+        top.Children.Add(chip);
+        sp.Children.Add(top);
+        var d = Ui.Text(desc, 15, Theme.TextDim, false, TextAlignment.Left, true);
+        d.Margin = new Thickness(0, 6, 0, 0);
+        sp.Children.Add(d);
+        var b = new Border
+        {
+            Child = sp, Padding = new Thickness(16, 14, 16, 14), Margin = new Thickness(0, 0, 10, 0), Cursor = Cursors.Hand, Background = Theme.B("#661a130c"),
+            BorderBrush = Theme.B("#55c9a24a"), BorderThickness = new Thickness(1.5), Tag = "online-mode-" + mode.ToString().ToLowerInvariant(), MinHeight = 104
+        };
+        b.MouseEnter += (_, _) => { if (_mode != mode) b.Background = Theme.B("#88271d12"); };
+        b.MouseLeave += (_, _) => { if (_mode != mode) b.Background = Theme.B("#661a130c"); };
+        b.MouseLeftButtonUp += (_, e) => { e.Handled = true; Sfx.Play("cursor_movement"); _mode = mode; UpdateMode(); };
+        _modeCards[mode] = b;
+        return b;
+    }
+
+    private void BuildTournamentOptions()
+    {
+        _tourPanel.Children.Add(Label("Kişi sayısı"));
         var sizeRow = new StackPanel { Orientation = Orientation.Horizontal };
         _size4 = ChoiceButton("4 kişi", true);
         _size8 = ChoiceButton("8 kişi", false);
         foreach (var b in new[] { _size4, _size8 }) { b.Click += (_, _) => { _size4.IsChecked = ReferenceEquals(b, _size4); _size8.IsChecked = ReferenceEquals(b, _size8); }; sizeRow.Children.Add(b); }
-        tour.Children.Add(sizeRow);
-        tour.Children.Add(Ornate.Caption("Katılım ücreti"));
+        _tourPanel.Children.Add(sizeRow);
+        _tourPanel.Children.Add(Label("Katılım ücreti"));
         var feeRow = new WrapPanel();
         foreach (var f in new[] { 0, 50, 100, 200 })
         {
@@ -145,57 +311,52 @@ public sealed class OnlineMenuView : Grid
             _feeButtons.Add(b);
             feeRow.Children.Add(b);
         }
-        tour.Children.Add(feeRow);
-        tour.Children.Add(Ui.Text($"Bakiyen: {Settings.Crowns} Crown. Ücretli turnuvada havuz = ücret × oyuncu; şampiyon %55–70, finalist %25–30 alır. Crown yetmese de katılabilirsin.", 14, Theme.TextDim, false, TextAlignment.Left, true));
-        ((TextBlock)tour.Children[^1]).Margin = new Thickness(0, 12, 0, 0);
-        tour.Children.Add(Ui.Text("Bağlantı seçenekleri “Oda kur”dakilerle aynıdır.", 13, Theme.TextDim, false, TextAlignment.Left, true));
-        ((TextBlock)tour.Children[^1]).Margin = new Thickness(0, 8, 0, 0);
-        _tour = Ui.Button("Turnuva kur", () => TournamentClicked(), primary: true);
-        _tour.FontSize = 24;
-        _tour.Padding = new Thickness(0, 12, 0, 12);
-        _tour.Margin = new Thickness(0, 22, 0, 0);
-        _tour.Tag = "online-tournament";
-        tour.Children.Add(_tour);
+        _tourPanel.Children.Add(feeRow);
+        var note = Ui.Text($"Bakiyen {Settings.Crowns} Crown. Ücretli turnuvada havuz = ücret × oyuncu; şampiyon %55–70, finalist %25–30 alır. Crown yetmese de katılabilirsin.", 14, Theme.TextDim, false, TextAlignment.Left, true);
+        note.Margin = new Thickness(0, 2, 0, 8);
+        _tourPanel.Children.Add(note);
+    }
 
-        var hostPanel = Ornate.Panel(host, new Thickness(36, 34, 36, 38), 20, 58);
-        var tourPanel = Ornate.Panel(tour, new Thickness(36, 34, 36, 38), 20, 58);
-        var joinPanel = Ornate.Panel(join, new Thickness(36, 34, 36, 38), 20, 58);
-
-        // ---- Üst: başlık + takma ad levhası; alt: durum + geri ----
-        var plate = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
-        plate.Children.Add(new TextBlock
+    private void UpdateMode()
+    {
+        foreach (var (m, b) in _modeCards)
         {
-            Text = Ornate.Spaced("TAKMA ADIN"), FontFamily = Theme.Serif, FontSize = 13 * Theme.FontScale, Foreground = Theme.B("#a8905a"), FontWeight = FontWeights.Bold,
-            HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 5)
-        });
-        plate.Children.Add(_nick);
+            var on = m == _mode;
+            b.BorderBrush = on ? new SolidColorBrush(Color.FromRgb(0xe8, 0xc9, 0x70)) : Theme.B("#55c9a24a");
+            b.Background = on ? Theme.B("#cc3a2a14") : Theme.B("#661a130c");
+            b.Effect = on ? new DropShadowEffect { Color = Color.FromRgb(0xe8, 0xc9, 0x70), BlurRadius = 18, ShadowDepth = 0, Opacity = 0.35 } : null;
+        }
+        _modeDesc.Text = _mode switch
+        {
+            Mode.Duel => "İki oyuncu, klasik kurallar. Rakibin odaya katılınca ikiniz de hazır deyince maç başlar.",
+            Mode.Three => "Üç oyuncu, herkes herkese. İlk iki raundu kazanan alır; sırayı zar belirler.",
+            Mode.Tournament => "Tek eleme turnuvası: kişi sayısını ve katılım ücretini seç. Ödül havuzu Crown ile dağıtılır.",
+            _ => "Pazardan kart topla, üç eşini birleştirip güçlendir, savaşta işaretlerle araya gir; canı biten elenir, son ayakta kalan kazanır. Boş koltukları güçlü botlar doldurur."
+        };
+        _tourPanel.Visibility = _mode == Mode.Tournament ? Visibility.Visible : Visibility.Collapsed;
+        _nextGen.Visibility = _mode == Mode.Han ? Visibility.Collapsed : Visibility.Visible;
+        _create.Content = _mode == Mode.Tournament ? "Turnuvayı kur" : "Odayı aç";
+        _create.Tag = _mode == Mode.Tournament ? "online-tournament" : "online-create";
+    }
 
-        var back2 = Ui.Button("Geri", () => { if (!_busy) _back(); });
-        back2.FontSize = 18;
-        back2.Padding = new Thickness(34, 9, 34, 9);
-        back2.HorizontalAlignment = HorizontalAlignment.Center;
-
-        var doors = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 28, 0, 0) };
-        doors.Children.Add(hostPanel);
-        doors.Children.Add(new System.Windows.Shapes.Rectangle { Width = 28 });
-        doors.Children.Add(tourPanel);
-        doors.Children.Add(new System.Windows.Shapes.Rectangle { Width = 28 });
-        doors.Children.Add(joinPanel);
-
-        var all = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-        var heading = Ornate.Heading("Online", "Arkadaşınla internetten karşılaş", 52, HorizontalAlignment.Center);
-        all.Children.Add(heading);
-        all.Children.Add(Ornate.Rule(560, 16));
-        all.Children.Add(plate);
-        all.Children.Add(doors);
-        _status.Margin = new Thickness(0, 22, 0, 10);
-        all.Children.Add(_status);
-        all.Children.Add(back2);
-
-        Children.Add(Ornate.Stage(all, "pano_novigrad"));
-        Ornate.Reveal(new UIElement[] { heading, plate, hostPanel, tourPanel, joinPanel, back2 }, 28, 40, 120, 560);
-        Focusable = true;
-        KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Escape && !_busy) _back(); };
+    /// <summary>Bağlantı seçenekleri tek satırda özetlenir; hiçbiri açık değilse uyarılır.</summary>
+    private void SyncConnection()
+    {
+        var parts = new List<string>();
+        if (_tunnel.IsChecked == true) parts.Add("İnternet");
+        if (_lan.IsChecked == true) parts.Add("yerel ağ");
+        if (_upnp.IsChecked == true) parts.Add("UPnP");
+        if (parts.Count == 0)
+        {
+            _connSummary.Text = "Hiçbiri seçili değil: kimse bağlanamaz.";
+            _connSummary.Foreground = Theme.Bad;
+        }
+        else
+        {
+            var s = string.Join(" + ", parts);
+            _connSummary.Text = char.ToUpper(s[0], new System.Globalization.CultureInfo("tr-TR")) + s[1..];
+            _connSummary.Foreground = Theme.Text;
+        }
     }
 
     private static ToggleButton ChoiceButton(string text, bool on) => new()
@@ -206,24 +367,49 @@ public sealed class OnlineMenuView : Grid
 
     private static TextBlock Label(string t)
     {
-        var l = Ui.Text(Ornate.Spaced(t), 13, Theme.B("#a8905a"), true);
-        l.Margin = new Thickness(0, 14, 0, 5);
+        var l = Ui.Text(t, 16, Theme.B("#c9b27a"), true);
+        l.Margin = new Thickness(0, 16, 0, 6);
         return l;
     }
 
-    private static UIElement Door(string title, string sub)
+    private static UIElement Head(string title, string sub)
     {
-        var sp = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
-        var t = Ui.Text(Ornate.Spaced(title), 30, Theme.B("#f0d890"), true);
+        var sp = new StackPanel { Margin = new Thickness(0, 0, 0, 4) };
+        var t = Ui.Text(title, 36, Theme.B("#f0d890"), true);
         t.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 2, Opacity = 0.9 };
         sp.Children.Add(t);
-        var s = Ui.Text(sub, 15, Theme.TextDim, false, TextAlignment.Left, true);
+        var s = Ui.Text(sub, 16, Theme.TextDim, false, TextAlignment.Left, true);
         s.Margin = new Thickness(0, 2, 0, 0);
         sp.Children.Add(s);
-        var rule = Ornate.Rule(430, 12);
+        var rule = Ornate.Rule(420, 12);
         rule.HorizontalAlignment = HorizontalAlignment.Left;
         sp.Children.Add(rule);
         return sp;
+    }
+
+    private static UIElement Step(string n, string text)
+    {
+        var row = new Grid { Margin = new Thickness(0, 4, 0, 4) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.Children.Add(Ui.Text(n, 20, Theme.B("#e0bf6a"), true));
+        var t = Ui.Text(text, 16, Theme.TextDim, false, TextAlignment.Left, true);
+        Grid.SetColumn(t, 1);
+        row.Children.Add(t);
+        return row;
+    }
+
+    private UIElement GuestNote(GuestResume save)
+    {
+        var box = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+        box.Children.Add(Ui.Text($"Yarım kalan maçın var: {save.HostNick} ile, oda {save.RoomCode}.", 18, Theme.B("#e8c970"), true, TextAlignment.Left, true));
+        box.Children.Add(Ui.Text("Oda kuran maçı yeniden açınca yeni davet kodunu aşağıya yapıştır; kaldığın yerden dönersin.", 15, Theme.TextDim, false, TextAlignment.Left, true));
+        var del = Ui.Button("Bu kaydı sil", () => { ResumeStore.ClearGuest(); box.Visibility = Visibility.Collapsed; });
+        del.FontSize = 14;
+        del.HorizontalAlignment = HorizontalAlignment.Left;
+        del.Margin = new Thickness(0, 8, 0, 0);
+        box.Children.Add(del);
+        return box;
     }
 
     // ---------- Eylemler ----------
@@ -233,16 +419,16 @@ public sealed class OnlineMenuView : Grid
         _busy = busy;
         _create.IsEnabled = !busy;
         _join.IsEnabled = !busy;
-        _tour.IsEnabled = !busy;
-        _status.Foreground = Theme.B("#e8c970");
+        _busyLayer.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         _status.Text = message ?? "";
+        if (busy) _errorBox.Visibility = Visibility.Collapsed;
     }
 
     private void Error(string message)
     {
         SetBusy(false);
-        _status.Foreground = Theme.Bad;
-        _status.Text = message;
+        _error.Text = message;
+        _errorBox.Visibility = Visibility.Visible;
     }
 
     private bool NickOk(out string nick)
@@ -272,16 +458,19 @@ public sealed class OnlineMenuView : Grid
         return path == null ? (null, "Tünel programı indirilemedi: " + derr) : (path, null);
     }
 
+    /// <summary>Seçili oyun türüne göre oda ya da turnuva kurar.</summary>
     private async void CreateClicked()
     {
-        if (_busy || !NickOk(out var nick)) return;
+        if (_busy) return;
+        if (_mode == Mode.Tournament) { TournamentClicked(); return; }
+        if (!NickOk(out var nick)) return;
         SetBusy(true, "Sunucu başlatılıyor…");
         var (cloudflared, terr) = await PrepareTunnelAsync();
         if (terr != null) { Error(terr); return; }
 
-        var opts = new HostOptions(_nextGen.IsChecked == true, _lan.IsChecked == true, _upnp.IsChecked == true, cloudflared, _three.IsChecked == true ? 3 : 2);
+        var opts = new HostOptions(_nextGen.IsChecked == true && _mode != Mode.Han, _lan.IsChecked == true, _upnp.IsChecked == true, cloudflared, _mode == Mode.Three ? 3 : 2);
         var statusProgress = new Progress<string>(m => _status.Text = m);
-        var (c, err) = _han.IsChecked == true
+        var (c, err) = _mode == Mode.Han
             ? await OnlineController.HostHanAsync(nick, opts with { Players = 2 }, 8, statusProgress)
             : await OnlineController.HostAsync(nick, opts, statusProgress);
         if (c == null) { Error(err ?? "Oda kurulamadı."); return; }
@@ -336,7 +525,7 @@ public sealed class OnlineMenuView : Grid
 
     private async void TournamentClicked()
     {
-        if (_busy || !NickOk(out var nick)) return;
+        if (!NickOk(out var nick)) return;
         var size = _size8.IsChecked == true ? 8 : 4;
         var fee = (int)(_feeButtons.FirstOrDefault(b => b.IsChecked == true)?.Tag ?? 0);
         SetBusy(true, "Sunucu başlatılıyor…");

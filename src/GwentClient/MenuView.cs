@@ -59,9 +59,11 @@ public sealed class MenuView : Grid
     private readonly Border _leaderHost = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private Border _setup = null!;
     private bool _setupOpen;
+    private readonly Action? _exit;   // doluysa: bu ekran "Gwent" merkezinden açılan Hızlı Gwent kurulumudur (açılışta kurulum açık, "Geri" merkeze döner)
 
-    public MenuView(Action<MatchConfig> start, Action<string, bool> openBuilder, string? initialFaction = null, bool nextGen = false, bool animate = true, Action? openSettings = null, Action? openOnline = null, Action? openStats = null, Action? openGuide = null, Action? openCareer = null, Action? openDraft = null, Action? openKeep = null, Action? openHan = null)
+    public MenuView(Action<MatchConfig> start, Action<string, bool> openBuilder, string? initialFaction = null, bool nextGen = false, bool animate = true, Action? openSettings = null, Action? openOnline = null, Action? openStats = null, Action? openGuide = null, Action? openCareer = null, Action? openDraft = null, Action? openKeep = null, Action? openHan = null, Action? exit = null)
     {
+        _exit = exit;
         _openDraft = openDraft;
         _openGuide = openGuide;
         _openCareer = openCareer;
@@ -140,6 +142,13 @@ public sealed class MenuView : Grid
         SyncStrip();
         SyncChecks(_oppButtons, "random");
         ShowLeaderCard(false);
+        if (_exit != null)
+        {
+            ToggleSetup();
+            Focusable = true;
+            KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; _exit(); } };
+            Loaded += (_, _) => Focus();
+        }
 
         // 5) Açılış: siyahtan çıkış; öğeler hafifçe belirir. Fareyle derinlik (paralaks): arka plan ters, içerik düz yönde kayar.
         if (_animate)
@@ -154,52 +163,7 @@ public sealed class MenuView : Grid
     }
 
     /// <summary>Sağ altta sürüm; GitHub'da daha yenisi varsa üstte "Yeni sürüm" bildirimi (İndir: release sayfası tarayıcıda açılır).</summary>
-    private void AddVersionInfo()
-    {
-        var ver = Ui.Text(UpdateCheck.CurrentText + (UpdateCheck.Channel == "kaermorhen" ? " · Kaer Morhen (deneme)" : ""), 14, Theme.B("#7a705e"));
-        ver.HorizontalAlignment = HorizontalAlignment.Right;
-        ver.VerticalAlignment = VerticalAlignment.Bottom;
-        ver.Margin = new Thickness(0, 0, 26, 14);
-        ver.IsHitTestVisible = false;
-        Children.Add(ver);
-
-        var host = new ContentControl { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 26, 0, 0) };
-        Children.Add(host);
-        void Show(ReleaseInfo? r)
-        {
-            if (r == null) return;
-            var row = new StackPanel { Orientation = Orientation.Horizontal };
-            var text = Ui.Text($"◆  Yeni sürüm çıktı: {r.Tag}  (sende {UpdateCheck.CurrentText})", 19, Theme.B("#f0d890"), true);
-            text.VerticalAlignment = VerticalAlignment.Center;
-            row.Children.Add(text);
-            // Paketlenmiş kopyada oyun kendini günceller; geliştirme çıktısında ya da paket yoksa indirme sayfası açılır
-            var self = Updater.CanSelfUpdate && r.ZipUrl != null;
-            var get = Ui.Button(self ? "Güncelle" : "İndir", () =>
-            {
-                if (!self) { UpdateCheck.OpenPage(r.Url); return; }
-                var dlg = new UpdateDialog(r);
-                dlg.Closed += () => Children.Remove(dlg);
-                Children.Add(dlg);
-            }, primary: true);
-            get.Margin = new Thickness(18, 0, 0, 0);
-            get.Padding = new Thickness(22, 6, 22, 6);
-            get.Tag = "update-download";
-            row.Children.Add(get);
-            var later = Ui.Button("Sonra", () => host.Content = null);
-            later.Margin = new Thickness(8, 0, 0, 0);
-            later.Padding = new Thickness(14, 6, 14, 6);
-            row.Children.Add(later);
-            var g = new Grid { Tag = "update-banner" };
-            g.Children.Add(new ChamferFrame { Fill = Theme.B("#ee1c140a"), Edge = Ornate.GoldEdge, Inner = Ornate.GoldThin, Cut = 10, Inset = 4 });
-            row.Margin = new Thickness(22, 10, 14, 10);
-            g.Children.Add(row);
-            g.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 20, ShadowDepth = 0, Opacity = 0.9 };
-            host.Content = g;
-        }
-        if (UpdateCheck.Pending is not { } pending) return;
-        if (pending.IsCompleted) Show(pending.Result);
-        else pending.ContinueWith(t => Dispatcher.BeginInvoke(() => Show(t.Result)), TaskScheduler.Default);
-    }
+    private void AddVersionInfo() => UpdateBanner.Attach(this);
 
     /// <summary>Sol üst köşede portre + takma ad: tıklayınca profil açılır.</summary>
     private UIElement ProfileChip()
@@ -254,6 +218,13 @@ public sealed class MenuView : Grid
         });
 
         var list = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Width = 360 };
+        if (_exit != null)
+        {
+            // Merkezden gelindi: sol sütun yalnız logo ve geri yolu; modlar merkezde
+            list.Children.Add(MenuItem("‹  Gwent merkezi", () => _exit()));
+            left.Children.Add(list);
+            return left;
+        }
         // Ana öğeler: oyun kipleri ve sık kullanılanlar. Profil (sol üstteki portre de açar) ve kılavuz altta küçük bağlantılardır.
         list.Children.Add(MenuItem("Hızlı Gwent", ToggleSetup));
         if (_openHan != null) list.Children.Add(MenuItem("Han Ligi", () => _openHan()));
@@ -480,7 +451,7 @@ public sealed class MenuView : Grid
         root.Children.Add(_nextGen);
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 16, 0, 0) };
-        var back = Ui.Button("Geri", ToggleSetup);
+        var back = Ui.Button("Geri", () => { if (_exit != null) _exit(); else ToggleSetup(); });
         back.FontSize = 18;
         back.Padding = new Thickness(30, 12, 30, 12);
         back.Margin = new Thickness(0, 0, 14, 0);

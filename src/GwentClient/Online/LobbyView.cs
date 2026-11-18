@@ -32,7 +32,7 @@ public sealed class LobbyView : Grid
     {
         _c = controller;
         _leave = leave;
-        Children.Add(Ornate.Stage(_host));
+        Children.Add(Ornate.Stage(_host, HubArt.Wide("online", "pano_novigrad"), 1.05));
 
         _picker = new LoadoutPicker(() => NextGen);
         _picker.Changed += SendLoadout;
@@ -118,7 +118,7 @@ public sealed class LobbyView : Grid
         var active = st.Curses ?? new List<string>();
         var sp = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
         var head = new StackPanel { Orientation = Orientation.Horizontal };
-        head.Children.Add(Ui.Text(Ornate.Spaced("MAÇ KURALLARI"), 12, Theme.B("#a8905a"), true));
+        head.Children.Add(Ui.Text(Ornate.Spaced("MAÇ KURALLARI"), 16, Theme.B("#c9b27a"), true));
         head.Children.Add(Ui.Text(host ? "   seçmek için tıkla · ayrıntı için üzerine gel" : "   oda kuran seçer · ayrıntı için üzerine gel", 12, Theme.TextDim));
         sp.Children.Add(head);
 
@@ -386,7 +386,7 @@ public sealed class LobbyView : Grid
         g.Children.Add(medal);
         var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(sp, 1);
-        sp.Children.Add(Ui.Text(Ornate.Spaced(label), 13, Theme.B("#a8905a"), true));
+        sp.Children.Add(Ui.Text(Ornate.Spaced(label), 16, Theme.B("#c9b27a"), true));
         var n = Ui.Text(nick, 36, Theme.B("#f0d890"), true);
         n.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 2, Opacity = 0.9 };
         sp.Children.Add(n);
@@ -415,7 +415,35 @@ public sealed class LobbyView : Grid
             _picker.Build();
             root.Children.Add(_picker);
         }
-        return new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 8, 0) };
+        var scroll = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 8, 0) };
+        if (Draft || string.IsNullOrEmpty(_picker.LeaderId)) return scroll;
+        // Seçtiğin lider sağda büyük kart olarak: karşıdaki rakip kartının aynası, masa simetrik durur
+        var g = new Grid();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        g.Children.Add(scroll);
+        var preview = MyLeaderPreview();
+        Grid.SetColumn(preview, 1);
+        g.Children.Add(preview);
+        return g;
+    }
+
+    /// <summary>Benim seçtiğim liderin büyük kartı ve fraksiyon adı (seçim değişince yeniden çizilir).</summary>
+    private FrameworkElement MyLeaderPreview()
+    {
+        var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(24, 0, 6, 0), Width = 280, Tag = "lobby-my-leader" };
+        var def = CardCatalog.Default.Get(_picker.LeaderId);
+        var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12), HorizontalAlignment = HorizontalAlignment.Center };
+        if (Assets.Ui("shield_" + _picker.Faction) is { } shield) head.Children.Add(new Image { Source = shield, Width = 34, Height = 34, Margin = new Thickness(0, 0, 10, 0) });
+        var name = Ui.Text(Texts.FactionShort(_picker.Faction), 20, Theme.B("#f0d890"), true);
+        name.VerticalAlignment = VerticalAlignment.Center;
+        head.Children.Add(name);
+        sp.Children.Add(head);
+        const double w = 250;
+        var card = new GwintCard(def, w, null, null, height: w * GwintCard.Aspect) { IsHitTestVisible = false, HorizontalAlignment = HorizontalAlignment.Center };
+        card.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 30, ShadowDepth = 4, Opacity = 0.9 };
+        sp.Children.Add(card);
+        return sp;
     }
 
     // ---------- Draft ----------
@@ -519,7 +547,7 @@ public sealed class LobbyView : Grid
 
     private static TextBlock Label(string t)
     {
-        var l = Ui.Text(Ornate.Spaced(t), 13, Theme.B("#a8905a"), true);
+        var l = Ui.Text(Ornate.Spaced(t), 16, Theme.B("#c9b27a"), true);
         l.Margin = new Thickness(0, 14, 0, 8);
         return l;
     }

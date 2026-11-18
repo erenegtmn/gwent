@@ -118,10 +118,10 @@ public static class Ornate
         return tb;
     }
 
-    /// <summary>Küçük, aralıklı büyük harfli bölüm etiketi.</summary>
+    /// <summary>Bölüm etiketi: cümle düzeninde, kalın, soluk altın (ARAYUZ.md: aralıklı büyük harf etiket kullanılmaz).</summary>
     public static TextBlock Caption(string text, double top = 14)
     {
-        var l = Ui.Text(Spaced(text.ToUpper(new System.Globalization.CultureInfo("tr-TR"))), 13, Theme.B("#a8905a"), true);
+        var l = Ui.Text(Sentence(text), 16, Theme.B("#c9b27a"), true);
         l.Margin = new Thickness(0, top, 0, 6);
         return l;
     }
@@ -151,23 +151,42 @@ public static class Ornate
         return c;
     }
 
-    /// <summary>Büyük, aralıklı harfli başlık + altında küçük açıklama; orijinal oyun başlıkları gibi.</summary>
+    /// <summary>Ekran başlığı: cümle düzeninde büyük altın yazı + altında kısa açıklama (merkez ekranlarının ekmek kırıntısıyla aynı dil).</summary>
     public static UIElement Heading(string title, string? sub = null, double size = 40, HorizontalAlignment align = HorizontalAlignment.Left)
     {
         var sp = new StackPanel { HorizontalAlignment = align };
         var t = new TextBlock
         {
-            Text = Spaced(title.ToUpper(new System.Globalization.CultureInfo("tr-TR"))), FontFamily = Theme.Serif, FontSize = size * Theme.FontScale,
-            Foreground = new LinearGradientBrush(Color.FromRgb(0xf2, 0xdc, 0x9a), Color.FromRgb(0xb8, 0x92, 0x44), 90), FontWeight = FontWeights.SemiBold,
-            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 2, Opacity = 0.95 }
+            Text = Sentence(title), FontFamily = Theme.Serif, FontSize = size * 1.05 * Theme.FontScale,
+            Foreground = new LinearGradientBrush(Color.FromRgb(0xf6, 0xe6, 0xb8), Color.FromRgb(0xc8, 0xa2, 0x58), 90), FontWeight = FontWeights.SemiBold,
+            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 10, ShadowDepth = 2, Opacity = 0.95 },
+            HorizontalAlignment = align
         };
         sp.Children.Add(t);
-        if (sub != null) sp.Children.Add(Ui.Text(sub, 15, Theme.TextDim));
+        if (sub != null)
+        {
+            var st = Ui.Text(sub, 17, Theme.B("#b9ae94"));
+            st.HorizontalAlignment = align;
+            st.Margin = new Thickness(0, 2, 0, 0);
+            sp.Children.Add(st);
+        }
         return sp;
     }
 
-    /// <summary>Harf aralığı (WPF'te yok): ince boşluklar ekler.</summary>
-    public static string Spaced(string s) => string.Join("  ", s.Select(ch => ch.ToString()));
+    /// <summary>Tamamı büyük harfle yazılmış metni cümle düzenine çevirir ("MAÇ KURALLARI" → "Maç kuralları"); karışık metne dokunmaz.</summary>
+    public static string Sentence(string s)
+    {
+        var tr = new System.Globalization.CultureInfo("tr-TR");
+        if (s.Length == 0 || s.Any(char.IsLower)) return s;
+        var low = s.ToLower(tr);
+        return char.ToUpper(low[0], tr) + low[1..];
+    }
+
+    /// <summary>Eski aralıklı büyük harf etiketlerinin yerine: cümle düzeni (ARAYUZ.md). Harf aralığı gereken tek yer VS ekranıdır (<see cref="Tracked"/>).</summary>
+    public static string Spaced(string s) => Sentence(s);
+
+    /// <summary>Harf aralığı (WPF'te yok): ince boşluklar ekler. Yalnız sinematik büyük adlar için (VS ekranı).</summary>
+    public static string Tracked(string s) => string.Join("  ", s.Select(ch => ch.ToString()));
 
     /// <summary>Öğeleri sırayla yukarı kayarak belirir (sinematik giriş). Animasyon kapalıysa hiçbir şey yapmaz.</summary>
     public static void Reveal(IEnumerable<UIElement> items, double dy = 26, int startMs = 80, int stepMs = 90, int durMs = 520)
@@ -193,7 +212,7 @@ public static class Ornate
     {
         var g = new Grid { Background = Theme.Bg, ClipToBounds = true };
         if (Assets.Ui(pano) is { } src)
-            g.Children.Add(new Image { Source = src, Stretch = Stretch.UniformToFill, IsHitTestVisible = false, Opacity = 1 - dim * 0.5 });
+            g.Children.Add(new Image { Source = src, Stretch = Stretch.UniformToFill, IsHitTestVisible = false, Opacity = Math.Clamp(1 - dim * 0.62, 0.25, 1) });
         g.Children.Add(new Border
         {
             IsHitTestVisible = false,

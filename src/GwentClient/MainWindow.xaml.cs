@@ -42,7 +42,13 @@ public partial class MainWindow : Window
     private string? _lastFaction;
     private bool _lastNextGen;
 
-    private void ShowMenu() => Host.Content = new MenuView(StartGame, ShowBuilder, _lastFaction, _lastNextGen, openSettings: ShowSettings, openStats: ShowStats, openOnline: ShowOnlineMenu, openGuide: ShowGuide, openCareer: ShowCareer, openDraft: ShowDraft, openKeep: ShowKeep, openHan: ShowHan);
+    /// <summary>Ana menü: dört kapılı merkez (Gwent, Çevrimiçi, Kaer Morhen, Han Ligi).</summary>
+    private void ShowMenu() => Host.Content = new HubView(ShowPlayHub, ShowOnlineMenu, ShowKeep, ShowHan, ShowGuide, ShowStats, ShowSettings);
+
+    /// <summary>"Gwent" alt merkezi: Hızlı Gwent, Collect 'Em All, Draft, Deste kurucu.</summary>
+    private void ShowPlayHub() => Host.Content = new PlayHubView(ShowMenu, ShowQuickGwent, ShowCareer, ShowDraft, () => ShowBuilder(_lastFaction ?? "northern_realms", _lastNextGen), ShowStats);
+
+    private void ShowQuickGwent() => Host.Content = new MenuView(StartGame, ShowBuilder, _lastFaction, _lastNextGen, openSettings: ShowSettings, openStats: ShowStats, exit: ShowPlayHub);
 
     private void ShowGuide() => Host.Content = new GuideView(ShowMenu);
 
@@ -54,7 +60,7 @@ public partial class MainWindow : Window
     {
         _lastFaction = faction;
         _lastNextGen = nextGen;
-        Host.Content = new DeckBuilderView(faction, nextGen, ShowMenu);
+        Host.Content = new DeckBuilderView(faction, nextGen, ShowPlayHub);
     }
 
     private void StartGame(MatchConfig cfg)

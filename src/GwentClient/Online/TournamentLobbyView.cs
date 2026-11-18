@@ -32,7 +32,7 @@ public sealed class TournamentLobbyView : Grid
     {
         _c = controller;
         _leave = leave;
-        Children.Add(Ornate.Stage(_host));
+        Children.Add(Ornate.Stage(_host, HubArt.Wide("online", "pano_novigrad"), 1.05));
         _picker = new LoadoutPicker(() => St?.NextGen == true);
         _picker.Changed += SendLoadout;
         _rulePicker = new LoadoutPicker(() => St?.NextGen == true);
@@ -311,7 +311,7 @@ public sealed class TournamentLobbyView : Grid
         if (r.Deck is { } d && CardCatalog.Default.TryGet(d.LeaderId, out var leader))
             sp.Children.Add(new GwintCard(leader, 150, null, null, height: 150 * GwintCard.Aspect) { IsHitTestVisible = false, Margin = new Thickness(0, 0, 22, 0) });
         var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Width = 420 };
-        info.Children.Add(Ui.Text(Ornate.Spaced("SABİT DESTE"), 13, Theme.B("#a8905a"), true));
+        info.Children.Add(Ui.Text(Ornate.Spaced("SABİT DESTE"), 16, Theme.B("#c9b27a"), true));
         info.Children.Add(Ui.Text(Texts.Faction(r.Deck?.Faction ?? ""), 26, Theme.B("#f0d890"), true));
         info.Children.Add(Ui.Text(r.Deck?.CardIds is { } ids ? $"{ids.Count} kart" : "", 16, Theme.TextDim));
         var note = Ui.Text("Bu turnuvada herkes bu desteyle oynar; değiştirilemez. Hazır olman yeterli.", 16, Theme.B("#c9c0aa"), false, TextAlignment.Left, true);
@@ -326,7 +326,7 @@ public sealed class TournamentLobbyView : Grid
     {
         var st = St;
         var sp = new StackPanel();
-        var head = Ui.Text(Ornate.Spaced("OYUNCULAR"), 13, Theme.B("#a8905a"), true);
+        var head = Ui.Text(Ornate.Spaced("OYUNCULAR"), 16, Theme.B("#c9b27a"), true);
         sp.Children.Add(head);
         sp.Children.Add(Ui.Text($"{st?.Players.Count ?? 0} / {st?.MaxPlayers ?? 0}", 30, Theme.B("#f0d890"), true));
         var rule = Ornate.Rule(440, 10);
