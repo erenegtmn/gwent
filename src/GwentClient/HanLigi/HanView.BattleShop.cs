@@ -17,6 +17,41 @@ public sealed partial class HanView
     /// <summary>Savaşta tezgâh açık mı (alt şerit depo satırıdır).</summary>
     private bool _battleShop;
     private Viewport3D? _roll;
+    /// <summary>Dönüşün ilk karelerinde şeridin eski hali (düz görüntü): küp ekrana çizilene kadar yerini tutar.</summary>
+    private Image? _rollCover;
+    /// <summary>Dönüş boyunca gizlenen gerçek şerit öğeleri ve eski saydamlıkları.</summary>
+    private readonly List<(UIElement El, double Opacity)> _rollHidden = new();
+    private EventHandler? _rollWait;
+
+    private static readonly Rect BarRect = new(12, BarY, 1896, BarH);
+
+    /// <summary>Ölçüm: alt şeridin (ve üstündeki 120 pikselin) ekrandaki yeri, aygıt pikseliyle.</summary>
+    internal Int32Rect BarScreenRect()
+    {
+        var a = _stage.PointToScreen(new Point(0, BarY - 120));
+        var b = _stage.PointToScreen(new Point(1920, 1080));
+        return new Int32Rect((int)a.X, (int)a.Y, (int)(b.X - a.X), (int)(b.Y - a.Y));
+    }
+
+    /// <summary>Ekran katmanında alt şerit bölgesine değen öğeler.</summary>
+    private IEnumerable<FrameworkElement> BarElements()
+    {
+        foreach (UIElement child in _c.Children)
+        {
+            if (child is not FrameworkElement fe || fe.Visibility != Visibility.Visible || fe.ActualWidth <= 0) continue;
+            if (fe.TransformToAncestor(_c).TransformBounds(new Rect(0, 0, fe.ActualWidth, fe.ActualHeight)).IntersectsWith(BarRect)) yield return fe;
+        }
+    }
+
+    /// <summary>Dönüşü bitirir: küp ve geçici görüntü kalkar, gizlenen şerit öğeleri geri gelir.</summary>
+    private void EndRoll()
+    {
+        if (_rollWait != null) { CompositionTarget.Rendering -= _rollWait; _rollWait = null; }
+        if (_roll != null) { _fx.Children.Remove(_roll); _roll = null; }
+        if (_rollCover != null) { _fx.Children.Remove(_rollCover); _rollCover = null; }
+        foreach (var (el, op) in _rollHidden) el.Opacity = op;
+        _rollHidden.Clear();
+    }
 
     private bool BattleShopAllowed => _screen is Screen.Activation or Screen.Battle && M.Phase == Phase.Battle && Me.Alive;
 
@@ -85,12 +120,12 @@ public sealed partial class HanView
     /// <summary>Alt şeridin şu anki görüntüsü (sahnenin o bölgesi).</summary>
     private BitmapSource? SnapshotBar()
     {
-        if (_roll != null) { _fx.Children.Remove(_roll); _roll = null; }
+        EndRoll();
         try
         {
             _stage.UpdateLayout();
             // yalnız şerit bölgesi çizilir (bütün sahneyi yazılımla çizmek saniyeler sürüyordu)
-            var r = new Rect(12, BarY, 1896, BarH);
+            var r = BarRect;
             var k = Math.Clamp(_caches.Count > 0 ? _caches[0].RenderAtScale : 1, 1, 1.5);
             // şeridin öğeleri ekran katmanındadır: yalnız bölgeye değenler çizilir (bütün sahneyi yazılımla çizmek saniyeler
             // sürüyordu). RenderTargetBitmap öğeyi tuvaldeki yerinde çizer; sonra şerit kırpılır. Zemin koyu ahşap.
@@ -98,12 +133,7 @@ public sealed partial class HanView
             var bg = new DrawingVisual();
             using (var dc = bg.RenderOpen()) dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x14, 0x0e, 0x08)), null, r);
             full.Render(bg);
-            foreach (UIElement child in _c.Children)
-            {
-                if (child is not FrameworkElement fe || fe.Visibility != Visibility.Visible || fe.ActualWidth <= 0) continue;
-                var at = fe.TransformToAncestor(_c).TransformBounds(new Rect(0, 0, fe.ActualWidth, fe.ActualHeight));
-                if (at.IntersectsWith(r)) full.Render(fe);
-            }
+            foreach (var fe in BarElements()) full.Render(fe);
             var crop = new CroppedBitmap(full, new Int32Rect((int)(r.X * k), (int)(r.Y * k), (int)(r.Width * k), (int)(r.Height * k)));
             crop.Freeze();
             return crop;
@@ -169,6 +199,14 @@ public sealed partial class HanView
         Canvas.SetLeft(vp, 0);
         Canvas.SetTop(vp, 0);
         _roll = vp;
+        // Pürüzsüz başlangıç: yeni şerit aynı çizimde gizlenir (yoksa küp ekrana gelmeden bir kare görünüyordu), yerinde eski
+        // şeridin düz görüntüsü durur; küp ilk kez çizildikten sonra (iki kare) görüntü kalkar ve dönüş başlar. Gerçek şerit
+        // dönüş bitince açılır (küpün son yüzüyle aynı).
+        foreach (var fe in BarElements()) { _rollHidden.Add((fe, fe.Opacity)); fe.Opacity = 0; }
+        _rollCover = new Image { Source = from, Width = BarRect.Width, Height = BarRect.Height, Stretch = Stretch.Fill, IsHitTestVisible = false };
+        Canvas.SetLeft(_rollCover, BarRect.X);
+        Canvas.SetTop(_rollCover, BarRect.Y);
+        _fx.Children.Add(_rollCover);
         _fx.Children.Add(vp);
 
         // zar gibi: hızlanarak yuvarlanır, biraz fazla döner (~8°) ve geri oturur
@@ -182,13 +220,22 @@ public sealed partial class HanView
         spin.Completed += (_, _) =>
         {
             if (_roll != vp) return;
-            _fx.Children.Remove(vp);
-            _roll = null;
+            EndRoll();
             if (gen == _gen) Sfx.Play("han_place");
         };
-        rot.BeginAnimation(AxisAngleRotation3D.AngleProperty, spin);
-        // dönerken öne kalkar (zar masadan sekip döner)
-        lift.BeginAnimation(TranslateTransform3D.OffsetZProperty, new DoubleAnimation(0, H * 0.35, TimeSpan.FromMilliseconds(230)) { AutoReverse = true, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } });
-        Sfx.Play("han_reroll");
+        var frames = 0;
+        _rollWait = (_, _) =>
+        {
+            if (++frames < 2) return;
+            CompositionTarget.Rendering -= _rollWait;
+            _rollWait = null;
+            if (_roll != vp) return;
+            if (_rollCover != null) { _fx.Children.Remove(_rollCover); _rollCover = null; }
+            rot.BeginAnimation(AxisAngleRotation3D.AngleProperty, spin);
+            // dönerken öne kalkar (zar masadan sekip döner)
+            lift.BeginAnimation(TranslateTransform3D.OffsetZProperty, new DoubleAnimation(0, H * 0.35, TimeSpan.FromMilliseconds(230)) { AutoReverse = true, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } });
+            Sfx.Play("han_reroll");
+        };
+        CompositionTarget.Rendering += _rollWait;
     }
 }

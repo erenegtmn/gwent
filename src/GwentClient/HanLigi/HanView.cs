@@ -130,7 +130,7 @@ public sealed partial class HanView : Grid
         ToolTipService.SetBetweenShowDelay(this, 0);
         ToolTipService.SetShowDuration(this, 60000);
         Children.Add(new Viewbox { Stretch = Stretch.Uniform, Child = _stage });
-        Unloaded += (_, _) => { StopTimer(); _gen++; };
+        Unloaded += (_, _) => { StopTimer(); EndRoll(); _gen++; };
         _stage.MouseMove += OnDragMove;
         // başka bir kartımın üstüne bırakılan kart onunla yer değiştirir (bırakma alanlarından önce: önizleme olayı tepeden iner)
         _stage.PreviewMouseLeftButtonUp += (_, e) =>

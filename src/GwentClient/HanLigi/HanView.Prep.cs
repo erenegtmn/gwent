@@ -39,6 +39,7 @@ public sealed partial class HanView
         _banner.Children.Clear();
         _screen = Screen.Prep;
         _battleShop = false;
+        EndRoll();
         _sel = null;
         _waitReady = false;
         _shopOpen = true;
@@ -96,6 +97,7 @@ public sealed partial class HanView
         _act = b.DefaultActivation(Session.MySide);
         _screen = Screen.Activation;
         _battleShop = false;
+        EndRoll();
         _weatherShown.Clear();
         _hold = 0;
         _sel = null;

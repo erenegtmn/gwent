@@ -65,6 +65,32 @@ public static partial class UiSelfTest
         Console.WriteLine($"Hazırlık (kart seçili): {sel.Fps:F0} kare/sn, en uzun kare {sel.Worst:F0} ms");
         Click("han-ready");
         Wait(2600);
+        // savaşta tezgâh: alt şeridin zar dönüşü gerçek ekrandan kare kare yakalanır (HAN_ROLL_FRAMES=klasör). İlk karelerde
+        // yeni şerit (depo) görünmemeli: önce eski şerit, sonra dönen küp.
+        if (Environment.GetEnvironmentVariable("HAN_ROLL_FRAMES") is { Length: > 0 } dir)
+        {
+            System.IO.Directory.CreateDirectory(dir);
+            foreach (var pass in new[] { "ac", "kapa" })
+            {
+                var r = view.BarScreenRect();
+                var shots = new List<System.Windows.Media.Imaging.BitmapSource>();
+                void Grab(object? o, EventArgs e) { if (shots.Count < 14) shots.Add(ScreenGrab(r)); }
+                shots.Add(ScreenGrab(r));
+                CompositionTarget.Rendering += Grab;
+                Click("han-battle-shop");
+                Wait(900);
+                CompositionTarget.Rendering -= Grab;
+                for (var i = 0; i < shots.Count; i++)
+                {
+                    var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(shots[i]));
+                    using var f = System.IO.File.Create(System.IO.Path.Combine(dir, $"zar_{pass}_{i:00}.png"));
+                    enc.Save(f);
+                }
+                Console.WriteLine($"Zar dönüşü ({pass}): {shots.Count} kare yakalandı -> {dir}");
+                Wait(600);
+            }
+        }
         Click("han-act-go");
         Wait(2500);
         Click("han-sign:Igni");
@@ -81,5 +107,31 @@ public static partial class UiSelfTest
         Console.WriteLine($"Ekranı baştan kurma (UI iş parçacığı, en uzun): {HanView.RenderMaxMs:F0} ms");
         win.Close();
         return 0;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr hwnd);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr hwnd, IntPtr dc);
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr dc);
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleBitmap(IntPtr dc, int w, int h);
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern IntPtr SelectObject(IntPtr dc, IntPtr obj);
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern bool BitBlt(IntPtr dst, int x, int y, int w, int h, IntPtr src, int sx, int sy, int rop);
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr obj);
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern bool DeleteDC(IntPtr dc);
+
+    /// <summary>Ekranın bir bölgesi (aygıt pikseli), o anda gösterilen haliyle.</summary>
+    private static System.Windows.Media.Imaging.BitmapSource ScreenGrab(Int32Rect r)
+    {
+        var screen = GetDC(IntPtr.Zero);
+        var mem = CreateCompatibleDC(screen);
+        var bmp = CreateCompatibleBitmap(screen, r.Width, r.Height);
+        var old = SelectObject(mem, bmp);
+        BitBlt(mem, 0, 0, r.Width, r.Height, screen, r.X, r.Y, 0x00CC0020);
+        SelectObject(mem, old);
+        var src = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(bmp, IntPtr.Zero, Int32Rect.Empty, System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+        src.Freeze();
+        DeleteObject(bmp);
+        DeleteDC(mem);
+        ReleaseDC(IntPtr.Zero, screen);
+        return src;
     }
 }
