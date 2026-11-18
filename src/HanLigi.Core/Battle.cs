@@ -281,14 +281,14 @@ public sealed class Battle
                 Sides[1 - i].EredinRow = r;
                 PreLog.Add($"Eredin: {Sides[1 - i].Name} tarafının {Texts.Name(r)} satırı −%30.");
             }
-            s.Focus = Tuning.StartFocus + s.Units.Count(u => !u.Token && u.Def.Ability == Ability.Bard)
-                      + (s.School == HanLigi.School.Wolf ? 1 : 0) + (s.Th(Tag.Mage) >= 2 ? 1 : 0);
+            s.Focus = Math.Min(Tuning.FocusCap, Tuning.StartFocus + s.Units.Count(u => !u.Token && u.Def.Ability == Ability.Bard)
+                      + (s.School == HanLigi.School.Wolf ? 1 : 0) + (s.Th(Tag.Mage) >= 2 ? 1 : 0));
         }
     }
 
     // ---------- pencere ----------
 
-    public int AmbushCap(BattleSide s) => s.Th(Tag.Bandit) >= 1 ? 3 : 2;
+    public int AmbushCap(BattleSide s) => Tuning.AmbushBase + (s.Th(Tag.Bandit) >= 1 ? 1 : 0);
 
     public bool CanDouble(int side) => !Sides[side].JaskierUsed && Sides[side].HasHero(Hero.Jaskier);
 
@@ -373,8 +373,25 @@ public sealed class Battle
             if (!yrden[1 - i]) continue;
             var s = Sides[i];
             var hit = false;
-            if (potion[i] != null) { log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} tarafının {Texts.Name(potion[i]!.Value)} kartı etkisiz."); potion[i] = null; hit = true; }
-            if (s.Th(Tag.Bandit) < 3 && (ambush[i].Count > 0 || (Window == 2 && s.Ambush.Count > 0)))
+            if (potion[i] != null && Tuning.YrdenMode != 2 && Tuning.YrdenPotion) { log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} tarafının {Texts.Name(potion[i]!.Value)} kartı etkisiz."); potion[i] = null; hit = true; }
+            // 4: yalnız bilerek indirilen pusu zayıflar; 5: bilerek indirilen pusu bu pencerede inemez (son pencerede kendiliğinden inenlere dokunmaz)
+            if (Tuning.YrdenMode == 5 && ambush[i].Count > 0 && Window < 2)
+            {
+                log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} pusudan inemedi (sonra inebilir).");
+                ambush[i] = Array.Empty<int>();
+                hit = true;
+            }
+            if (Tuning.YrdenMode == 4 && ambush[i].Count > 0)
+            {
+                log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} tarafının pusudan indirdikleri −%{Tuning.YrdenAmbushPct * 100:0}.");
+                hit = true;
+            }
+            if (Tuning.YrdenMode == 3 && (ambush[i].Count > 0 || (Window == 2 && s.Ambush.Count > 0)))
+            {
+                log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} tarafının pusudan inenleri −%{Tuning.YrdenAmbushPct * 100:0}.");
+                hit = true;
+            }
+            if (Tuning.YrdenMode is 0 or 2 && s.Th(Tag.Bandit) < 3 && (ambush[i].Count > 0 || (Window == 2 && s.Ambush.Count > 0)))
             {
                 log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} pusudan inemedi.");
                 ambush[i] = Array.Empty<int>();
@@ -387,7 +404,9 @@ public sealed class Battle
         for (var i = 0; i < 2; i++)
         {
             var s = Sides[i];
-            var blocked = yrden[1 - i] && s.Th(Tag.Bandit) < 3;
+            var blocked = yrden[1 - i] && Tuning.YrdenMode is 0 or 2 && s.Th(Tag.Bandit) < 3;
+            var sealedLanding = yrden[1 - i] && Tuning.YrdenMode == 3;
+            var chosen = ambush[i].ToHashSet();
             var landing = new List<BattleUnit>();
             foreach (var uid in ambush[i]) if (s.Ambush.FirstOrDefault(u => u.Uid == uid) is { } au) landing.Add(au);
             if (Window == 2 && !blocked) landing.AddRange(s.Ambush.Where(u => !landing.Contains(u)));
@@ -397,7 +416,8 @@ public sealed class Battle
                 u.Row = row;
                 u.Landed = true;
                 s.Units.Add(u);
-                if (s.Th(Tag.Bandit) >= 2) Pct(u, 0.25);
+                if (s.Th(Tag.Bandit) >= 2) Pct(u, s.Th(Tag.Bandit) >= 3 ? 0.5 : 0.25);
+                if (sealedLanding || (yrden[1 - i] && Tuning.YrdenMode == 4 && chosen.Contains(u.Uid))) Pct(u, -Tuning.YrdenAmbushPct);
                 log.Add($"{s.Name} pusudan {u.Def.Name} indirdi.");
                 fx.Add(new FxEvent("ambush", i, u.Uid));
             }
@@ -425,6 +445,7 @@ public sealed class Battle
             var o = 1 - i;
             foreach (var sg in ch[i].Signs)
             {
+                if (sg == Sign.Aard && Tuning.YrdenBlocksAard && yrden[o]) { log.Add($"{s.Name} Aard attı; {Sides[o].Name} Yrden ile tuttu."); fx.Add(new FxEvent("aard", i, 0, true)); continue; }
                 if (sg == Sign.Aard) { foe[o] -= 0.10 * Amp(i); mods.Add((o, "Aard", -0.10 * Amp(i))); log.Add($"{s.Name} Aard: {Sides[o].Name} satırı −%{0.10 * Amp(i) * 100:0}."); fx.Add(new FxEvent("aard", i, (int)Math.Round(0.10 * Amp(i) * 100))); }
                 if (sg == Sign.Quen && !ch[o].Signs.Contains(Sign.Igni)) log.Add($"{s.Name} Quen attı, boşa gitti.");
                 if (sg == Sign.Quen) fx.Add(new FxEvent("quen", i, 0, ch[o].Signs.Contains(Sign.Igni) && potion[i] != Potion.BlackBlood));
@@ -504,7 +525,7 @@ public sealed class Battle
         for (var i = 0; i < 2; i++)
         {
             var s = Sides[i];
-            s.Focus += Math.Min(quenBlocks[i], quenPaid[i]);
+            if (Tuning.QuenRefund) s.Focus = Math.Min(Tuning.FocusCap, s.Focus + Math.Min(quenBlocks[i], quenPaid[i]));
             if (winner == i)
             {
                 s.Points++;
@@ -517,7 +538,7 @@ public sealed class Battle
                 if (!s.In(row).Any()) continue;
                 var ves = s.In(row).Any(u => u.Def.Hero == Hero.Vesemir);
                 var gain = Math.Min(ves ? 2 : 1, (ves ? Tuning.RageCap + 1 : Tuning.RageCap) - s.Rage);
-                if (gain > 0) { s.Rage += gain; s.Focus += gain; log.Add($"{s.Name}: Öfke +{gain} Odak."); fx.Add(new FxEvent("rage", i, gain)); }
+                if (gain > 0) { s.Rage += gain; s.Focus = Math.Min(Tuning.FocusCap, s.Focus + gain); log.Add($"{s.Name}: Öfke +{gain} Odak."); fx.Add(new FxEvent("rage", i, gain)); }
             }
             else s.Prev = 0;
         }

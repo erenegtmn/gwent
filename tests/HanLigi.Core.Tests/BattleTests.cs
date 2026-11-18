@@ -165,7 +165,7 @@ public class BattleTests
     }
 
     [Fact]
-    public void Yrden_stops_ambush_and_in_last_window_it_never_lands()
+    public void Yrden_does_not_stop_ambush_since_meta4()
     {
         var (a, b) = (Side("A"), Side("B"));
         var amb = new BattleUnit { Uid = 5000, Def = CardSet.Get("dol_blathanna_scout"), Power = 7, Row = Row.Close };
@@ -176,9 +176,42 @@ public class BattleTests
         Play(bt, WindowChoice.None, WindowChoice.None);
         Play(bt, WindowChoice.None, WindowChoice.None);
         var o = Play(bt, new WindowChoice(Array.Empty<Sign>(), null, 5000), C(Sign.Yrden));
-        Assert.Equal(0, o.ValueA);
-        Assert.Equal(1, o.Winner);
-        Assert.Single(a.Ambush);
+        Assert.Equal(7, o.ValueA);   // Yrden yalnız simyayı ve Aard'ı keser; pusu iner
+        Assert.Equal(0, o.Winner);
+        Assert.Empty(a.Ambush);
+    }
+
+    [Fact]
+    public void Yrden_delays_a_chosen_ambush_until_a_later_row()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        var amb = new BattleUnit { Uid = 5000, Def = CardSet.Get("dol_blathanna_scout"), Power = 7, Row = Row.Close };
+        a.Ambush.Add(amb);
+        Add(b, "sweers", Row.Siege);
+        var bt = Make(a, b);
+        bt.Start();
+        var o1 = Play(bt, new WindowChoice(Array.Empty<Sign>(), null, 5000), C(Sign.Yrden));
+        Assert.Equal(0, o1.ValueA);            // inemedi
+        Assert.Single(a.Ambush);               // pusuda kaldı
+        var o2 = Play(bt, new WindowChoice(Array.Empty<Sign>(), null, 5000), WindowChoice.None);
+        Assert.Equal(7, o2.ValueA);            // sonraki satırda indi
+        Assert.Empty(a.Ambush);
+    }
+
+    [Fact]
+    public void Yrden_blocks_aard_and_both_pay()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        a.Units.Add(new BattleUnit { Uid = 1, Def = CardSet.Get("ghoul"), Power = 10, Row = Row.Close });
+        b.Units.Add(new BattleUnit { Uid = 2, Def = CardSet.Get("ghoul"), Power = 10, Row = Row.Close });
+        var bt = Make(a, b);
+        bt.Start();
+        var o = Play(bt, C(Sign.Aard), C(Sign.Yrden));
+        Assert.Equal(10, o.ValueB);   // Aard tutuldu
+        Assert.Equal(-1, o.Winner);
+        Assert.Equal(Tuning.StartFocus - 1, a.Focus);
+        Assert.Equal(Tuning.StartFocus - 1, b.Focus);
+        Assert.DoesNotContain(o.RowMods, m => m.Source == "Aard");
     }
 
     [Fact]

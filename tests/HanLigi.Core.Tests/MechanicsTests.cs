@@ -65,8 +65,8 @@ public class MechanicsTests
         var bt = Start(a, b);
         Play(bt, C(Sign.Igni), C(Sign.Aard));
         // A: 8 × 0,9 = 7; B: Igni ile 8 → 4. A kazanır. A: 3 − 2 = 1; B: 3 − 1 + Öfke 1 = 3
-        Assert.Equal(1, a.Focus);
-        Assert.Equal(3, b.Focus);
+        Assert.Equal(0, a.Focus);
+        Assert.Equal(2, b.Focus);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class MechanicsTests
         var o = Play(bt, C(Sign.Quen), C(Sign.Igni));
         Assert.Equal(8, Val(o, mine));
         Assert.Equal(9, o.ValueB);                   // Ayı karşı vuruşu −%10
-        Assert.Equal(4, a.Focus);                    // 3 − 1 + 1 iade + 1 Öfke (8 < 9)
+        Assert.Equal(3, a.Focus);                    // 3 − 1 + 1 iade + 1 Öfke (8 < 9)
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public class MechanicsTests
         var bt = Start(a, b);
         Assert.Equal(0, bt.Cost(0, C(Sign.Igni)));
         Play(bt, C(Sign.Igni), N);
-        Assert.Equal(3, a.Focus);                    // bedava, A satırı kazandı
+        Assert.Equal(2, a.Focus);                    // bedava, A satırı kazandı
         Assert.Equal(2, bt.Cost(0, C(Sign.Igni)));   // Menzilli: Geralt yok
     }
 
@@ -155,9 +155,9 @@ public class MechanicsTests
         Add(a, "fiend"); Add(a, "dethmold");
         Add(b, "griffin"); Add(b, "sile_de_tansarville");
         var bt = Start(a, b);
-        Assert.Equal(4, a.Focus);                    // Büyücü 4 eşiği +1
+        Assert.Equal(3, a.Focus);                    // Büyücü 4 eşiği +1
         Play(bt, C(Sign.Igni), N);
-        Assert.Equal(4, a.Focus);
+        Assert.Equal(3, a.Focus);
         Assert.Equal(2, bt.Cost(0, C(Sign.Igni)));
     }
 
@@ -167,7 +167,7 @@ public class MechanicsTests
         var a = Side("A", school: School.Wolf, tags: (Tag.Mage, 4));
         Add(a, "sabrina_glevissig"); Add(a, "sabrina_glevissig");
         var bt = Start(a, Side("B"));
-        Assert.Equal(3 + 1 + 2 + 1, a.Focus);
+        Assert.Equal(Tuning.StartFocus + 1 + 2 + 1, a.Focus);
     }
 
     [Fact]
@@ -179,7 +179,7 @@ public class MechanicsTests
         var bt = Start(a, b);
         Assert.Equal(0, bt.Cost(0, C(Sign.Quen)));
         Play(bt, C(Sign.Quen), N);
-        Assert.Equal(3, a.Focus);
+        Assert.Equal(2, a.Focus);
         Assert.Equal(1, bt.Cost(0, C(Sign.Quen)));
     }
 
@@ -188,10 +188,11 @@ public class MechanicsTests
     {
         var (a, b) = (Side("A", school: School.Wolf), Side("B"));
         Add(a, "jaskier");
+        Add(a, "sabrina_glevissig", Row.Siege);      // Ozan +1 Odak
         var f = Add(b, "fiend");                     // 8
         var g = Add(b, "griffin");                   // 5
         var bt = Start(a, b);
-        Assert.Equal(4, a.Focus);
+        Assert.Equal(4, a.Focus);                    // 2 + Kurt + Ozan
         var o = Play(bt, C(Sign.Igni, Sign.Igni), N);
         Assert.Equal(4, Val(o, f));                  // 8 → 4
         Assert.Equal(2, Val(o, g));                  // sonra en güçlü griffin 5 → 2,5 → 2
@@ -200,7 +201,7 @@ public class MechanicsTests
     }
 
     [Fact]
-    public void Yrden_cancels_potion_and_consumes_it()
+    public void Yrden_does_not_touch_potions_since_meta4()
     {
         var (a, b) = (Side("A"), Side("B"));
         Add(a, "fiend");
@@ -208,7 +209,7 @@ public class MechanicsTests
         Add(b, "fiend");
         var bt = Start(a, b);
         var o = Play(bt, P(Potion.Thunderbolt), C(Sign.Yrden));
-        Assert.Equal(8, o.ValueA);
+        Assert.Equal(10, o.ValueA);   // 8 +%25
         Assert.Empty(a.Potions);
     }
 
@@ -309,14 +310,14 @@ public class MechanicsTests
     }
 
     [Fact]
-    public void Bandit_landing_bonus_and_yrden_immunity()
+    public void Bandit_six_landing_bonus_fifty()
     {
         var (a, b) = (Side("A", tags: (Tag.Bandit, 6)), Side("B"));
         var u = Hide(a, "elven_skirmisher", 2);
         Add(b, "ghoul", power: 1);
         var bt = Start(a, b);
-        var o = Play(bt, WindowChoice.With(Array.Empty<Sign>(), null, new[] { u.Uid }), C(Sign.Yrden));
-        Assert.Equal(3, Val(o, u));                  // indi (Haydut 6: Yrden işlemez), +%25: 2 → 3
+        var o = Play(bt, WindowChoice.With(Array.Empty<Sign>(), null, new[] { u.Uid }), N);
+        Assert.Equal(3, Val(o, u));                  // Haydut 6: pusudan inen +%50: 2 → 3
         Assert.Equal(3, bt.AmbushCap(a));
     }
 
@@ -488,9 +489,9 @@ public class MechanicsTests
         Add(a, "vesemir", Row.Siege, power: 1);
         Add(b, "fiend"); Add(b, "dethmold"); Add(b, "trebuchet");
         var bt = Start(a, b);
+        Play(bt, N, N); Assert.Equal(4, a.Focus);
+        Play(bt, N, N); Assert.Equal(5, a.Focus);   // tavan 3
         Play(bt, N, N); Assert.Equal(5, a.Focus);
-        Play(bt, N, N); Assert.Equal(6, a.Focus);   // tavan 3
-        Play(bt, N, N); Assert.Equal(6, a.Focus);
     }
 
     [Fact]
@@ -501,7 +502,7 @@ public class MechanicsTests
         Add(b, "fiend"); Add(b, "dethmold"); Add(b, "trebuchet");
         var bt = Start(a, b);
         for (var i = 0; i < 3; i++) Play(bt, N, N);
-        Assert.Equal(5, a.Focus);
+        Assert.Equal(4, a.Focus);
     }
 
     [Fact]

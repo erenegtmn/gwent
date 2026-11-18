@@ -151,13 +151,15 @@ public sealed partial class HanView
         var oppName = Me.OppKind switch
         {
             OpponentKind.Pve => M.Round <= 2 ? "Canavar Sürüsü" : "Vahşi Av Öncüleri",
-            OpponentKind.Ghost => M.Players[Me.OppId].Name + " (gölge)",
+            OpponentKind.Ghost => M.Players[Me.OppId].Name + (M.IsWraith(Me.OppId) ? " (hayalet)" : " (gölge)"),
             _ => M.Players[Me.OppId].Name
         };
         var oppSub = Me.OppKind == OpponentKind.Pve
             ? (M.Round == 1 ? "Tek canavar, gücü 1: masaya bir kart koy yeter · can kaybı yok, ödül her durumda"
                 : M.Round == 2 ? "Her satırda bir canavar, gücü 1: farklı satırlara iki kart koy · can kaybı yok, ödül her durumda"
                 : "Kaybedersen yarım hasar · kazanırsan kart ödülü")
+            : Me.OppKind == OpponentKind.Ghost && M.IsWraith(Me.OppId)
+                ? "Elenen oyuncunun hayaleti: elendiği andaki sahası · kaybedersen can kaybedersin, kazanırsan altın"
             : $"Seviye {M.Players[Me.OppId].Level} · {SchoolName(M.Players[Me.OppId].School)} okulu · {M.Players[Me.OppId].Hp} can";
         var oppTag = new StackPanel { Width = 700 };
         oppTag.Children.Add(new TextBlock { Text = "SIRADAKİ RAKİBİN", FontFamily = HanUi.Font, FontSize = HanUi.S(13), FontWeight = FontWeights.Bold, Foreground = Theme.B("#a8905a"), TextAlignment = TextAlignment.Center });

@@ -142,6 +142,10 @@ public sealed partial class HanView
             }
         }
 
+        // açılmış satırlar (rakibin Boynuz/Kalkan'ı ancak satırı açılınca görünür)
+        bool Open(Row row) { var i = Array.IndexOf(b.Order, row); return i < shownWindows || (i == resolving && _hold == 2); }
+        var specials = new[] { VisibleSpecials(b, 1 - Mine, false, Open), VisibleSpecials(b, Mine, true, Open) };   // [0] rakip, [1] ben
+
         // ---- satırlar ----
         for (var i = 0; i < 3; i++)
         {
@@ -203,7 +207,7 @@ public sealed partial class HanView
                     Foreground = i == current ? Theme.B("#ffe9a3") : scored ? Theme.B("#30e8dcc4") : Theme.B("#70e0b85a"),
                     Effect = i == current ? new DropShadowEffect { Color = Color.FromRgb(0xff, 0xd8, 0x70), BlurRadius = 18, ShadowDepth = 0 } : null
                 };
-                PutU(num, new Point(ColX + ColW * (b.Sides[mine ? Mine : 1 - Mine].Specials.Count > 0 ? 0.24 : 0.5), RowY(mine, r) + RowH / 2 + 8), 0, _rows);   // özel kart varsa sütunun solunda
+                PutU(num, new Point(ColX + ColW * (specials[mine ? 1 : 0].Any(x => x.Row == r) ? 0.24 : 0.5), RowY(mine, r) + RowH / 2 + 8), 0, _rows);   // özel kart varsa sütunun solunda
                 RowLabel(mine, r, HT.Name(r), i == current ? Theme.B("#c0ffe9a3") : null);
             }
 
@@ -221,8 +225,8 @@ public sealed partial class HanView
             }
         }
         // iki tarafın özel kartları: satırların sol sütununda, etkilediği satırın hizasında
-        SpecialCards(b, Mine, true, activation);
-        SpecialCards(b, 1 - Mine, false, activation);
+        SpecialCards(specials[1], true);
+        SpecialCards(specials[0], false);
 
         // ---- sol: iki tarafın durumu ----
         SideCard(false, op, b.Pve ? (M.Round <= 2 ? "arachas" : "face_imlerith") : Face(op.PlayerId), PointsShown(1 - Mine, shownWindows), b.Started, 66);
@@ -271,17 +275,16 @@ public sealed partial class HanView
     }
 
     /// <summary>
-    /// Bir tarafın özel kartları (Boynuz, Kalkan, hava, Kavurma) masada, satırların sol sütununda. Görünürlük iki taraf için
-    /// aynıdır: kimin hangi özel kartı olduğu savaş başından açıktır; Boynuz/Kalkan'ın <b>satırı</b> iki taraf da hedefini
-    /// kilitleyince (savaş başlayınca) açılır, o zamana kadar kart ortada "satır seçiyor" diye durur. Böylece rakibin Boynuz'u
-    /// görülür ve ona göre işaret seçilebilir (ör. Boynuzlu satıra Aard).
+    /// Bir tarafın masada görünen özel kartları (Boynuz, Kalkan, hava, Kavurma), etkilediği satırla. Hava ve Kavurma savaş
+    /// başında uygulandığı için baştan görünür. Rakibin Boynuz/Kalkan'ı ise <b>satırı açılınca</b> görünür (önceden görünse
+    /// diğer satırlara yüklenip avantajını boşa çıkarmak kolaylaşırdı); casus onu açtıysa önceden "casus görüyor" diye görünür.
+    /// Kendi kartların hep görünür; satırı seçilmemişse ortada "satır seçiyor" diye bekler.
     /// </summary>
-    private void SpecialCards(Battle b, int side, bool mine, bool activation)
+    private List<(Row Row, CardDef Def, string? Footer)> VisibleSpecials(Battle b, int side, bool mine, Func<Row, bool> open)
     {
         var s = b.Sides[side];
-        if (s.Specials.Count == 0) return;
         var act = mine ? (b.Started ? s.Act : _act) : s.Act;
-        var known = mine || b.Started;   // rakibin hedef satırı savaş başlayınca açılır
+        var spied = mine ? new List<CardDef>() : b.Revealed[Mine].Where(x => x.Zone == "Özel").Select(x => x.Def).ToList();
         var horn = 0;
         var shield = 0;
         var placed = new List<(Row Row, CardDef Def, string? Footer)>();
@@ -289,13 +292,28 @@ public sealed partial class HanView
         {
             var def = CardSet.All.First(d => d.Special == sp);
             Row? r = Match.WeatherRow(sp);
-            string? footer = null;
-            if (sp == Special.Horn) { r = known && horn < act.Horns.Count ? act.Horns[horn] : null; horn++; }
-            else if (sp == Special.Shield) { r = known && shield < act.Shields.Count ? act.Shields[shield] : null; shield++; }
-            else if (sp == Special.Scorch) footer = "savaş başında";
-            if (r == null && sp is Special.Horn or Special.Shield) footer = "satır seçiyor";
+            string? footer = sp == Special.Scorch ? "savaş başında" : null;
+            if (sp is Special.Horn or Special.Shield)
+            {
+                var list = sp == Special.Horn ? act.Horns : act.Shields;
+                var n = sp == Special.Horn ? horn++ : shield++;
+                r = (mine || b.Started) && n < list.Count ? list[n] : null;
+                if (!mine)
+                {
+                    var spy = spied.Remove(def);
+                    if (r is { } rr && open(rr)) { }
+                    else if (spy) footer = "casus görüyor";
+                    else continue;   // rakibin Boynuz/Kalkan'ı satırı açılana dek gizli
+                }
+                if (r == null) footer ??= "satır seçiyor";
+            }
             placed.Add((r ?? Row.Ranged, def, footer));
         }
+        return placed;
+    }
+
+    private void SpecialCards(List<(Row Row, CardDef Def, string? Footer)> placed, bool mine)
+    {
         foreach (var grp in placed.GroupBy(x => x.Row))
         {
             var k = 0;
@@ -303,7 +321,7 @@ public sealed partial class HanView
             {
                 var (top, bottom, _, _) = Band(mine, row);
                 var el = CardEl(def, 1, DesignW, null, null, footer: footer);
-                if (footer == "satır seçiyor") el.Opacity = 0.75;
+                if (footer is "satır seçiyor" or "casus görüyor") el.Opacity = 0.8;
                 PlaceCard(el, HanScene.ToScreen(new Point(ColX + ColW * 0.68 + k * 22, RowY(mine, row) + RowH - 5)), (bottom - top) * 0.86 / (DesignH * Lean), k);   // sütunun sağı: sıra numarası solda görünsün
                 k++;
             }
@@ -382,7 +400,7 @@ public sealed partial class HanView
             Brush NameBrush(int s) => finished && b.Winner == s ? HanUi.GoldText : finished && b.Winner >= 0 ? HanUi.Br(HanUi.Muted) : HanUi.Br(HanUi.Parchment);
             names.Inlines.Add(new System.Windows.Documents.Run(mine ? "Sen" : left.Name) { Foreground = NameBrush(side), FontWeight = FontWeights.Bold });
             names.Inlines.Add(new System.Windows.Documents.Run("  ⚔  ") { Foreground = HanUi.Br(HanUi.GoldDeep) });
-            names.Inlines.Add(new System.Windows.Documents.Run(rightName + (b.Ghost ? " (gölge)" : "")) { Foreground = NameBrush(1 - side), FontWeight = FontWeights.Bold });
+            names.Inlines.Add(new System.Windows.Documents.Run(rightName) { Foreground = NameBrush(1 - side), FontWeight = FontWeights.Bold });
             col.Children.Add(names);
             var status = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(12), Margin = new Thickness(0, 1, 0, 0) };
             status.Inlines.Add(new System.Windows.Documents.Run($"{lp} – {rp}") { FontWeight = FontWeights.Bold, Foreground = HanUi.Br(HanUi.Parchment) });
@@ -848,13 +866,13 @@ public sealed partial class HanView
 
             foreach (var f in o.Fx.Where(f => f.Side == side && f.Kind == "yrden"))
                 steps.Add(f.Blocked
-                    ? new Step(mine, "Yrden", (mine ? "Rakibin simyası / pususu mühürlendi" : "Simyan / pusun mühürlendi") + " · " + Odak(side), HanArt.SignColor(global::HanLigi.Sign.Yrden), Sign, () =>
+                    ? new Step(mine, "Yrden", (mine ? "Rakibin pusu inişi mühürlendi: kart pusuda kaldı" : "Pusu inişin mühürlendi: kart pusuda kaldı") + " · " + Odak(side), HanArt.SignColor(global::HanLigi.Sign.Yrden), Sign, () =>
                     {
                         Glyph(global::HanLigi.Sign.Yrden, "han_yrden");
                         Fx.After(500, () => { HanFx.Yrden(_fx, _engine, SealAt(!mine), 300, true); Sfx.Play("han_yrden_shock"); });
                         Fx.After(1300, () => Sfx.Play("han_yrden_hit"));
                     })
-                    : new Step(mine, "Yrden", "Boşa gitti: mühürlenecek simya ya da pusu yoktu · " + Odak(side), HanArt.SignColor(global::HanLigi.Sign.Yrden), Short, () =>
+                    : new Step(mine, "Yrden", "Pusudan inen olmadı · " + Odak(side), HanArt.SignColor(global::HanLigi.Sign.Yrden), Short, () =>
                     {
                         Glyph(global::HanLigi.Sign.Yrden, "han_yrden");
                         Fx.After(500, () => HanFx.Yrden(_fx, _engine, SealAt(!mine), 200, false));
@@ -885,7 +903,13 @@ public sealed partial class HanView
             var foe = 1 - side;
             void Glyph(Sign s, string sound) { HanFx.DrawGlyph(_fx, _engine, s, at, 130, 420); Sfx.Play(sound); }
 
-            foreach (var f in o.Fx.Where(f => f.Side == side && f.Kind == "aard"))
+            foreach (var f in o.Fx.Where(f => f.Side == side && f.Kind == "aard" && f.Blocked))
+                steps.Add(new Step(mine, "Aard tutuldu", $"{(mine ? "Rakibin Yrden'i Aard'ını tuttu" : "Yrden'in rakibin Aard'ını tuttu")} · {Odak(side)}", HanArt.SignColor(global::HanLigi.Sign.Yrden), Short, () =>
+                {
+                    Glyph(global::HanLigi.Sign.Aard, "han_glyph");
+                    Fx.After(450, () => HanFx.Yrden(_fx, _engine, SealAt(mine), 200, true));
+                }));
+            foreach (var f in o.Fx.Where(f => f.Side == side && f.Kind == "aard" && !f.Blocked))
             {
                 var targets = b.Sides[foe].In(row).Select(u => u.Uid).ToList();
                 var pct = f.Target > 0 ? f.Target : 10;

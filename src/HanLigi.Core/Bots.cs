@@ -200,7 +200,7 @@ public static class HanBot
         }
         Consider(Sign.Aard, w * 0.10 * est - c);
         Consider(Sign.Quen, w * pi * 0.22 * own);
-        Consider(Sign.Yrden, w * (op.Potions.Count > 0 || b.AmbushSeen[side] is > 0 ? 0.4 : 0.1) * 0.2 * own - c);
+        Consider(Sign.Yrden, w * (b.AmbushSeen[side] is > 0 && b.Window < 2 ? 0.4 : 0.15) * 0.2 * own - c);
         Consider(Sign.Igni, w * 0.22 * est * (1 - pq) - 2 * c);
 
         Potion? potion = null;

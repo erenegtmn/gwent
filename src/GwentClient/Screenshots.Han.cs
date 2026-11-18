@@ -69,6 +69,9 @@ public static class HanShots
             // özel kartlar savaşta görünsün: Boynuz (Yakın) ve Ayaz
             s.Player.Cards.Add(new OwnedCard { Uid = 990010, Def = CardSet.Get("horn"), Zone = Zone.Special, Aim = Row.Close });
             s.Player.Cards.Add(new OwnedCard { Uid = 990011, Def = CardSet.All.First(d => d.Special == Special.Frost), Zone = Zone.Special });
+            // rakibin Boynuz'u 2. satırda: han_5/6'da gizli, satır açılınca (han_7/8) görünür
+            if (s.Player.OppKind != OpponentKind.Pve && s.Player.OppId >= 0)
+                s.M.Players[s.Player.OppId].Cards.Add(new OwnedCard { Uid = 990012, Def = CardSet.Get("horn"), Zone = Zone.Special, Aim = s.Player.Order[1] });
             v = new HanView(s, () => { }, () => { }, animate: false);
             Click(v, "han-ready");
             save(v, "han_5_aktivasyon.png");

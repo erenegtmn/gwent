@@ -104,11 +104,11 @@ public class MathAudit(ITestOutputHelper output)
     [Fact]
     public void Focus_start_bonuses()
     {
-        Assert.Equal(3, Duel().Sides[0].Focus);
-        Assert.Equal(4, Duel(sa: School.Wolf).Sides[0].Focus);                                      // Kurt +1
-        Assert.Equal(4, Duel(a: A => Unit(A, "sabrina_glevissig", 3, Row.Ranged)).Sides[0].Focus);   // Ozan +1
+        Assert.Equal(2, Duel().Sides[0].Focus);
+        Assert.Equal(3, Duel(sa: School.Wolf).Sides[0].Focus);                                      // Kurt +1
+        Assert.Equal(3, Duel(a: A => Unit(A, "sabrina_glevissig", 3, Row.Ranged)).Sides[0].Focus);   // Ozan +1
         var mages = Duel(a: A => A.Tags[Tag.Mage] = 4);
-        Assert.Equal(4, mages.Sides[0].Focus);                                                      // 4 Büyücü +1
+        Assert.Equal(3, mages.Sides[0].Focus);                                                      // 4 Büyücü +1
     }
 
     [Fact]
@@ -119,11 +119,12 @@ public class MathAudit(ITestOutputHelper output)
         Assert.Equal(1, bt.Cost(0, S(Sign.Aard)));
         var o = Round(bt, S(Sign.Igni), S(Sign.Aard));
         Assert.Equal(0, o.Winner);            // A: 8 → Aard 7; B: 8 → Igni 4
-        Assert.Equal(1, bt.Sides[0].Focus);   // 3 − 2
-        Assert.Equal(3, bt.Sides[1].Focus);   // 3 − 1 + 1 Öfke (satırı kaybetti)
-        Assert.False(bt.Valid(0, S(Sign.Igni)));   // 1 Odakla Igni (2) atılamaz
+        Assert.Equal(0, bt.Sides[0].Focus);   // 2 − 2
+        Assert.Equal(2, bt.Sides[1].Focus);   // 2 − 1 + 1 Öfke (satırı kaybetti)
+        Assert.False(bt.Valid(0, S(Sign.Igni)));   // 0 Odakla işaret atılamaz
         Assert.False(bt.Submit(0, S(Sign.Igni)));
-        Assert.True(bt.Valid(0, S(Sign.Quen)));
+        Assert.False(bt.Valid(0, S(Sign.Quen)));
+        Assert.True(bt.Valid(1, S(Sign.Igni)));    // 2 Odakla Igni atılır
     }
 
     [Fact]
@@ -131,8 +132,8 @@ public class MathAudit(ITestOutputHelper output)
     {
         var bt = Duel();
         var o = Round(bt, S(Sign.Igni), S(Sign.Quen));
-        Assert.Equal(1, bt.Sides[0].Focus);   // Igni ödendi, boşa gitti
-        Assert.Equal(3, bt.Sides[1].Focus);   // Quen 1 ödendi, engelleyince 1 geri
+        Assert.Equal(0, bt.Sides[0].Focus);   // 2 − 2: Igni ödendi, boşa gitti
+        Assert.Equal(2, bt.Sides[1].Focus);   // 2 − 1 Quen + 1 geri (engelledi)
         Assert.Equal(8, o.ValueB);            // engellenen Igni değeri düşürmedi
     }
 
@@ -156,13 +157,13 @@ public class MathAudit(ITestOutputHelper output)
         var g = Duel(a: A => Unit(A, "geralt", 22, Row.Close));
         Assert.Equal(0, g.Cost(0, S(Sign.Igni)));   // Geralt'ın satırında ilk işaret bedava
         Round(g, S(Sign.Igni), WindowChoice.None);
-        Assert.Equal(3, g.Sides[0].Focus);
+        Assert.Equal(2, g.Sides[0].Focus);
 
         var t = Duel(a: A => Unit(A, "triss", 18, Row.Ranged));
         Assert.Equal(0, t.Cost(0, S(Sign.Quen)));
         Round(t, S(Sign.Quen), WindowChoice.None);
         Assert.Equal(1, t.Cost(0, S(Sign.Quen)));   // yalnız ilk Quen
-        Assert.Equal(3, t.Sides[0].Focus);
+        Assert.Equal(2, t.Sides[0].Focus);
 
         var m = Duel(a: A => A.Tags[Tag.Mage] = 6);
         Assert.Equal(0, m.Cost(0, S(Sign.Igni)));
@@ -205,13 +206,13 @@ public class MathAudit(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Yrden_cancels_the_potion_and_both_still_pay()
+    public void Yrden_leaves_the_potion_and_both_still_pay()
     {
         var bt = Duel(b: B => B.Potions.Add(Potion.Thunderbolt));
         var o = Round(bt, S(Sign.Yrden), new WindowChoice(Array.Empty<Sign>(), Potion.Thunderbolt));
-        Assert.Equal(8, o.ValueB);                    // iksir etkisiz
-        Assert.Empty(bt.Sides[1].Potions);            // kart yine de harcandı
-        Assert.Equal(2, bt.Sides[0].Focus);
+        Assert.Equal(10, o.ValueB);                   // Meta 4: Yrden simyaya dokunmaz (8 +%25)
+        Assert.Empty(bt.Sides[1].Potions);            // kart harcandı
+        Assert.Equal(2, bt.Sides[0].Focus);           // 2 − 1 Yrden + 1 Öfke (satırı kaybetti)
     }
 
     [Fact]

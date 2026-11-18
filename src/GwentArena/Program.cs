@@ -114,14 +114,25 @@ if (args.Length > 0 && args[0] == "han-meta")
     if (Array.IndexOf(args, "--damage") is var di and >= 0) HanLigi.Tuning.DamageMode = int.Parse(args[di + 1]);
     if (Array.IndexOf(args, "--streak") is var si and >= 0) HanLigi.Tuning.StreakMode = int.Parse(args[si + 1]);
     if (Array.IndexOf(args, "--ramp") is var ri and >= 0) HanLigi.Tuning.RampMode = int.Parse(args[ri + 1]);
+    // Odak denemesi: --focus 2, --focus-cap 4, --no-quen-refund; --signs: koltuklara işaret stratejisi dağıt
+    if (Array.IndexOf(args, "--focus") is var fi and >= 0) HanLigi.Tuning.StartFocus = int.Parse(args[fi + 1]);
+    if (Array.IndexOf(args, "--focus-cap") is var fc and >= 0) HanLigi.Tuning.FocusCap = int.Parse(args[fc + 1]);
+    if (args.Contains("--no-quen-refund")) HanLigi.Tuning.QuenRefund = false;
+    if (args.Contains("--yrden-aard")) HanLigi.Tuning.YrdenBlocksAard = true;
+    if (Array.IndexOf(args, "--yrden-mode") is var ym and >= 0) HanLigi.Tuning.YrdenMode = int.Parse(args[ym + 1]);
+    if (Array.IndexOf(args, "--yrden-cost") is var yc and >= 0) HanLigi.Tuning.YrdenCost = int.Parse(args[yc + 1]);
+    if (Array.IndexOf(args, "--ambush-base") is var ab and >= 0) HanLigi.Tuning.AmbushBase = int.Parse(args[ab + 1]);
+    if (args.Contains("--no-yrden-potion")) HanLigi.Tuning.YrdenPotion = false;
+    if (Array.IndexOf(args, "--yrden-amb") is var ya and >= 0) HanLigi.Tuning.YrdenAmbushPct = double.Parse(args[ya + 1], System.Globalization.CultureInfo.InvariantCulture);
+    HanLigi.Meta.SignPolicies = args.Contains("--signs");
     var mg = args.Length > 1 ? int.Parse(args[1]) : 1000;
     var ms = args.Length > 2 ? int.Parse(args[2]) : 1;
     var rep = HanLigi.Meta.Run(mg, ms, d => Console.Error.Write($"\r{d}/{mg}"));
     Console.Error.WriteLine($"\r{mg} maç, {rep.Seconds:F0} sn");
-    var md = HanLigi.Meta.Markdown(rep, $"Meta ölçümü ({DateTime.Now:yyyy-MM-dd})");
+    var md = HanLigi.Meta.Markdown(rep, $"Meta ölçümü ({DateTime.Now:yyyy-MM-dd})") + Environment.NewLine + HanLigi.Meta.Signs.Markdown();
     Console.OutputEncoding = System.Text.Encoding.UTF8;
     Console.WriteLine(md);
-    if (args.Length > 3) File.WriteAllText(args[3], md);
+    if (args.Length > 3 && !args[3].StartsWith("--")) File.WriteAllText(args[3], md);   // 3. konum: çıktı dosyası (bayraklar değil)
     return;
 }
 

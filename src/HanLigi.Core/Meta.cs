@@ -124,6 +124,7 @@ public static class Meta
         var rng = new Random(seed);
         var pick = Enumerable.Range(0, Builds.Length).OrderBy(_ => rng.Next()).Take(8).ToArray();
         var m = new Match(seed, Enumerable.Range(0, 8).Select(i => ($"B{i}", true)).ToList());
+        var pol = SignPolicies ? Enumerable.Range(0, 8).Select(_ => rng.Next(Policies.Length)).ToArray() : null;
         foreach (var p in m.Players) m.ChooseSchool(p.Id, p.SchoolOptions[rng.Next(p.SchoolOptions.Length)]);
         var traits = Enumerable.Range(0, 8).Select(_ => new HashSet<(Tag, int)>()).ToArray();
         var heroes = Enumerable.Range(0, 8).Select(_ => new HashSet<string>()).ToArray();
@@ -148,9 +149,12 @@ public static class Meta
                 b.Start();
                 while (!b.Done)
                 {
-                    for (var s = 0; s < 2; s++) b.Submit(s, ExpertBot.Window(b, s, rng));
+                    var focus = new[] { b.Sides[0].Focus, b.Sides[1].Focus };
+                    for (var s = 0; s < 2; s++) b.Submit(s, Choose(b, s, rng, pol));
                     b.Resolve();
+                    Signs.Window(b, focus, pol);
                 }
+                Signs.Battle(b, pol);
                 m.Settle(b);
             }
             m.EndRound();
@@ -159,12 +163,128 @@ public static class Meta
         foreach (var t in traits)
             foreach (var g in t.GroupBy(x => x.Item1).ToList())
                 foreach (var lower in g.Where(x => x.Item2 < g.Max(y => y.Item2)).ToList()) t.Remove(lower);
+        if (pol != null) Signs.Places(m, pol);
         var core = (pick, m.Players.Select(p => p.School!.Value).ToArray(), m.Players.Select(p => p.Place).ToArray(), traits, heroes, m.Round);
         var win = m.Players.First(p => p.Place == 1);
         var top = Enum.GetValues<Tag>().Select(t => (T: t, L: win.Th(t), N: win.TagCounts().GetValueOrDefault(t))).Where(x => x.L > 0).OrderByDescending(x => x.L).ThenByDescending(x => x.N).FirstOrDefault();
         var pvp = m.History.Where(h => !h.Pve && !h.Ghost && h.Winner >= 0).ToList();
         return new Game(core, lowAt10 == null ? null : lowAt10.Contains(win.Id), pvp.Count, pvp.Count(h => h.PointsA + h.PointsB == 3),
             top.L > 0 ? Texts.Name(top.T) : "—", win.Fielded.Any(c => c.Def.IsHero));
+    }
+
+    // ---------- işaret / Odak ölçümü ----------
+
+    /// <summary>Açıksa her koltuğa rastgele bir işaret stratejisi verilir (Policies); simya ve pusu kararları aynı kalır.</summary>
+    public static bool SignPolicies;
+    public static readonly string[] Policies = { "Uyarlanır (bot)", "Hep Quen", "Hep Aard", "Igni öncelikli", "İşaretsiz", "Hep Yrden" };
+    public static readonly SignStats Signs = new();
+
+    private static WindowChoice Choose(Battle b, int side, Random rng, int[]? pol)
+    {
+        var c = ExpertBot.Window(b, side, rng);
+        var pid = b.Sides[side].PlayerId;
+        if (pol == null || pid < 0 || (side == 1 && (b.Ghost || b.Pve)) || pol[pid] == 0) return c;
+        Sign[] want = pol[pid] switch { 1 => new[] { Sign.Quen }, 2 => new[] { Sign.Aard }, 3 => new[] { Sign.Igni, Sign.Aard }, 5 => new[] { Sign.Yrden }, _ => Array.Empty<Sign>() };
+        foreach (var sg in want)
+        {
+            var t = c with { Signs = new[] { sg } };
+            if (b.Valid(side, t)) return t;
+        }
+        var none = c with { Signs = Array.Empty<Sign>() };
+        return b.Valid(side, none) ? none : WindowChoice.None;
+    }
+
+    /// <summary>Odak ve işaret istatistikleri (oyuncu tarafları; gölge/PvE canavarı sayılmaz).</summary>
+    public sealed class SignStats
+    {
+        private readonly object _l = new();
+        public long Windows, Broke, NoIgni, Skipped, Battles, Leftover, Window3, Broke3;
+        public readonly Dictionary<string, long> Picks = new();
+        public readonly Dictionary<(string, string), (long Win, long N)> Duel = new();
+        public readonly Dictionary<int, List<int>> PolicyPlaces = new();
+
+        public void Reset()
+        {
+            lock (_l) { Windows = Broke = NoIgni = Skipped = Battles = Leftover = Window3 = Broke3 = 0; Picks.Clear(); Duel.Clear(); PolicyPlaces.Clear(); }
+        }
+
+        private static bool Player(Battle b, int side) => b.Sides[side].PlayerId >= 0 && !(side == 1 && (b.Ghost || b.Pve));
+        private static bool Tracked(Battle b, int side, int[]? pol) => Player(b, side) && (pol == null || pol[b.Sides[side].PlayerId] == 0);
+        private static string Name(WindowChoice c) => c.Signs.Count == 0 ? "—" : c.Signs[0].ToString();
+
+        public void Window(Battle b, int[] focusBefore, int[]? pol)
+        {
+            var o = b.Outcomes[^1];
+            lock (_l)
+                for (var i = 0; i < 2; i++)
+                {
+                    var mine = i == 0 ? o.ChoiceA : o.ChoiceB;
+                    var foe = i == 0 ? o.ChoiceB : o.ChoiceA;
+                    if (Player(b, i) && Player(b, 1 - i))
+                    {
+                        var k = (Name(mine), Name(foe));
+                        var (w, n) = Duel.GetValueOrDefault(k);
+                        Duel[k] = (w + (o.Winner == i ? 1 : 0), n + 1);
+                    }
+                    if (!Tracked(b, i, pol)) continue;
+                    Windows++;
+                    if (focusBefore[i] < 1) Broke++;
+                    if (focusBefore[i] < 2) NoIgni++;
+                    if (o.Index == 2) { Window3++; if (focusBefore[i] < 1) Broke3++; }
+                    if (mine.Signs.Count == 0 && focusBefore[i] >= 1) Skipped++;
+                    var nm = Name(mine);
+                    Picks[nm] = Picks.GetValueOrDefault(nm) + 1;
+                }
+        }
+
+        public void Battle(Battle b, int[]? pol)
+        {
+            lock (_l)
+                for (var i = 0; i < 2; i++)
+                    if (Tracked(b, i, pol)) { Battles++; Leftover += b.Sides[i].Focus; }
+        }
+
+        public void Places(Match m, int[] pol)
+        {
+            lock (_l)
+                foreach (var p in m.Players)
+                {
+                    if (!PolicyPlaces.TryGetValue(pol[p.Id], out var l)) PolicyPlaces[pol[p.Id]] = l = new();
+                    l.Add(p.Place);
+                }
+        }
+
+        public string Markdown()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("### Odak ve işaretler");
+            sb.AppendLine();
+            double Pc(long a, long b) => b == 0 ? 0 : 100.0 * a / b;
+            sb.AppendLine($"- Odak hiç yetmeyen pencere: %{Pc(Broke, Windows):F1} (3. satırda %{Pc(Broke3, Window3):F1}); Igni'ye yetmeyen: %{Pc(NoIgni, Windows):F1}.");
+            sb.AppendLine($"- Odak varken işaret atılmayan pencere: %{Pc(Skipped, Windows):F1}. Savaş sonunda artan Odak: ortalama {(Battles == 0 ? 0 : Leftover / (double)Battles):F2}.");
+            sb.AppendLine("- Seçilen işaret: " + string.Join(", ", Picks.OrderByDescending(k => k.Value).Select(k => $"{k.Key} %{Pc(k.Value, Windows):F0}")) + ".");
+            if (PolicyPlaces.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("| Strateji | Ort. sıra | İlk 4 | Örnek |");
+                sb.AppendLine("|---|---|---|---|");
+                foreach (var (k, l) in PolicyPlaces.OrderBy(k => k.Value.Average()))
+                {
+                    var avg = l.Average();
+                    var ci = 1.96 * Math.Sqrt(l.Sum(x => (x - avg) * (x - avg)) / Math.Max(1, l.Count - 1)) / Math.Sqrt(l.Count);
+                    sb.AppendLine($"| {Policies[k]} | {avg:F2} ± {ci:F2} | %{100.0 * l.Count(x => x <= 4) / l.Count:F0} | {l.Count} |");
+                }
+            }
+            sb.AppendLine();
+            sb.AppendLine("Satır kazanma oranı (satır sahibinin işareti ↓ · rakibin işareti →; PvP):");
+            sb.AppendLine();
+            var names = new[] { "—", "Aard", "Igni", "Quen", "Yrden" };
+            sb.AppendLine("| | " + string.Join(" | ", names) + " |");
+            sb.AppendLine("|---|" + string.Concat(names.Select(_ => "---|")));
+            foreach (var a in names)
+                sb.AppendLine($"| {a} | " + string.Join(" | ", names.Select(bn => Duel.TryGetValue((a, bn), out var v) && v.N >= 30 ? $"%{100.0 * v.Win / v.N:F0}" : "·")) + " |");
+            return sb.ToString();
+        }
     }
 
     /// <summary>Kademe: ortalama sıranın 4,5'ten farkına göre (S en güçlü).</summary>

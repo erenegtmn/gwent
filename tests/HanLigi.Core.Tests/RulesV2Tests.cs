@@ -21,6 +21,42 @@ public class RulesV2Tests
         return c;
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(7)]
+    [InlineData(42)]
+    public void Pairing_rotates_opponents(int seed)
+    {
+        var m = Ready(seed);
+        var rng = new Random(seed);
+        var pvp = 0;
+        var met = new HashSet<(int, int)>();
+        var ghosts = 0;
+        while (m.Phase != Phase.Finished && m.Round <= 40)
+        {
+            foreach (var p in m.Alive.ToList()) HanBot.Prep(m, p.Id, rng);
+            if (m.Phase == Phase.Prep) m.ForceLock();
+            if (!m.IsPve && m.Alive.Count() == 8 && pvp < 7)
+            {
+                // 8 kişi hayattayken 7 PvP round'unda hiçbir çift ikinci kez eşleşmez (herkes herkesi bir kez görür)
+                foreach (var p in m.Alive.Where(p => p.OppKind == OpponentKind.Player && p.Id < p.OppId))
+                    Assert.True(met.Add((p.Id, p.OppId)), $"round {m.Round}: {p.Id}-{p.OppId} tekrar");
+                pvp++;
+            }
+            // tek sayıda kalan, en son elenen oyuncunun hayaletiyle savaşır (yaşayan birinin kopyası değil)
+            foreach (var g in m.Battles.Where(b => b.Ghost))
+            {
+                var last = m.Players.Where(p => !p.Alive).OrderBy(p => p.Place).First();
+                Assert.Equal(last.Name + " (hayalet)", g.Sides[1].Name);
+                ghosts++;
+            }
+            foreach (var b in m.Battles) HanBot.PlayOut(b, rng);
+            m.EndRound();
+        }
+        Assert.True(pvp >= 2);
+        Assert.True(ghosts > 0);
+    }
+
     [Fact]
     public void Ambush_does_not_take_a_board_slot()
     {

@@ -75,7 +75,7 @@ public sealed class PlayerState
     }
 
     public int Th(Tag t) => TagCounts().TryGetValue(t, out var n) ? Tuning.TagLevel(t, n) : 0;
-    public int AmbushCap => Th(Tag.Bandit) >= 1 ? 3 : 2;
+    public int AmbushCap => Tuning.AmbushBase + (Th(Tag.Bandit) >= 1 ? 1 : 0);
 }
 
 /// <summary>Bir round'da oynanan savaşın kaydı (sonuç ekranı için).</summary>
@@ -167,7 +167,35 @@ public sealed class Match
             p.Order = Enum.GetValues<Row>().OrderBy(_ => _pair.Next()).ToArray();
         }
         if (IsPve) return;
-        var order = alive.OrderBy(_ => _pair.Next()).ToList();
+        // Eşleşme: dönüşümlü fikstür (round-robin, çember yöntemi). Canlı N oyuncu N-1 PvP round'unda birbirini birer
+        // kez görür; tek sayıda her round başka biri gölgeyle oynar. Biri elenince fikstür kalanlarla yeniden kurulur:
+        // birkaç rastgele fikstür denenir, ilk round'ları en az "yakında karşılaşılmış" çifti olan seçilir.
+        var ids = alive.Select(p => p.Id).OrderBy(x => x).ToList();
+        if (_schedule.Count == 0 || !_scheduleFor.SequenceEqual(ids))
+        {
+            List<List<(int, int)>>? bestPlan = null;
+            var bestCost = double.MaxValue;
+            for (var t = 0; t < 32; t++)
+            {
+                var plan = RoundRobin(ids.OrderBy(_ => _pair.Next()).ToList());
+                var cost = 0.0;
+                for (var r = 0; r < plan.Count; r++)
+                    cost += plan[r].Sum(x => MetCost(x.Item1, x.Item2, r)) / (r + 1);
+                if (cost < bestCost) { bestCost = cost; bestPlan = plan; }
+            }
+            _schedule = bestPlan!;
+            _scheduleFor = ids;
+        }
+        var today = _schedule[0];
+        _schedule.RemoveAt(0);
+        var order = new List<PlayerState>();
+        PlayerState? loneP = null;
+        foreach (var (x, y) in today)
+        {
+            if (x < 0 || y < 0) loneP = Players[Math.Max(x, y)];
+            else { order.Add(Players[x]); order.Add(Players[y]); }
+        }
+        if (loneP != null) order.Add(loneP);
         for (var i = 0; i + 1 < order.Count; i += 2)
         {
             var (a, b) = (order[i], order[i + 1]);
@@ -175,14 +203,63 @@ public sealed class Match
             a.OppId = b.Id;
             b.OppId = a.Id;
             b.Order = a.Order;
+            _met[Key(a.Id, b.Id)] = Round;
         }
         if (order.Count % 2 == 1)
         {
+            // Tek kalan, en son elenen oyuncunun hayaletiyle (elendiği andaki sahası) savaşır (Hearthstone Battlegrounds gibi):
+            // yaşayan birinin kopyası değil, gerçek bir eşleşmeyi bozmaz. Henüz elenen yoksa (tek sayıyla başlayan oda) yaşayan
+            // birinin gölgesi: en uzun süredir karşılaşmadığı.
             var lone = order[^1];
-            var others = alive.Where(x => x != lone).ToList();
+            var dead = Players.Where(x => !x.Alive && _wraiths.ContainsKey(x.Id)).OrderBy(x => x.Place).FirstOrDefault();
+            int ghostId;
+            if (dead != null) ghostId = dead.Id;
+            else
+            {
+                var others = alive.Where(x => x != lone).OrderBy(_ => _pair.Next()).ToList();
+                ghostId = others.OrderBy(x => _met.TryGetValue(Key(lone.Id, x.Id), out var r) ? r : -1).First().Id;
+            }
             lone.OppKind = OpponentKind.Ghost;
-            lone.OppId = others[_pair.Next(others.Count)].Id;
+            lone.OppId = ghostId;
+            _met[Key(lone.Id, -1)] = Round;
         }
+    }
+
+    /// <summary>Elenen oyuncuların elendikleri andaki sahası (hayalet rakip olarak kullanılır).</summary>
+    private readonly Dictionary<int, PlayerState> _wraiths = new();
+
+    /// <summary>Gölge rakip yaşayan birinin kopyası mı (yoksa elenmiş birinin hayaleti mi).</summary>
+    public bool IsWraith(int pid) => pid >= 0 && pid < Players.Count && !Players[pid].Alive && _wraiths.ContainsKey(pid);
+
+    /// <summary>Son karşılaşma round'u (çift anahtarı küçük-büyük; -1 = gölgeyle oynayan).</summary>
+    private readonly Dictionary<(int, int), int> _met = new();
+    private static (int, int) Key(int a, int b) => a < b ? (a, b) : (b, a);
+
+    private List<List<(int, int)>> _schedule = new();
+    private List<int> _scheduleFor = new();
+
+    /// <summary>Yakında karşılaşmış çift pahalıdır (geçen round 1, iki round önce 1/4...); hiç karşılaşmamış 0.
+    /// <paramref name="ahead"/>: kaç PvP round sonrası için soruluyor.</summary>
+    private double MetCost(int a, int b, int ahead = 0) =>
+        _met.TryGetValue(Key(a, b), out var r) ? 1.0 / Math.Pow(Math.Max(1, Round + ahead - r), 2) : 0;
+
+    /// <summary>Çember yöntemiyle tam fikstür; tek sayıda -1 "bay" (gölgeyle oynayan).</summary>
+    private static List<List<(int, int)>> RoundRobin(List<int> ids)
+    {
+        var l = ids.ToList();
+        if (l.Count % 2 == 1) l.Add(-1);
+        var n = l.Count;
+        var plan = new List<List<(int, int)>>();
+        for (var r = 0; r < n - 1; r++)
+        {
+            var day = new List<(int, int)>();
+            for (var i = 0; i < n / 2; i++) day.Add((l[i], l[n - 1 - i]));
+            plan.Add(day);
+            var last = l[n - 1];
+            l.RemoveAt(n - 1);
+            l.Insert(1, last);
+        }
+        return plan;
     }
 
     private void LevelUp(PlayerState p)
@@ -504,7 +581,7 @@ public sealed class Match
                 b = new Battle(Snapshot(p), Snapshot(o), p.Order, _pair.Next()) { Round = Round };
             }
             else if (p.OppKind == OpponentKind.Ghost)
-                b = new Battle(Snapshot(p), Snapshot(Players[p.OppId], Players[p.OppId].Name + " (gölge)"), p.Order, _pair.Next()) { Ghost = true, Round = Round };
+                b = new Battle(Snapshot(p), IsWraith(p.OppId) ? Snapshot(_wraiths[p.OppId], Players[p.OppId].Name + " (hayalet)") : Snapshot(Players[p.OppId], Players[p.OppId].Name + " (gölge)"), p.Order, _pair.Next()) { Ghost = true, Round = Round };
             else
                 b = new Battle(Snapshot(p), PveSide(p), p.Order, _pair.Next()) { Pve = true, NoDamage = Round <= 2, Round = Round };
             done.Add(p.Id);
@@ -571,6 +648,10 @@ public sealed class Match
         p.Place = Alive.Count();
         p.Alive = false;
         p.EliminatedRound = Round;
+        // hayaleti: elendiği andaki sahası (tek sayıda kalan oyuncunun rakibi olur)
+        var w = new PlayerState { Id = p.Id, Name = p.Name, Level = p.Level, School = p.School };
+        foreach (var c in p.Cards.Where(c => c.Fielded)) w.Cards.Add(new OwnedCard { Uid = c.Uid, Def = c.Def, Star = c.Star, Zone = c.Zone, Aim = c.Aim });
+        _wraiths[p.Id] = w;
         foreach (var c in p.Cards) Pool[c.Def.Id] += c.Def.IsHero ? 1 : c.Star == 1 ? 1 : c.Star == 2 ? 3 : 9;
         p.Cards.Clear();
         ReturnShop(p);

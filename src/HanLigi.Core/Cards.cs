@@ -168,7 +168,24 @@ public static class Tuning
     public const int BenchSize = 8;
     public const int MaxLevel = 8;
     public const int ShopSize = 5;
-    public const int StartFocus = 3;
+    public static int StartFocus = 2;   // 2026-11-18 Meta 4: 3 iken Odak neredeyse hiç yetmezlik yapmıyordu (3. satırda %4)
+    /// <summary>Bir savaşta birikebilecek en çok Odak (başlangıç bonusları, Öfke ve Quen iadesi bunu aşamaz).</summary>
+    public static int FocusCap = 99;
+    /// <summary>Igni'yi engelleyen Quen'in Odağı geri gelir mi.</summary>
+    public static bool QuenRefund = true;
+    /// <summary>Yrden rakibin Aard'ını da keser (işaret üçgeni: Quen Igni'yi, Yrden Aard'ı ve simyayı tutar).</summary>
+    public static bool YrdenBlocksAard = true;
+    /// <summary>Yrden pusuya ne yapar: 0 keser (son pencerede hiç inmez), 1 dokunmaz, 2 yalnız pusu (simya yok), 3 inenler −%,
+    /// 4 bilerek indirilenler −%, <b>5 bilerek indirilen bu pencerede inemez</b> (sonra inebilir; son pencerede kendiliğinden inenlere
+    /// dokunmaz). Meta 4: son pencerede bütün pusuyu kesen Yrden açık ara en güçlüydü (hep Yrden ort. sıra 2,4); 3-4 de baskındı.</summary>
+    public static int YrdenMode = 5;
+    public static int YrdenCost = 1;
+    /// <summary>YrdenMode 3: simya + Aard kesilir, pusudan inen kartlar bu kadar zayıflar (iptal yerine).</summary>
+    public static double YrdenAmbushPct = 0.5;
+    /// <summary>Temel pusu yeri (Haydut 2 eşiği +1).</summary>
+    public static int AmbushBase = 2;
+    /// <summary>Yrden simyayı da keser mi (Meta 4: hayır; simya + pusu + Aard birlikte Yrden'i her işe yarar yapıyordu).</summary>
+    public static bool YrdenPotion = false;
     public const int RageCap = 2;
     public const double DamageMult = 2.25;
     public const double PveLater = 0.8;
@@ -228,7 +245,7 @@ public static class Tuning
         return Math.Max(value + 1, (int)Math.Floor(x + 0.5 + 1e-9));
     }
 
-    public static int SignCost(Sign s) => s == Sign.Igni ? 2 : 1;
+    public static int SignCost(Sign s) => s == Sign.Igni ? 2 : s == Sign.Yrden ? YrdenCost : 1;
 
     public static int SellValue(CardDef d, int star) => d.IsHero ? HeroPrice : star == 1 ? d.Price : (star == 2 ? 3 : 9) * d.Price - 1;
 }
@@ -266,10 +283,10 @@ public static class Texts
 
     public static string Describe(Sign s) => s switch
     {
-        Sign.Aard => "1 Odak · Rakibin bu satırı −%10. Engellenemez, kahramanlara da işler.",
+        Sign.Aard => "1 Odak · Rakibin bu satırı −%10. Kahramanlara da işler; Yrden tutar.",
         Sign.Igni => "2 Odak · Rakibin bu satırdaki en güçlü kartı −%50. Quen engeller.",
         Sign.Quen => "1 Odak · Sana atılan Igni'yi engeller; engellerse Odak geri gelir.",
-        _ => "1 Odak · Rakibin bu penceredeki simya kartını ve pusu inişini keser."
+        _ => "1 Odak · Rakibin bu penceredeki Aard'ını keser; pusudan inmek isteyen kartı bu satırda indirmez (sonra inebilir).",
     };
 
     public static string Describe(Ability a) => a switch
@@ -320,7 +337,7 @@ public static class Texts
         Tag.Monster => new[] { "Canavarlar +1", "Canavarlar +2", "Canavarlar +3" },
         Tag.Soldier => new[] { "Askerler havada 2", "Askerler havadan etkilenmez", "Askerler +2, havadan etkilenmez" },
         Tag.Mage => new[] { "İşaretler +%25", "+1 Odak, işaretler +%50", "Savaş başına bir işaret bedava" },
-        Tag.Bandit => new[] { "Pusu yeri 3 kart", "Pusudan inen +%25", "Pusu Yrden'den etkilenmez" },
+        Tag.Bandit => new[] { "Pusu yeri 3 kart", "Pusudan inen +%25", "Pusudan inen +%50" },
         Tag.Noble => new[] { "İlk yenileme bedava", "Round başı +1 altın", "Round başı +3 altın" },
         _ => new[] { "Cüceler bombalardan yarı etkilenir", "Cüceler +1, Kavurma'dan korunur", "Cücelerin satırına +%20" }
     };
