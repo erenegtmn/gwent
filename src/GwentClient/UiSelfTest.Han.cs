@@ -47,6 +47,14 @@ public static partial class UiSelfTest
                 {
                     Layout(view);
                     string T(FrameworkElement f) => f.Tag as string ?? "";
+                    if (steps == 60)
+                    {
+                        // maç sürerken çıkış önce sorulur; "Masada kal" maçı sürdürür
+                        Raise(FindAll<Button>(view, b => T(b) == "han-exit").First(), ButtonBase.ClickEvent); Layout(view);
+                        Check(!back && FindAll<Button>(view, b => T(b) == "han-exit-confirm").Any(), "maç sürerken çıkış sorulmadı");
+                        if (FindAll<Button>(view, b => T(b) == "han-exit-cancel").FirstOrDefault() is { } stay) { Raise(stay, ButtonBase.ClickEvent); Layout(view); }
+                        Check(!FindAll<Button>(view, b => T(b) == "han-exit-confirm").Any(), "çıkış penceresi kapanmadı");
+                    }
                     var buttons = FindAll<Button>(view, b => b.IsEnabled && T(b).StartsWith("han-") && T(b) is not ("han-exit" or "han-help" or "han-menu" or "han-again")).ToList();
                     var cards = FindAll<HanCardView>(view, c => T(c).StartsWith("han-")).ToList();
                     // seçim penceresi açıkken yalnız onun öğeleri tıklanabilir

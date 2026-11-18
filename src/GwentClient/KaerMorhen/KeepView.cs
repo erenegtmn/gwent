@@ -42,7 +42,19 @@ public sealed class KeepView : Grid
         Children.Add(Ornate.Embers(18));
         Build();
         if (showGuide) OpenGuide();
+        // Esc: seçili binayı bırakır, yoksa menüye döner (rehber ve hazırlık penceresi kendi tuşlarını işler)
+        Focusable = true;
+        Loaded += (_, _) => { if (!IsKeyboardFocusWithin) Focus(); };
+        KeyDown += (_, e) =>
+        {
+            if (e.Key != System.Windows.Input.Key.Escape || e.Handled) return;
+            if (_overlay.Visibility == Visibility.Visible || Children.OfType<GuideView>().Any()) return;
+            e.Handled = true;
+            if (_selected != null) Select(null); else GoBack();
+        };
     }
+
+    private void GoBack() { Save(); _nav.Back(); }
 
     /// <summary>Kaer Morhen rehberi (kale ekranının üstünde; kapatınca kaleye dönülür).</summary>
     private void OpenGuide()
@@ -89,8 +101,24 @@ public sealed class KeepView : Grid
         var canvas = new Canvas();
         _content.Children.Add(canvas);
 
-        var head = Ornate.Heading("Kaer Morhen", "Kaleni onar, sözleşmeleri al, Wild Hunt'a hazırlan.", 40);
-        Canvas.SetLeft(head, 50); Canvas.SetTop(head, 36);
+        // Üst sol: merkez ekranlarıyla aynı geri oku + başlık; altında tek satır amaç
+        canvas.Children.Add(new System.Windows.Shapes.Rectangle
+        {
+            Width = 1920, Height = 190, IsHitTestVisible = false,
+            Fill = new LinearGradientBrush(Color.FromArgb(0xd8, 0, 0, 0), Color.FromArgb(0, 0, 0, 0), 90)
+        });
+        canvas.Children.Add(new System.Windows.Shapes.Rectangle
+        {
+            Width = 1920, Height = 140, IsHitTestVisible = false,
+            Fill = new LinearGradientBrush(Color.FromArgb(0, 0, 0, 0), Color.FromArgb(0xe0, 0, 0, 0), 90)
+        });
+        Canvas.SetTop(canvas.Children[^1], 940);
+        var head = new StackPanel();
+        head.Children.Add(HubKit.Header(new (string, Action?)[] { ("Kaer Morhen", null) }, GoBack, "keep-back"));
+        var sub = Ui.Text("Kaleni onar, sözleşmeleri al, Wild Hunt'a hazırlan.", 18, Theme.B("#b9ae94"));
+        sub.Margin = new Thickness(62, 0, 0, 0);
+        head.Children.Add(sub);
+        Canvas.SetLeft(head, 44); Canvas.SetTop(head, 30);
         canvas.Children.Add(head);
 
         // Kaynaklar
@@ -177,18 +205,17 @@ public sealed class KeepView : Grid
         Canvas.SetLeft(boardPanel, 1290); Canvas.SetTop(boardPanel, 196);
         canvas.Children.Add(boardPanel);
 
-        var back = Ui.Button("Menüye dön", () => { Save(); _nav.Back(); });
-        back.Tag = "keep-back";
-        back.Padding = new Thickness(28, 10, 28, 10);
-        back.FontSize = 17;
-        Canvas.SetLeft(back, 50); Canvas.SetTop(back, 1000);
-        canvas.Children.Add(back);
+        // Alt şerit: tuş ipuçları + rehber
+        var foot = HubKit.Hints(new[] { "Tıkla|Bina ya da sözleşme seç", "Esc|Menüye dön" });
+        foot.Margin = new Thickness(0);
         var help = Ui.Button("Nasıl oynanır", OpenGuide);
         help.Tag = "keep-guide";
-        help.Padding = new Thickness(24, 10, 24, 10);
-        help.FontSize = 17;
-        Canvas.SetLeft(help, 250); Canvas.SetTop(help, 1000);
-        canvas.Children.Add(help);
+        help.Padding = new Thickness(20, 6, 20, 6);
+        help.FontSize = 15;
+        help.VerticalAlignment = VerticalAlignment.Center;
+        foot.Children.Add(help);
+        Canvas.SetLeft(foot, 48); Canvas.SetTop(foot, 1018);
+        canvas.Children.Add(foot);
     }
 
     private UIElement BuildingCard(Building b)

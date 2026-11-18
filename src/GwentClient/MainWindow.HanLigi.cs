@@ -9,7 +9,7 @@ public partial class MainWindow
     {
         var name = string.IsNullOrWhiteSpace(Settings.Nick) ? "Sen" : Settings.Nick;
         var session = new HanSession(Random.Shared.Next(1, int.MaxValue), name);
-        var view = new HanView(session, ShowMenu, ShowHan);
+        var view = new HanView(session, ShowPlayHub, ShowHan);
         Music.Start();
         Host.Content = view;
         view.Focus();

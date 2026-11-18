@@ -285,7 +285,7 @@ public static class UpdateBanner
 /// <summary>Merkez ekranların ortak çerçevesi: sahne zemini, üstte ekmek kırıntısı + profil, altta tuş ipuçları.</summary>
 public static class HubKit
 {
-    public static Grid Screen(UIElement content, HubBackdrop backdrop, IReadOnlyList<(string Text, Action? Go)>? crumbs, Action? back, Action? openProfile, bool showLogo = false, string[]? hints = null)
+    public static Grid Screen(UIElement content, HubBackdrop backdrop, IReadOnlyList<(string Text, Action? Go)>? crumbs, Action? back, Action? openProfile, bool showLogo = false, string[]? hints = null, string backTag = "hub-back", bool escBack = true)
     {
         var root = new Grid { Background = Theme.Bg, ClipToBounds = true, Focusable = true };
         root.Children.Add(backdrop);
@@ -317,7 +317,7 @@ public static class HubKit
             left.Children.Add(new Image { Source = logo, Height = 92, Stretch = Stretch.Uniform, Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 18, ShadowDepth = 0, Opacity = 0.9 } });
         else if (showLogo)
             left.Children.Add(Ornate.Heading("Witcher 3  Gwent", null, 34));
-        if (back != null) left.Children.Add(BackButton(back));
+        if (back != null) left.Children.Add(BackButton(back, backTag));
         if (crumbs != null) left.Children.Add(Crumbs(crumbs));
         header.Children.Add(left);
         if (openProfile != null)
@@ -332,26 +332,42 @@ public static class HubKit
         layout.Children.Add(content);
 
         // Alt şerit: tuş ipuçları
-        var foot = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(48, 0, 0, 24) };
-        foreach (var h in hints ?? new[] { "←→|Seç", "Enter|Aç" }.Concat(back != null ? new[] { "Esc|Geri" } : Array.Empty<string>()).ToArray())
-        {
-            var parts = h.Split('|');
-            foot.Children.Add(KeyHint(parts[0], parts[1]));
-        }
+        var foot = Hints(hints ?? new[] { "←→|Seç", "Enter|Aç" }.Concat(back != null ? new[] { "Esc|Geri" } : Array.Empty<string>()).ToArray());
         Grid.SetRow(foot, 2);
         layout.Children.Add(foot);
         root.Children.Add(layout);
 
-        if (back != null)
+        if (back != null && escBack)
             root.KeyDown += (_, e) => { if (e.Key == Key.Escape && !e.Handled) { e.Handled = true; Sfx.Play("lock_in"); back(); } };
         root.Loaded += (_, _) => { if (!root.IsKeyboardFocusWithin) root.Focus(); };
         return root;
     }
 
-    private static UIElement BackButton(Action back)
+    /// <summary>Alt şerit: tuş ipuçları ("Tuş|Açıklama" biçiminde).</summary>
+    public static StackPanel Hints(IEnumerable<string> hints)
+    {
+        var foot = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(48, 0, 0, 24) };
+        foreach (var h in hints)
+        {
+            var parts = h.Split('|');
+            foot.Children.Add(KeyHint(parts[0], parts[1]));
+        }
+        return foot;
+    }
+
+    /// <summary>Üst sol: geri oku + ekmek kırıntısı (merkez dışındaki tam ekranlar için de).</summary>
+    public static StackPanel Header(IReadOnlyList<(string Text, Action? Go)> crumbs, Action? back, string backTag = "hub-back")
+    {
+        var left = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        if (back != null) left.Children.Add(BackButton(back, backTag));
+        left.Children.Add(Crumbs(crumbs));
+        return left;
+    }
+
+    private static UIElement BackButton(Action back, string tag = "hub-back")
     {
         var tb = new TextBlock { Text = "‹", FontSize = 40 * Theme.FontScale, FontFamily = Theme.Serif, Foreground = Theme.B("#c9a24a"), VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false, Margin = new Thickness(0, -6, 0, 0) };
-        var host = new Border { Background = Brushes.Transparent, Padding = new Thickness(6, 2, 18, 2), Cursor = Cursors.Hand, Child = tb, Tag = "hub-back", ToolTip = "Geri (Esc)" };
+        var host = new Border { Background = Brushes.Transparent, Padding = new Thickness(6, 2, 18, 2), Cursor = Cursors.Hand, Child = tb, Tag = tag, ToolTip = "Geri (Esc)" };
         host.MouseEnter += (_, _) => tb.Foreground = Theme.B("#fff2c8");
         host.MouseLeave += (_, _) => tb.Foreground = Theme.B("#c9a24a");
         host.MouseLeftButtonUp += (_, e) => { e.Handled = true; Sfx.Play("lock_in"); back(); };

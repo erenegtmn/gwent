@@ -304,6 +304,16 @@ public sealed partial class HanView : Grid
 
     private void OnKey(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape)
+        {
+            // Esc: açık pencereyi kapatır; yoksa çıkışı sorar
+            e.Handled = true;
+            if (_exitAsk) { _exitAsk = false; Render(); }
+            else if (_help) { _help = false; Render(); }
+            else AskExit();
+            return;
+        }
+        if (_exitAsk) return;
         if (_screen != Screen.Prep || _busy || _help) return;
         if (Me.PotionOptions.Length > 0 || Me.RewardOptions.Length > 0) return;
         switch (e.Key)
@@ -642,7 +652,39 @@ public sealed partial class HanView : Grid
     private void TopButtons()
     {
         Put(Act("?", null, "han-help", () => { _help = true; Render(); }, HanButtonKind.Ghost, 38, 34, tip: "Nasıl oynanır"), 12, 14);
-        Put(Act("✕", null, "han-exit", () => { StopTimer(); _gen++; _back(); }, HanButtonKind.Ghost, 38, 34, tip: "Menüye dön"), 56, 14);
+        Put(Act("✕", null, "han-exit", AskExit, HanButtonKind.Ghost, 38, 34, tip: "Maçtan çık (Esc)"), 56, 14);
+    }
+
+    private bool _exitAsk;
+
+    /// <summary>Maç sürerken çıkış önce sorulur (maç kaybolur); okul seçiminde ya da maç bitince doğrudan çıkılır.</summary>
+    private void AskExit()
+    {
+        if (_screen is Screen.School or Screen.Final) { Exit(); return; }
+        _exitAsk = true;
+        _help = false;
+        Render();
+    }
+
+    private void Exit() { StopTimer(); _gen++; _exitAsk = false; _back(); }
+
+    private void DrawExitAsk()
+    {
+        Put(new Border { Width = 1920, Height = 1080, Background = Theme.B("#c8000000") }, 0, 0);
+        var sp = new StackPanel { Margin = new Thickness(56, 40, 56, 40) };
+        sp.Children.Add(HanUi.Label("Han Ligi", 13));
+        sp.Children.Add(HanUi.Display("Maçtan çıkılsın mı?", 40, TextAlignment.Left));
+        var rule = HanUi.Rule(620);
+        rule.Margin = new Thickness(0, 10, 0, 16);
+        sp.Children.Add(rule);
+        sp.Children.Add(HanUi.Body("Çıkarsan bu maçtaki yerini kaybedersin.", 17));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 30, 0, 0) };
+        var stay = Btn("Masada kal", "han-exit-cancel", () => { _exitAsk = false; Render(); }, true, width: 230, height: 52);
+        stay.Margin = new Thickness(0, 0, 16, 0);
+        row.Children.Add(stay);
+        row.Children.Add(Btn("Maçtan çık", "han-exit-confirm", Exit, width: 210, height: 52));
+        sp.Children.Add(row);
+        Put(Panel(740, 330, sp, 0xf0, null, 16), 590, 360);
     }
 
     /// <summary>Sağ kenar: oyuncular (portre, can, seviye), cana göre sıralı. Rakip kırmızı, sen altın çerçeveli.</summary>
@@ -976,6 +1018,7 @@ public sealed partial class HanView : Grid
             default: DrawFinal(); break;
         }
         if (_help) DrawHelp();
+        if (_exitAsk) DrawExitAsk();
         if (_waitEl != null) { _clockLayer.Children.Remove(_waitEl); _waitEl = null; }
         DrawWaiting();
         foreach (var layer in new DependencyObject[] { _rows, _units, _c, _shop }) FastTips(layer);

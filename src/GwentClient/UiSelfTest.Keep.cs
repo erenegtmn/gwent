@@ -142,7 +142,7 @@ public static partial class UiSelfTest
             // Menüye dönüş
             view = new KeepView(s, new KeepNav((_, _, _, _) => { }, () => back = true));
             Layout(view);
-            Click(Tagged("keep-back"));
+            ClickAt(view, FindAll<System.Windows.FrameworkElement>(view, x => (x.Tag as string) == "keep-back").First());
             Check(back, "menüye dönülmedi");
             Console.WriteLine($"Kale: {s.Wins} başarı, {s.Losses} başarısız, {s.Crowns} Crown.");
         }

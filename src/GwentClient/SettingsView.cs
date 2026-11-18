@@ -56,7 +56,8 @@ public sealed class SettingsView : Grid
 {
     private readonly Action _back;
 
-    public SettingsView(Action onBack, bool embedded = false)
+    /// <param name="showBack">Gömülü panelde "Geri" düğmesi (maç menüsünde gerekmez: menünün kendi "Maça dön"ü var).</param>
+    public SettingsView(Action onBack, bool embedded = false, bool showBack = true)
     {
         _back = onBack;
         Background = embedded ? Brushes.Transparent : Theme.Bg;   // oyun içinde: oyun alanının üstünde yüzer
@@ -89,7 +90,7 @@ public sealed class SettingsView : Grid
             backBtn.Padding = new Thickness(44, 12, 44, 12);
             backBtn.HorizontalAlignment = HorizontalAlignment.Left;
             backBtn.Margin = new Thickness(0, 26, 0, 0);
-            root.Children.Add(backBtn);
+            if (showBack) root.Children.Add(backBtn);
             var panel = Ornate.Panel(root, new Thickness(54, 42, 54, 46));
             panel.HorizontalAlignment = HorizontalAlignment.Center;
             panel.VerticalAlignment = VerticalAlignment.Center;

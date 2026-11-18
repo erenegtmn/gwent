@@ -55,6 +55,13 @@ public sealed class VsScreen : Grid
         // --- Sinema şeritleri ---
         var top = Bar(true);
         var bottom = Bar(false);
+        if (animate)
+        {
+            var skip = Ui.Text("Geçmek için tıkla", 16, Theme.B("#8a7f68"), false, TextAlignment.Center);
+            skip.HorizontalAlignment = HorizontalAlignment.Center;
+            skip.VerticalAlignment = VerticalAlignment.Center;
+            bottom.Child = skip;
+        }
         Children.Add(top);
         Children.Add(bottom);
         var flash = new Border { Background = Brushes.White, Opacity = 0, IsHitTestVisible = false };
@@ -164,7 +171,7 @@ public sealed class VsScreen : Grid
         return g;
     }
 
-    private static UIElement Bar(bool top) => new Border
+    private static Border Bar(bool top) => new Border
     {
         Height = 96, VerticalAlignment = top ? VerticalAlignment.Top : VerticalAlignment.Bottom, IsHitTestVisible = false,
         Background = new LinearGradientBrush(Color.FromRgb(0, 0, 0), Color.FromArgb(0xe8, 0, 0, 0), top ? 90 : 270),

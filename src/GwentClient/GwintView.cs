@@ -372,7 +372,7 @@ public sealed partial class GwintView : Viewbox
     private void OpenSettings()
     {
         _settingsOpen = true;
-        _settingsView = new SettingsView(CloseSettings, embedded: true);
+        _settingsView = new SettingsView(CloseSettings, embedded: true, showBack: false);
         Refresh();
     }
 
@@ -387,6 +387,11 @@ public sealed partial class GwintView : Viewbox
     private void OnKey(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape && _confirm != null) { _confirm = null; Refresh(); e.Handled = true; return; }
+        if (_s.IsOver && !_s.IsSpectator && _overlay.Visibility == Visibility.Visible)
+        {
+            if (e.Key == Key.Escape && _overMenu != null) { e.Handled = true; _overMenu(); return; }
+            if (e.Key == Key.Enter && _overAgain != null) { e.Handled = true; _overAgain(); return; }
+        }
         if (e.Key == Key.Escape && _settingsOpen) { CloseSettings(); e.Handled = true; return; }
         if (e.Key == Key.Escape && (_zoom != null || _graveView != null)) { _zoom = null; _graveView = null; Refresh(); e.Handled = true; }
         else if (e.Key == Key.Escape && _selected != null) { _selected = null; _hint = ""; Refresh(); e.Handled = true; }
@@ -1024,16 +1029,16 @@ public sealed partial class GwintView : Viewbox
             play.Padding = new Thickness(26, 8, 26, 8);
             Put(_board, play, 680, 984);
         }
-        var cfgBtn = Ui.Button("Ayarlar", OpenSettings);
+        var cfgBtn = Ui.Button("Maç menüsü", OpenSettings);
         cfgBtn.FontSize = 13; cfgBtn.Padding = new Thickness(10, 3, 10, 3);
         cfgBtn.Tag = "settings-button";
-        Put(_board, cfgBtn, 1290, 1030);
+        Put(_board, cfgBtn, 1262, 1030);
         if (_s.IsRemote && !_s.IsOver)
         {
             var resign = Ui.Button("Teslim ol", () => { _confirm = "resign"; Refresh(); });
             resign.FontSize = 13; resign.Padding = new Thickness(10, 3, 10, 3);
             resign.Tag = "resign-button";
-            Put(_board, resign, 1190, 1030);
+            Put(_board, resign, 1166, 1030);
         }
         var quit = Ui.Button("Menüye dön", OnMenuClicked);
         quit.FontSize = 13; quit.Padding = new Thickness(10, 3, 10, 3);
@@ -1716,8 +1721,11 @@ public sealed partial class GwintView : Viewbox
 
         if (_settingsOpen && !_s.IsOver && _settingsView != null)
         {
-            _overlay.Background = Theme.B("#d00b0805");
-            _overlay.Children.Add(_settingsView);
+            _overlay.Background = new LinearGradientBrush(new GradientStopCollection
+            {
+                new GradientStop(Color.FromArgb(0xfc, 0x06, 0x04, 0x03), 0), new GradientStop(Color.FromArgb(0xf2, 0x08, 0x06, 0x04), 0.38), new GradientStop(Color.FromArgb(0xc8, 0x0b, 0x08, 0x05), 1)
+            }, 0);
+            _overlay.Children.Add(MatchMenu(_settingsView));
             _overlay.Visibility = Visibility.Visible;
             return;
         }
@@ -1768,6 +1776,72 @@ public sealed partial class GwintView : Viewbox
     }
 
     private TextBlock Title(string s) => Txt(s, 40, Theme.B("#e8c970"), true, TextAlignment.Center);
+
+    /// <summary>Maç adı (menüde ve maç sonunda üst satır).</summary>
+    private string ModeName() => _s.ModeLabel ?? (_s.TournamentMode ? "Turnuva maçı" : _s.IsRemote ? "Çevrimiçi maç" : "Hızlı Gwent");
+
+    /// <summary>
+    /// Maç menüsü (Esc): solda maçın durumu ve seçenekler (maça dön, teslim ol, ayrıl), sağda ayarlar. Masa arkada karartılmış görünür.
+    /// </summary>
+    private UIElement MatchMenu(UIElement settings)
+    {
+        var root = new Grid();
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(720) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(140, 0, 40, 0) };
+        left.Children.Add(Ornate.Caption(ModeName(), 0));
+        var title = Txt("Maç menüsü", 64, Theme.B("#f4e6bf"), true);
+        title.FontFamily = Theme.Serif;
+        title.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 12, ShadowDepth = 2, Opacity = 0.95 };
+        left.Children.Add(title);
+        var score = Txt($"Raund {G.Round}   ·   {_s.MyName} {G.PlayerTotal(Me)}  –  {G.Opponents(Me).Max(G.PlayerTotal)} {(G.ThreePlayer ? "rakipler" : _s.OppName)}", 21, Theme.B("#b9ae94"));
+        score.Margin = new Thickness(2, 4, 0, 0);
+        left.Children.Add(score);
+        var rule = Ornate.Rule(460, 22);
+        ((FrameworkElement)rule).HorizontalAlignment = HorizontalAlignment.Left;
+        left.Children.Add(rule);
+
+        left.Children.Add(MenuOption("Maça dön", "pause-resume", CloseSettings, primary: true));
+        if (_s.IsRemote && !_s.IsSpectator)
+            left.Children.Add(MenuOption("Teslim ol", "pause-resign", () => { _settingsOpen = false; _settingsView = null; Settings.Save(); _confirm = "resign"; Refresh(); }));
+        left.Children.Add(MenuOption(_s.IsRemote || _s.LeaveWarning != null ? "Maçtan ayrıl" : _s.ExitLabel ?? "Menüye dön", "pause-leave", () =>
+        {
+            _settingsOpen = false;
+            _settingsView = null;
+            Settings.Save();
+            OnMenuClicked();
+        }));
+
+        var keys = HubKit.Hints(new[] { "Esc|Maça dön", "Boşluk|Pas (masada)" });
+        keys.Margin = new Thickness(4, 40, 0, 0);
+        left.Children.Add(keys);
+        root.Children.Add(left);
+
+        // Ayarlar: sağda, masanın üstünde yüzer
+        if (settings is FrameworkElement fe) { fe.HorizontalAlignment = HorizontalAlignment.Center; fe.VerticalAlignment = VerticalAlignment.Center; }
+        if (settings is FrameworkElement { Parent: Panel old }) old.Children.Remove(settings);
+        Grid.SetColumn(settings, 1);
+        root.Children.Add(settings);
+        return root;
+    }
+
+    /// <summary>Maç menüsündeki seçenek: büyük yazı; üzerine gelince solunda altın çizgi uzar.</summary>
+    private static UIElement MenuOption(string text, string tag, Action click, bool primary = false)
+    {
+        var line = new Rectangle { Width = 4, Height = 34, Fill = Theme.B("#c9a24a"), Opacity = primary ? 1 : 0, Margin = new Thickness(0, 0, 18, 0), VerticalAlignment = VerticalAlignment.Center };
+        var tb = Txt(text, 36, primary ? Theme.B("#f0d890") : Theme.B("#bdb39a"));
+        tb.FontFamily = Theme.Serif;
+        tb.VerticalAlignment = VerticalAlignment.Center;
+        var row = new StackPanel { Orientation = Orientation.Horizontal, IsHitTestVisible = false };
+        row.Children.Add(line);
+        row.Children.Add(tb);
+        var host = new Border { Child = row, Background = Brushes.Transparent, Cursor = Cursors.Hand, Padding = new Thickness(0, 8, 30, 8), Tag = tag, HorizontalAlignment = HorizontalAlignment.Left };
+        host.MouseEnter += (_, _) => { line.Opacity = 1; tb.Foreground = Theme.B("#fff2c8"); tb.Effect = new DropShadowEffect { Color = Color.FromRgb(255, 200, 90), BlurRadius = 14, ShadowDepth = 0, Opacity = 0.7 }; };
+        host.MouseLeave += (_, _) => { line.Opacity = primary ? 1 : 0; tb.Foreground = primary ? Theme.B("#f0d890") : Theme.B("#bdb39a"); tb.Effect = null; };
+        host.MouseLeftButtonUp += (_, e) => { e.Handled = true; Sfx.Play("lock_in"); click(); };
+        return host;
+    }
 
     private UIElement MulliganPanel()
     {
@@ -2013,13 +2087,16 @@ public sealed partial class GwintView : Viewbox
                 ? ("Berabere", Theme.B("#b8ad94"), "msg_battle_draw", Color.FromRgb(110, 105, 92), Theme.B("#c4baa4"), Theme.B("#625c4e"))
                 : ("Kaybettin", Theme.B("#a8503f"), "msg_battle_defeat", Color.FromRgb(110, 30, 22), Theme.B("#b5584a"), Theme.B("#4a1812"));
 
+        var kicker = Ornate.Caption(ModeName() + " bitti", 0);
+        ((FrameworkElement)kicker).HorizontalAlignment = HorizontalAlignment.Center;
+        sp.Children.Add(kicker);
         var src = Assets.Ui(frame);
         if (src != null)
         {
             // Orijinal simge yalnız şekil olarak kullanılır; rengi paletimizdeki gradyan verir (mavi/neon ton yok)
             var icon = new Rectangle
             {
-                Width = 520, Height = 232, HorizontalAlignment = HorizontalAlignment.Center, IsHitTestVisible = false,
+                Width = 440, Height = 196, HorizontalAlignment = HorizontalAlignment.Center, IsHitTestVisible = false, Margin = new Thickness(0, 10, 0, 0),
                 Fill = new LinearGradientBrush(((SolidColorBrush)g1).Color, ((SolidColorBrush)g2).Color, 90),
                 OpacityMask = new ImageBrush(src) { Stretch = Stretch.Uniform },
                 Effect = new DropShadowEffect { Color = glow, BlurRadius = 36, ShadowDepth = 0, Opacity = 0.55 }
@@ -2027,42 +2104,24 @@ public sealed partial class GwintView : Viewbox
             sp.Children.Add(icon);
         }
         var t = Txt(title, 104, color, true, TextAlignment.Center);
+        t.FontFamily = Theme.Serif;
         t.Effect = new DropShadowEffect { Color = glow, BlurRadius = 30, ShadowDepth = 0, Opacity = 0.6 };
         sp.Children.Add(t);
 
-        var myRounds = G.History.Count(r => r.Winner == Me);
-        var oppRounds = G.History.Count(r => r.Winner == Opp);
-        var sub = Txt($"Raund skoru   {myRounds} – {oppRounds}", 30, Theme.B("#e8dcc4"), false, TextAlignment.Center);
-        sub.Margin = new Thickness(0, 2, 0, 4);
-        sp.Children.Add(sub);
-        sp.Children.Add(Ornate.Rule(560, 14));
-
-        // Raund tablosu
-        var table = new Grid { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 8) };
-        foreach (var w in new[] { 150.0, 170, 170, 270 }) table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(w) });
-        void Cell(string text, int row, int col, Brush fg, double size, bool bold)
-        {
-            var c = Txt(text, size, fg, bold, TextAlignment.Center);
-            c.HorizontalAlignment = HorizontalAlignment.Center;
-            Grid.SetRow(c, row);
-            Grid.SetColumn(c, col);
-            table.Children.Add(c);
-        }
-        table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        foreach (var (h, col) in new[] { ("Raund", 0), ("Sen", 1), ("Rakip", 2), ("Sonuç", 3) }) Cell(h, 0, col, Theme.TextDim, 20, true);
-        var rowIx = 1;
-        foreach (var r in G.History)
-        {
-            table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            var mine = r.Winner == Me;
-            var theirs = r.Winner == Opp;
-            Cell(r.Round.ToString(), rowIx, 0, Theme.Text, 28, false);
-            Cell((Me == 0 ? r.Score0 : r.Score1).ToString(), rowIx, 1, mine ? Theme.B("#d8bd78") : Theme.TextDim, 32, mine);
-            Cell((Me == 0 ? r.Score1 : r.Score0).ToString(), rowIx, 2, theirs ? Theme.B("#d8bd78") : Theme.TextDim, 32, theirs);
-            Cell(r.Winner == null ? "Berabere" : mine ? "Sen kazandın" : "Rakip kazandı", rowIx, 3, r.Winner == null ? Theme.TextDim : mine ? Theme.B("#c9b06c") : Theme.B("#9c5446"), 24, true);
-            rowIx++;
-        }
-        sp.Children.Add(table);
+        // Karşılaşma şeridi: iki oyuncu iki yanda, ortada raund raund skor
+        var strip = new Grid { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 26, 0, 0) };
+        strip.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(330) });
+        strip.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        strip.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(330) });
+        strip.Children.Add(OverSide(Me, winner == Me, true));
+        var rounds = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(26, 0, 26, 0) };
+        foreach (var r in G.History) rounds.Children.Add(RoundChip(r.Round, Me == 0 ? r.Score0 : r.Score1, Me == 0 ? r.Score1 : r.Score0, r.Winner == null ? 0 : r.Winner == Me ? 1 : -1));
+        Grid.SetColumn(rounds, 1);
+        strip.Children.Add(rounds);
+        var opp = OverSide(Opp, winner == Opp, false);
+        Grid.SetColumn(opp, 2);
+        strip.Children.Add(opp);
+        sp.Children.Add(strip);
         if (_careerText != null)
         {
             var reward = Txt(_careerText, 26, Theme.B("#f0d890"), true, TextAlignment.Center, 1100);
@@ -2077,11 +2136,13 @@ public sealed partial class GwintView : Viewbox
             if (_s.IsRemote) { _s.Link!.RequestRematch(); _hint = "Rövanş isteği gönderildi; rakibin kabul etmesi bekleniyor."; Refresh(); }
             else _rematch(_s.Config with { Seed = Random.Shared.Next(1, int.MaxValue) });
         }, primary: true);
-        var menu = Ui.Button(_s.ExitLabel ?? (_s.TournamentMode ? "Bracket'e dön" : "Menü"), _toMenu);
+        var menuLabel = _s.ExitLabel ?? (_s.TournamentMode ? "Bracket'e dön" : "Menü");
+        var menu = Ui.Button(menuLabel, _toMenu);
         again.FontSize = 26; menu.FontSize = 26;
         again.Padding = new Thickness(50, 14, 50, 14); menu.Padding = new Thickness(50, 14, 50, 14);
         menu.Margin = new Thickness(18, 0, 0, 0);
-        if (!_s.TournamentMode || winner == null) b.Children.Add(again);   // turnuvada rövanş yalnız berabere kalınca gerekir
+        var canAgain = !_s.TournamentMode || winner == null;   // turnuvada rövanş yalnız berabere kalınca gerekir
+        if (canAgain) b.Children.Add(again);
         b.Children.Add(menu);
         sp.Children.Add(b);
         if (_s.IsRemote && !string.IsNullOrEmpty(_hint))
@@ -2090,6 +2151,56 @@ public sealed partial class GwintView : Viewbox
             h.Margin = new Thickness(0, 18, 0, 0);
             sp.Children.Add(h);
         }
+        var keys = HubKit.Hints(canAgain ? new[] { "Enter|" + (_s.IsRemote ? "Rövanş iste" : "Yeniden oyna"), "Esc|" + menuLabel } : new[] { "Esc|" + menuLabel });
+        keys.HorizontalAlignment = HorizontalAlignment.Center;
+        keys.Margin = new Thickness(28, 26, 0, 0);
+        sp.Children.Add(keys);
+        _overAgain = canAgain ? () => again.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent)) : null;
+        _overMenu = () => menu.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
         return sp;
+    }
+
+    /// <summary>Maç sonu kısayolları: Enter yeniden oyna / rövanş, Esc menü.</summary>
+    private Action? _overAgain, _overMenu;
+
+    /// <summary>Maç sonu şeridinde bir oyuncu: madalyon, ad, fraksiyon; kazananınki parlar.</summary>
+    private FrameworkElement OverSide(int p, bool won, bool left)
+    {
+        var sp = new StackPanel { HorizontalAlignment = left ? HorizontalAlignment.Right : HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = left ? HorizontalAlignment.Right : HorizontalAlignment.Left };
+        var medal = Portraits.Medallion(p == Me ? _s.MyAvatar : _s.OppAvatar, 88, glow: won);
+        if (!won) medal.Opacity = 0.75;
+        var texts = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = left ? new Thickness(0, 0, 16, 0) : new Thickness(16, 0, 0, 0) };
+        var name = p == Me ? _s.MyName : _s.OppName;
+        var n = Txt(name, name.Length > 12 ? 22 : 28, won ? Theme.B("#f0d890") : Theme.B("#d8cdb0"), true, left ? TextAlignment.Right : TextAlignment.Left);
+        n.FontFamily = Theme.Serif;
+        n.HorizontalAlignment = left ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+        texts.Children.Add(n);
+        var f = Txt(Texts.Faction(G.Players[p].Faction), 17, Theme.TextDim, false, left ? TextAlignment.Right : TextAlignment.Left);
+        f.HorizontalAlignment = left ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+        texts.Children.Add(f);
+        if (left) { row.Children.Add(texts); row.Children.Add(medal); }
+        else { row.Children.Add(medal); row.Children.Add(texts); }
+        sp.Children.Add(row);
+        return sp;
+    }
+
+    /// <summary>Raund kutusu: üstte raund adı, altta iki skor; kazanılan raund altın, kaybedilen kızıl kenarlı.</summary>
+    private static UIElement RoundChip(int round, int mine, int theirs, int result)
+    {
+        var edge = result > 0 ? Theme.B("#c9a24a") : result < 0 ? Theme.B("#8a3a2e") : Theme.B("#5a5040");
+        var g = new Grid { Width = 150, Height = 104, Margin = new Thickness(6, 0, 6, 0) };
+        g.Children.Add(new ChamferFrame { Fill = Theme.B(result > 0 ? "#cc2a1f0c" : result < 0 ? "#cc220c08" : "#cc16130e"), Edge = edge, Inner = null, Cut = 10, Inset = 4 });
+        var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        sp.Children.Add(Txt($"{round}. raund", 15, Theme.TextDim, false, TextAlignment.Center));
+        var score = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) };
+        score.Children.Add(Txt(mine.ToString(), 34, result > 0 ? Theme.B("#f0d890") : Theme.B("#c9c0aa"), result > 0));
+        score.Children.Add(Txt("  –  ", 24, Theme.TextDim));
+        ((TextBlock)score.Children[^1]).VerticalAlignment = VerticalAlignment.Center;
+        score.Children.Add(Txt(theirs.ToString(), 34, result < 0 ? Theme.B("#e09a80") : Theme.B("#c9c0aa"), result < 0));
+        sp.Children.Add(score);
+        sp.Children.Add(Txt(result > 0 ? "Sen aldın" : result < 0 ? "Rakip aldı" : "Berabere", 14, result > 0 ? Theme.B("#c9b06c") : result < 0 ? Theme.B("#b86a58") : Theme.TextDim, true, TextAlignment.Center));
+        g.Children.Add(sp);
+        return g;
     }
 }

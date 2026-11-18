@@ -23,16 +23,16 @@ public static partial class UiSelfTest
         {
             // Ana menü: her kapı kendi eylemini çağırır (soldan sağa)
             var hits = new List<string>();
-            var hub = new HubView(() => hits.Add("play"), () => hits.Add("online"), () => hits.Add("keep"), () => hits.Add("han"), null, null, null, animate: false);
+            var hub = new HubView(() => hits.Add("play"), () => hits.Add("online"), () => hits.Add("keep"), () => hits.Add("deck"), null, null, null, animate: false);
             Layout(hub);
             var tiles = FindAll<HubTile>(hub, _ => true).OrderBy(t => t.TranslatePoint(new Point(0, 0), hub).X).ToList();
             Check(tiles.Count == 4, $"4 kapı beklendi, {tiles.Count} bulundu");
             foreach (var t in tiles) ClickAt(hub, t);
-            Check(hits.SequenceEqual(new[] { "play", "online", "keep", "han" }), "kapılar sırayla açılmadı: " + string.Join(",", hits));
+            Check(hits.SequenceEqual(new[] { "play", "online", "keep", "deck" }), "kapılar sırayla açılmadı: " + string.Join(",", hits));
 
             // Klavye: sağ ok seçimi kaydırır, Enter seçili kapıyı açar
             hits.Clear();
-            var hub2 = new HubView(() => hits.Add("play"), () => hits.Add("online"), () => hits.Add("keep"), () => hits.Add("han"), null, null, null, animate: false);
+            var hub2 = new HubView(() => hits.Add("play"), () => hits.Add("online"), () => hits.Add("keep"), () => hits.Add("deck"), null, null, null, animate: false);
             Layout(hub2);
             var start = hub2.Row.Active!.Key;
             hub2.Row.HandleKey(Key.Right);
@@ -42,12 +42,12 @@ public static partial class UiSelfTest
             // Gwent merkezi: dört kapı ve geri
             var played = new List<string>();
             var backed = false;
-            var play = new PlayHubView(() => backed = true, () => played.Add("quick"), () => played.Add("career"), () => played.Add("draft"), () => played.Add("deck"), null, animate: false);
+            var play = new PlayHubView(() => backed = true, () => played.Add("quick"), () => played.Add("career"), () => played.Add("draft"), () => played.Add("han"), null, animate: false);
             Layout(play);
             var ptiles = FindAll<HubTile>(play, _ => true).OrderBy(t => t.TranslatePoint(new Point(0, 0), play).X).ToList();
             Check(ptiles.Count == 4, "Gwent merkezinde 4 kapı beklendi");
             foreach (var t in ptiles) ClickAt(play, t);
-            Check(played.SequenceEqual(new[] { "quick", "career", "draft", "deck" }), "Gwent merkezi kapıları açılmadı: " + string.Join(",", played));
+            Check(played.SequenceEqual(new[] { "quick", "career", "draft", "han" }), "Gwent merkezi kapıları açılmadı: " + string.Join(",", played));
             ClickAt(play, Tagged(play, "hub-back"));
             Check(backed, "Gwent merkezinde geri çalışmadı");
 

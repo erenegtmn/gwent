@@ -32,7 +32,7 @@ public sealed class DeckBuilderView : Grid
     private readonly Border _poolHost = new();
     private readonly Border _deckHost = new();
     private readonly Border _preview = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 24, 38, 0), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
-    private readonly System.Windows.Controls.Image _bg = new() { Stretch = Stretch.UniformToFill, Opacity = 1, IsHitTestVisible = false };
+    private readonly HubBackdrop _backdrop = new(Ornate.Animate);
     private readonly TextBox _nameBox = new();
     private Button? _saveButton;
     private ScrollViewer? _poolScroll, _listScroll;
@@ -57,39 +57,29 @@ public sealed class DeckBuilderView : Grid
         Background = Theme.Bg;
         ClipToBounds = true;
 
-        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(470) });
-
-        // Arka plan: fraksiyonun panoraması, koyulaştırılmış + vinyet
-        SetRowSpan(_bg, 2);
-        SetColumnSpan(_bg, 2);
-        Children.Add(_bg);
-        var vignette = new Border
-        {
-            IsHitTestVisible = false,
-            Background = new RadialGradientBrush
-            {
-                Center = new Point(0.5, 0.5), GradientOrigin = new Point(0.5, 0.5), RadiusX = 0.8, RadiusY = 0.9,
-                GradientStops = { new GradientStop(Color.FromArgb(0x30, 0, 0, 0), 0), new GradientStop(Color.FromArgb(0xb0, 0, 0, 0), 1) }
-            }
-        };
-        SetRowSpan(vignette, 2);
-        SetColumnSpan(vignette, 2);
-        Children.Add(vignette);
-
+        // Gövde: üstte fraksiyonlar + kayıtlı desteler, altta koleksiyon | deste
+        var body = new Grid();
+        body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(470) });
         SetColumnSpan(_header, 2);
-        Children.Add(_header);
+        body.Children.Add(_header);
         SetRow(_poolHost, 1);
-        Children.Add(_poolHost);
+        body.Children.Add(_poolHost);
         SetRow(_deckHost, 1);
         SetColumn(_deckHost, 1);
-        Children.Add(_deckHost);
+        body.Children.Add(_deckHost);
         SetRow(_preview, 1);
-        Children.Add(_preview);
-        SetRowSpan(_modal, 2);
-        SetColumnSpan(_modal, 2);
+        body.Children.Add(_preview);
+
+        // Merkez ekranlarıyla aynı çerçeve: fraksiyonun panoraması, geri oku + başlık, altta tuş ipuçları
+        var crumbs = career != null
+            ? new (string, Action?)[] { ("Collect 'Em All", Back), ("Deste", null) }
+            : new (string, Action?)[] { ("Deste kurucu", null) };
+        Children.Add(HubKit.Screen(body, _backdrop, crumbs, Back, null,
+            hints: new[] { "Sol tık|Desteye ekle", "Sağ tık|Çıkar", "Esc|Geri" }, backTag: "deck-back", escBack: false));
+
         Panel.SetZIndex(_modal, 50);
         Children.Add(_modal);
         Focusable = true;
@@ -249,8 +239,7 @@ public sealed class DeckBuilderView : Grid
 
     private void Rebuild()
     {
-        var pano = Assets.Ui(Theme.PanoFor(_faction));
-        if (pano != null) _bg.Source = pano;
+        _backdrop.Show(Theme.PanoFor(_faction));
         BuildHeader();
         RebuildLight();
     }
@@ -294,24 +283,10 @@ public sealed class DeckBuilderView : Grid
     private void BuildHeader()
     {
         _header.Children.Clear();
-        _header.Margin = new Thickness(34, 18, 34, 10);
-
-        var top = new Grid();
-        top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var back = NavLink(_career != null ? "‹ Harita" : "‹ Menü", Back);
-        ((FrameworkElement)back).Tag = "deck-back";
-        top.Children.Add(back);
-        var title = Ornate.Heading(_career != null ? "Collect 'Em All · Deste" : "Deste kurucu", null, 38);
-        ((FrameworkElement)title).Margin = new Thickness(26, 0, 0, 0);
-        ((FrameworkElement)title).VerticalAlignment = VerticalAlignment.Center;
-        SetColumn(title, 1);
-        top.Children.Add(title);
-        _header.Children.Add(top);
-        _header.Children.Add(GoldLine(520, 6));
+        _header.Margin = new Thickness(44, 20, 44, 12);
 
         // Fraksiyon seçimi (kalkanlar) + kayıtlı desteler
-        var row = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+        var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
@@ -348,11 +323,11 @@ public sealed class DeckBuilderView : Grid
         {
             var (have, total) = GwentAI.Career.CareerLogic.Progress(_career);
             var info = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
-            var how = Ui.Text("Karta tıkla: desteye ekle   ·   Sağ tık ya da listedeki −: çıkar   ·   Bitince “Kaydet ve kullan”", 16, Theme.B("#e8dcc4"), true, TextAlignment.Right);
+            var how = Ui.Text($"Koleksiyon {have}/{total} kart", 20, Theme.B("#f0d890"), true, TextAlignment.Right);
             how.HorizontalAlignment = HorizontalAlignment.Right;
             info.Children.Add(how);
-            var active = _career.Decks.ContainsKey(_career.ActiveFaction) ? $"Masada kullanılan deste: {Texts.Faction(_career.ActiveFaction)}  ·  " : "";
-            var coll = Ui.Text($"{active}Koleksiyon {have}/{total} kart  ·  Yeni kartlar: rakipleri yenerek ya da tüccardan.", 14, Theme.TextDim, false, TextAlignment.Right);
+            var active = _career.Decks.ContainsKey(_career.ActiveFaction) ? $"Masada kullanılan deste: {Texts.Faction(_career.ActiveFaction)}. " : "";
+            var coll = Ui.Text($"{active}Yeni kartları rakipleri yenerek ya da tüccardan alırsın.", 15, Theme.TextDim, false, TextAlignment.Right);
             coll.HorizontalAlignment = HorizontalAlignment.Right;
             info.Children.Add(coll);
             SetColumn(info, 1);
@@ -491,7 +466,7 @@ public sealed class DeckBuilderView : Grid
         SetRow(scroll, 1);
         root.Children.Add(scroll);
         var box = PanelBox(root, new Thickness(24, 20, 14, 14));
-        box.Margin = new Thickness(34, 4, 14, 26);
+        box.Margin = new Thickness(44, 4, 14, 6);
         _poolHost.Child = box;
     }
 
@@ -522,7 +497,7 @@ public sealed class DeckBuilderView : Grid
         SetColumn(_preview, overDeck ? 1 : 0);
         _preview.HorizontalAlignment = overDeck ? HorizontalAlignment.Stretch : HorizontalAlignment.Right;
         _preview.VerticalAlignment = overDeck ? VerticalAlignment.Stretch : VerticalAlignment.Top;
-        _preview.Margin = overDeck ? new Thickness(0, 4, 34, 26) : new Thickness(0, 24, 38, 0);
+        _preview.Margin = overDeck ? new Thickness(0, 4, 44, 6) : new Thickness(0, 24, 38, 0);
         if (_preview.Child is Border pb) { pb.VerticalAlignment = VerticalAlignment.Center; if (overDeck) pb.VerticalAlignment = VerticalAlignment.Stretch; }
         _preview.Visibility = Visibility.Visible;
     }
@@ -653,7 +628,7 @@ public sealed class DeckBuilderView : Grid
             SetRow(bottom, 2);
             root.Children.Add(bottom);
             var cbox = PanelBox(root, new Thickness(28, 26, 26, 24));
-            cbox.Margin = new Thickness(0, 4, 34, 26);
+            cbox.Margin = new Thickness(0, 4, 44, 6);
             _deckHost.Child = cbox;
             return;
         }
@@ -679,7 +654,7 @@ public sealed class DeckBuilderView : Grid
         root.Children.Add(bottom);
 
         var box = PanelBox(root, new Thickness(28, 26, 26, 24));
-        box.Margin = new Thickness(0, 4, 34, 26);
+        box.Margin = new Thickness(0, 4, 44, 6);
         _deckHost.Child = box;
     }
 

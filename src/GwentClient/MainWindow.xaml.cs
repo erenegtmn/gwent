@@ -43,10 +43,10 @@ public partial class MainWindow : Window
     private bool _lastNextGen;
 
     /// <summary>Ana menü: dört kapılı merkez (Gwent, Çevrimiçi, Kaer Morhen, Han Ligi).</summary>
-    private void ShowMenu() => Host.Content = new HubView(ShowPlayHub, ShowOnlineMenu, ShowKeep, ShowHan, ShowGuide, ShowStats, ShowSettings);
+    private void ShowMenu() => Host.Content = new HubView(ShowPlayHub, ShowOnlineMenu, ShowKeep, () => ShowBuilder(_lastFaction ?? "northern_realms", _lastNextGen, ShowMenu), ShowGuide, ShowStats, ShowSettings);
 
     /// <summary>"Gwent" alt merkezi: Hızlı Gwent, Collect 'Em All, Draft, Deste kurucu.</summary>
-    private void ShowPlayHub() => Host.Content = new PlayHubView(ShowMenu, ShowQuickGwent, ShowCareer, ShowDraft, () => ShowBuilder(_lastFaction ?? "northern_realms", _lastNextGen), ShowStats);
+    private void ShowPlayHub() => Host.Content = new PlayHubView(ShowMenu, ShowQuickGwent, ShowCareer, ShowDraft, ShowHan, ShowStats);
 
     private void ShowQuickGwent() => Host.Content = new MenuView(StartGame, ShowBuilder, _lastFaction, _lastNextGen, openSettings: ShowSettings, openStats: ShowStats, exit: ShowPlayHub);
 
@@ -56,11 +56,14 @@ public partial class MainWindow : Window
 
     private void ShowSettings() => Host.Content = new SettingsView(ShowMenu);
 
-    private void ShowBuilder(string faction, bool nextGen)
+    /// <summary>Deste kurucu Hızlı Gwent kurulumundan açılınca oraya döner; ana menüden açılınca ana menüye.</summary>
+    private void ShowBuilder(string faction, bool nextGen) => ShowBuilder(faction, nextGen, ShowQuickGwent);
+
+    private void ShowBuilder(string faction, bool nextGen, Action back)
     {
         _lastFaction = faction;
         _lastNextGen = nextGen;
-        Host.Content = new DeckBuilderView(faction, nextGen, ShowPlayHub);
+        Host.Content = new DeckBuilderView(faction, nextGen, back);
     }
 
     private void StartGame(MatchConfig cfg)
