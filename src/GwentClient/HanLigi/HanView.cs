@@ -1153,7 +1153,7 @@ public sealed partial class HanView : Grid
         var n = 0;
         void P(string title, string text)
         {
-            var col = cols[n < 3 ? 0 : 1];
+            var col = cols[n < 4 ? 0 : 1];
             n++;
             var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, col.Children.Count == 0 ? 0 : 18, 0, 6) };
             var badge = new Grid { Width = 30, Height = 30, Margin = new Thickness(0, 0, 10, 0) };
@@ -1171,9 +1171,10 @@ public sealed partial class HanView : Grid
         }
         P("Kart al, masaya diz", "Alttaki tezgâhtan kart al. Kartı depodan masadaki satırına sürükle ya da karta tıkla, sonra parlayan yere tıkla; boş yere tıklamak seçimi bırakır. Aynı karttan üç tane birleşip yıldız atlar. Satmak için seçili kartla SAT'a bas ya da kartı tezgâha bırak.");
         P("Kartı okumak", "Sol üstte güç. Alttaki plakada yeteneğin adı (Casus, Bağ, Şifacı...) ve sınıfları (Asker, Canavar...) yazar; sınıflar soldaki sinerjileri açar. Karta gelince tam açıklaması anında açılır.");
-        P("Altın", "Her round +4 altın. Elinde tuttuğun her 10 altın +1 faiz (en çok +2). Seri: art arda kaybedersen 2'de +1, 3-4'te +2, 5'te +3 altın; art arda kazanırsan 3'te +1, 5'te +2. Bilerek kaybedip altın biriktirmek de bir yoldur.");
+        P("Altın", "Her round +4 altın. Elinde tuttuğun her 10 altın +1 faiz (en çok +2). Seri: art arda kaybedersen 2'de +1, 3'te +2, 4'te +3, 5'te +4 altın; art arda kazanırsan 3'te +1, 5'te +2. Erken round'larda hasar hafiftir, geçte ağırlaşır.");
         P("Savaş: üç satır", "Rakibin satırları sis altındadır. Satırlar sırayla açılır; her satırda toplamı büyük olan kazanır. Üç satırdan çoğunu alan savaşı kazanır, kaybeden can kaybeder.");
         P("İşaretler", "Her satır açılmadan önce bir işaret atabilirsin; rakip de aynı anda seçer. Aard: rakip satır −%10, engellenemez. Igni: rakibin en güçlü kartı −%50. Quen: rakibin Igni'sini engeller. Yrden: rakibin simyasını ve pususunu keser. İşaretler Odak harcar; kaybettiğin satır +1 Odak verir.");
+        P("Puan nasıl hesaplanır", "İki adım. Kart: güç → hava (1'e iner) → Bağ, Büyüme, Moral, sınıf → kart yüzdeleri (Igni, bombalar, İntikam...); kartın üstündeki sayı budur. Satır: kart toplamı × (1 + satır yüzdeleri). Boynuz, Aard, Gök Gürültüsü, Yennefer, Cüce toplanır; sırası fark etmez (Boynuz +%50 ve Aard −%10 = +%40). Satır puanının altında döküm yazar.");
         P("Kazanmak", "Sekiz oyuncu 100 canla başlar; son ayakta kalan kazanır. 1., 2. ve her 5. round canavarlara karşıdır.");
         root.Children.Add(grid);
         var close = Btn("Anladım", "han-help-close", () => { _help = false; Render(); }, true, width: 220, height: 52);

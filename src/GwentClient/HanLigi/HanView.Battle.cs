@@ -203,7 +203,7 @@ public sealed partial class HanView
                     Foreground = i == current ? Theme.B("#ffe9a3") : scored ? Theme.B("#30e8dcc4") : Theme.B("#70e0b85a"),
                     Effect = i == current ? new DropShadowEffect { Color = Color.FromRgb(0xff, 0xd8, 0x70), BlurRadius = 18, ShadowDepth = 0 } : null
                 };
-                PutU(num, new Point(ColX + ColW / 2, RowY(mine, r) + RowH / 2 + 8), 0, _rows);
+                PutU(num, new Point(ColX + ColW * (b.Sides[mine ? Mine : 1 - Mine].Specials.Count > 0 ? 0.24 : 0.5), RowY(mine, r) + RowH / 2 + 8), 0, _rows);   // özel kart varsa sütunun solunda
                 RowLabel(mine, r, HT.Name(r), i == current ? Theme.B("#c0ffe9a3") : null);
             }
 
@@ -220,15 +220,9 @@ public sealed partial class HanView
                 PutU(chip, new Point(RowX + RowW - 36, RowY(true, r) + 12));
             }
         }
-        // rakibin özel kartlarından casusun gördükleri
-        var seenSpecials = b.Revealed[Mine].Where(x => x.Zone == "Özel").ToList();
-        for (var k = 0; k < seenSpecials.Count; k++)
-        {
-            var (top, bottom, _, _) = Band(false, Row.Close);
-            var el = CardEl(seenSpecials[k].Def, 1, DesignW, null, null, footer: "casus görüyor");
-            el.Opacity = 0.85;
-            PlaceCard(el, HanScene.ToScreen(new Point(ColX + ColW / 2 + k * 20, OppTop[0] + RowH - 5)), (bottom - top) * 0.98 / (DesignH * Lean), k);
-        }
+        // iki tarafın özel kartları: satırların sol sütununda, etkilediği satırın hizasında
+        SpecialCards(b, Mine, true, activation);
+        SpecialCards(b, 1 - Mine, false, activation);
 
         // ---- sol: iki tarafın durumu ----
         SideCard(false, op, b.Pve ? (M.Round <= 2 ? "arachas" : "face_imlerith") : Face(op.PlayerId), PointsShown(1 - Mine, shownWindows), b.Started, 66);
@@ -274,6 +268,46 @@ public sealed partial class HanView
         Canvas.SetTop(chip, at.Y + 26);
         System.Windows.Controls.Panel.SetZIndex(chip, 100001);
         _units.Children.Add(chip);
+    }
+
+    /// <summary>
+    /// Bir tarafın özel kartları (Boynuz, Kalkan, hava, Kavurma) masada, satırların sol sütununda. Görünürlük iki taraf için
+    /// aynıdır: kimin hangi özel kartı olduğu savaş başından açıktır; Boynuz/Kalkan'ın <b>satırı</b> iki taraf da hedefini
+    /// kilitleyince (savaş başlayınca) açılır, o zamana kadar kart ortada "satır seçiyor" diye durur. Böylece rakibin Boynuz'u
+    /// görülür ve ona göre işaret seçilebilir (ör. Boynuzlu satıra Aard).
+    /// </summary>
+    private void SpecialCards(Battle b, int side, bool mine, bool activation)
+    {
+        var s = b.Sides[side];
+        if (s.Specials.Count == 0) return;
+        var act = mine ? (b.Started ? s.Act : _act) : s.Act;
+        var known = mine || b.Started;   // rakibin hedef satırı savaş başlayınca açılır
+        var horn = 0;
+        var shield = 0;
+        var placed = new List<(Row Row, CardDef Def, string? Footer)>();
+        foreach (var sp in s.Specials)
+        {
+            var def = CardSet.All.First(d => d.Special == sp);
+            Row? r = Match.WeatherRow(sp);
+            string? footer = null;
+            if (sp == Special.Horn) { r = known && horn < act.Horns.Count ? act.Horns[horn] : null; horn++; }
+            else if (sp == Special.Shield) { r = known && shield < act.Shields.Count ? act.Shields[shield] : null; shield++; }
+            else if (sp == Special.Scorch) footer = "savaş başında";
+            if (r == null && sp is Special.Horn or Special.Shield) footer = "satır seçiyor";
+            placed.Add((r ?? Row.Ranged, def, footer));
+        }
+        foreach (var grp in placed.GroupBy(x => x.Row))
+        {
+            var k = 0;
+            foreach (var (row, def, footer) in grp)
+            {
+                var (top, bottom, _, _) = Band(mine, row);
+                var el = CardEl(def, 1, DesignW, null, null, footer: footer);
+                if (footer == "satır seçiyor") el.Opacity = 0.75;
+                PlaceCard(el, HanScene.ToScreen(new Point(ColX + ColW * 0.68 + k * 22, RowY(mine, row) + RowH - 5)), (bottom - top) * 0.86 / (DesignH * Lean), k);   // sütunun sağı: sıra numarası solda görünsün
+                k++;
+            }
+        }
     }
 
     private int PointsShown(int side, int shownWindows) => B.Outcomes.Take(shownWindows).Count(o => o.Winner == side);

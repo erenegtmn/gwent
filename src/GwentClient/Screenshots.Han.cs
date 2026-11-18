@@ -66,6 +66,9 @@ public static class HanShots
             save(v, "han_4_hazirlik_gec.png");
             if (s.Player.RewardOptions.Length > 0) s.Act(HanActKind.Reward, 0);
             if (s.Player.PotionOptions.Length > 0) s.Act(HanActKind.Potion, 0);
+            // özel kartlar savaşta görünsün: Boynuz (Yakın) ve Ayaz
+            s.Player.Cards.Add(new OwnedCard { Uid = 990010, Def = CardSet.Get("horn"), Zone = Zone.Special, Aim = Row.Close });
+            s.Player.Cards.Add(new OwnedCard { Uid = 990011, Def = CardSet.All.First(d => d.Special == Special.Frost), Zone = Zone.Special });
             v = new HanView(s, () => { }, () => { }, animate: false);
             Click(v, "han-ready");
             save(v, "han_5_aktivasyon.png");
