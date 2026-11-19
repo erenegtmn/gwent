@@ -59,7 +59,7 @@ public static class ExpertBot
         Arrange(m, p);
         BuyLoop(m, p);
         // seviye eğrisi
-        while (p.Level < Tuning.MaxLevel && p.Level < TargetLevel(m, p) && p.Gold - Tuning.XpCost >= Reserve(m, p))
+        while (p.Level < Tuning.BotCap && p.Level < TargetLevel(m, p) && p.Gold - Tuning.XpCost >= Reserve(m, p))
             if (!m.BuyXp(pid)) break;
         Arrange(m, p);
         BuyLoop(m, p);
@@ -77,9 +77,9 @@ public static class ExpertBot
     private static int TargetLevel(Match m, PlayerState p)
     {
         var r = m.Round;
-        var t = Math.Clamp((r <= 2 ? 3 : r <= 4 ? 4 : r <= 7 ? 5 : r <= 10 ? 6 : r <= 14 ? 7 : 8) + K.LevelShift + (_b?.LevelShift ?? 0), 1, Tuning.MaxLevel);
+        var t = Math.Clamp((r <= 2 ? 3 : r <= 4 ? 4 : r <= 7 ? 5 : r <= 10 ? 6 : r <= 14 ? 7 : 8) + K.LevelShift + (_b?.LevelShift ?? 0), 1, Tuning.BotCap);
         if (_b is { Hyper: true }) t = Math.Min(t, p.Hp < 35 ? 7 : 5);
-        else if (p.Hp < 40 && t < Tuning.MaxLevel) t++;
+        else if (p.Hp < 40 && t < Tuning.BotCap) t++;
         return t;
     }
 
@@ -88,7 +88,7 @@ public static class ExpertBot
         m.Round < 3 ? 0 : p.Hp > 65 ? _b?.ReserveHigh ?? K.ReserveHigh : p.Hp > 40 ? (_b?.ReserveHigh is { } rh ? rh / 2 : K.ReserveMid) : 0;
 
     private static bool WantRoll(Match m, PlayerState p) =>
-        (_b is { Hyper: true } && p.Level >= TargetLevel(m, p) && m.Round >= 5 && p.Gold >= 6) || (p.Hp < K.RollHp && m.Round >= 6) || (p.Level >= TargetLevel(m, p) && p.Gold >= K.RollAt) || (p.Level == Tuning.MaxLevel && p.Gold >= 12);
+        (_b is { Hyper: true } && p.Level >= TargetLevel(m, p) && m.Round >= 5 && p.Gold >= 6) || (p.Hp < K.RollHp && m.Round >= 6) || (p.Level >= TargetLevel(m, p) && p.Gold >= K.RollAt) || (p.Level >= Tuning.BotCap && p.Gold >= 12);
 
     private static int RollFloor(Match m, PlayerState p) => p.Hp < 30 ? 0 : p.Hp < 50 ? Math.Min(10, Reserve(m, p)) : Reserve(m, p);
 

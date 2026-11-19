@@ -203,7 +203,7 @@ public class MatchTests(ITestOutputHelper output)
             {
                 if (!place.TryGetValue(HanBot.StyleOf(m, p.Id), out var l)) place[HanBot.StyleOf(m, p.Id)] = l = new List<int>();
                 l.Add(p.Place);
-                if (p.Level == Tuning.MaxLevel) l8++;
+                if (p.Level >= Tuning.BotCap) l8++;
             }
             heroes += CardSet.All.Where(d => d.IsHero).Sum(d => 1 - Math.Min(1, m.Pool.GetValueOrDefault(d.Id)));
         }

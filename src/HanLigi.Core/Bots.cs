@@ -28,7 +28,7 @@ public static class HanBot
         while (true)
         {
             BuyLoop(m, p, style);
-            while (p.Cards.Count >= p.Slots && p.Level < Tuning.MaxLevel && p.Level < TargetLevel(m, style) && p.Gold - Tuning.XpCost >= Reserve(m, style))
+            while (p.Cards.Count >= p.Slots && p.Level < Tuning.BotCap && p.Level < TargetLevel(m, style) && p.Gold - Tuning.XpCost >= Reserve(m, style))
                 if (!m.BuyXp(pid)) break;
             BuyLoop(m, p, style);
             var can = p.Gold - m.RerollCost(pid) >= Reserve(m, style) && rerolls < 12;
@@ -36,7 +36,7 @@ public static class HanBot
             {
                 Style.Reroll => can && m.Round >= 5 && p.Gold > 3,
                 Style.Balanced => can && p.Level >= TargetLevel(m, style) && p.Gold > 20,
-                _ => can && p.Level == Tuning.MaxLevel && p.Gold > 15
+                _ => can && p.Level >= Tuning.BotCap && p.Gold > 15
             };
             if (!go || !m.Reroll(pid)) break;
             rerolls++;

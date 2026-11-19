@@ -182,6 +182,7 @@ public static class HanShots
         save(v, "han_fx_0_secim.png");
         // savaşta tezgâh: alt şerit zar gibi dönerek depo satırına geçer (dönüşün ortası ve sonu), sonra geri döner
         UiSelfTest.Raise(UiSelfTest.FindAll<Button>(v, x => (x.Tag as string) == "han-battle-shop").First(), ButtonBase.ClickEvent);
+        save(v, "han_fx_s0_zar_baslangic.png");   // dönüş başlamadan (küp 0°, üstünde eski şeridin görüntüsü): yeni şerit hiçbir yerde görünmemeli
         Pump(90, v.Engine);
         save(v, "han_fx_s1_zar.png");
         Pump(110, v.Engine);

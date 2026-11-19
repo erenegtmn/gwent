@@ -73,7 +73,7 @@ public sealed class HanCardView : Grid
         {
             Ability.Bond => "Aynı sınıftan dost başına +1", Ability.Growth => "Satırdaki her dosta +1", Ability.Morale => "Bir satıra +★ güç", Ability.Spy => "Rakibin kartlarını gösterir",
             Ability.Bard => "Savaşa +1 Odakla başla", Ability.Treasure => "Her round +1 altın", Ability.Ambush => "Savaşta istediğin satıra iner", Ability.Revenge => "Önceki satır kaybedildiyse +%50",
-            Ability.Zeal => "Önceki satır kazanıldıysa +%30", Ability.Summon => "Depodaki eşini savaşa çeker", Ability.Medic => "En güçlünü etkilerden korur", Ability.DeathEcho => "Ölünce hayalet bırakır",
+            Ability.Zeal => "Önceki satır kazanıldıysa +%30", Ability.Summon => "Depodaki eşini sahaya çeker (2★: 1, 3★: 2)", Ability.Medic => "En güçlünü etkilerden korur", Ability.DeathEcho => "Ölünce hayalet bırakır",
             Ability.Mirror => "En güçlü dostun yarısı kadar", _ => d.Agile ? "Yakın ya da Menzilli" : ""
         };
     }

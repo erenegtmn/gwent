@@ -166,7 +166,9 @@ public static class Tuning
     public const int RerollCost = 1;
     public const int HeroPrice = 7;
     public const int BenchSize = 8;
-    public const int MaxLevel = 8;
+    public const int MaxLevel = 10;
+    /// <summary>Botların seviye tavanı: L9-L10 yalnız insanlara açık ek kademe (botlar 8'de durur, meta ölçümleri değişmesin).</summary>
+    public const int BotCap = 8;
     public const int ShopSize = 5;
     public static int StartFocus = 2;   // 2026-11-18 Meta 4: 3 iken Odak neredeyse hiç yetmezlik yapmıyordu (3. satırda %4)
     /// <summary>Bir savaşta birikebilecek en çok Odak (başlangıç bonusları, Öfke ve Quen iadesi bunu aşamaz).</summary>
@@ -204,21 +206,22 @@ public static class Tuning
     /// <summary>Mantikor okulu simya seçimine bu round'dan başlar (ötekiler <see cref="PotionsFromRound"/>).</summary>
     public const int ManticorePotionsFrom = 2;
 
-    /// <summary>L2…L8 kümülatif XP eşikleri.</summary>
-    public static readonly int[] XpThresholds = { 2, 6, 12, 22, 35, 52, 72 };
+    /// <summary>L2…L10 kümülatif XP eşikleri (L9-L10 yalnız market olasılığını artırır, slot vermez).</summary>
+    public static readonly int[] XpThresholds = { 2, 6, 12, 22, 35, 52, 72, 96, 124 };
     /// <summary>Her kartın havuzdaki kopya sayısı (tier 1-5).</summary>
     public static readonly int[] Copies = { 22, 18, 15, 12, 9 };
     /// <summary>Seviyeye göre market tier olasılıkları (%).</summary>
     public static readonly int[][] ShopOdds =
     {
         new[] { 100, 0, 0, 0, 0 }, new[] { 85, 15, 0, 0, 0 }, new[] { 65, 30, 5, 0, 0 }, new[] { 45, 38, 15, 2, 0 },
-        new[] { 30, 38, 25, 7, 0 }, new[] { 20, 30, 32, 15, 3 }, new[] { 15, 22, 33, 23, 7 }, new[] { 10, 15, 30, 30, 15 }
+        new[] { 30, 38, 25, 7, 0 }, new[] { 20, 30, 32, 15, 3 }, new[] { 15, 22, 33, 23, 7 }, new[] { 10, 15, 30, 30, 15 },
+        new[] { 8, 12, 26, 34, 20 }, new[] { 5, 10, 22, 38, 25 }
     };
     /// <summary>Seviyeye göre yuva başına kahraman olasılığı.</summary>
-    public static readonly double[] HeroOdds = { 0, 0, 0, 0, 0.0025, 0.005, 0.01, 0.015 };
+    public static readonly double[] HeroOdds = { 0, 0, 0, 0, 0.0025, 0.005, 0.01, 0.015, 0.02, 0.025 };
     public static readonly double[] SpyRate = { 0.20, 0.35, 0.50 };
 
-    public static int Slots(int level) => Math.Min(9, level + 2);
+    public static int Slots(int level) => Math.Min(10, level + 2);
 
     /// <summary>Yıldıza göre güç: 2★ ×1,5; 3★ T1 ×6, T2 ×4,5, T3+ ×3,5.</summary>
     public static int Power(CardDef d, int star)
@@ -300,7 +303,7 @@ public static class Texts
         Ability.Ambush => "Pusu: pusu yerine konabilir; savaşta istediğin satıra canlı iner.",
         Ability.Revenge => "İntikam: önceki satırı kaybettiysen +%50.",
         Ability.Zeal => "Coşku: önceki satırı kazandıysan +%30.",
-        Ability.Summon => "Çağrı: 2★ depodan bir eşini, 3★ iki eşini savaşa çeker.",
+        Ability.Summon => "Çağrı: savaş başında DEPONDAKİ aynı isimli kartlardan 2★ bir, 3★ iki tanesini sahaya çeker. Depoda eş yoksa işe yaramaz.",
         Ability.Medic => "Şifacı: en güçlü birimini hava, Kavurma ve Igni'den korur (2★ iki birim; 3★ ayrıca diriliş).",
         Ability.DeathEcho => "Ölüm Yankısı: yok olunca satırına bir hayalet bırakır (2 / 3 / 5).",
         Ability.Mirror => "Yansıma: satırındaki en güçlü birimin yarısı kadar güce çıkar.",

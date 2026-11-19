@@ -40,6 +40,7 @@ public sealed partial class HanView
         _screen = Screen.Prep;
         _battleShop = false;
         EndRoll();
+        ResetShopFade();
         _sel = null;
         _waitReady = false;
         _shopOpen = true;
@@ -478,7 +479,7 @@ public sealed partial class HanView
             Foreground = Me.Overfull ? HanUi.Br(HanUi.Bad) : Me.Used < Me.Slots ? Theme.B("#ffe9a3") : Theme.TextDim,
             FontWeight = Me.Overfull ? FontWeights.Bold : FontWeights.SemiBold
         });
-        lv.ToolTip = "Masa sınırına satırlar ve özel kartlar sayılır; pusudakiler sayılmaz (pusunun kendi sınırı var).\n" + OverTip;
+        lv.ToolTip = SlotTip + "\nMasa sınırına satırlar ve özel kartlar sayılır; pusudakiler sayılmaz (pusunun kendi sınırı var).\n" + OverTip;
         Put(lv, EcoX + 16, BarY + 62);
         if (Me.Level < Tuning.MaxLevel)
         {
@@ -505,6 +506,8 @@ public sealed partial class HanView
         if (_live && _lastGold >= 0 && _lastGold != Me.Gold) Pop(goldText);
         if (_live && _lastLevel >= 0 && _lastLevel != Me.Level) { Pop(lv); Sfx.Play("han_levelup"); }
     }
+
+    internal static readonly string SlotTip = $"Masa sınırı = seviye + 2, en çok {Tuning.Slots(Tuning.MaxLevel)} ({Tuning.Slots(Tuning.MaxLevel) - 2}. seviyede dolar). Daha yüksek seviyeler yalnız tezgâhtaki kart ihtimallerini artırır.";
 
     private const string OverTip = "Hazırlıkta sınırdan fazla kart koyabilirsin; süre bitince fazlası rastgele seçilip depoya iner, depo doluysa satılır.";
 

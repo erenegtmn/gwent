@@ -25,10 +25,10 @@ public sealed partial class HanView
 
     private static readonly Rect BarRect = new(12, BarY, 1896, BarH);
 
-    /// <summary>Ölçüm: alt şeridin (ve üstündeki 120 pikselin) ekrandaki yeri, aygıt pikseliyle.</summary>
+    /// <summary>Ölçüm: oyun sahnesinin ekrandaki yeri, aygıt pikseliyle (tezgâh bandı ve alt şerit birlikte görünsün).</summary>
     internal Int32Rect BarScreenRect()
     {
-        var a = _stage.PointToScreen(new Point(0, BarY - 120));
+        var a = _stage.PointToScreen(new Point(0, BarY - 200));
         var b = _stage.PointToScreen(new Point(1920, 1080));
         return new Int32Rect((int)a.X, (int)a.Y, (int)(b.X - a.X), (int)(b.Y - a.Y));
     }
@@ -41,6 +41,13 @@ public sealed partial class HanView
             if (child is not FrameworkElement fe || fe.Visibility != Visibility.Visible || fe.ActualWidth <= 0) continue;
             if (fe.TransformToAncestor(_c).TransformBounds(new Rect(0, 0, fe.ActualWidth, fe.ActualHeight)).IntersectsWith(BarRect)) yield return fe;
         }
+    }
+
+    /// <summary>Tezgâh bandının belirme animasyonu kalkar, band tam görünür (hazırlıkta ve kapanınca).</summary>
+    private void ResetShopFade()
+    {
+        _shop.BeginAnimation(OpacityProperty, null);
+        _shop.Opacity = 1;
     }
 
     /// <summary>Dönüşü bitirir: küp ve geçici görüntü kalkar, gizlenen şerit öğeleri geri gelir.</summary>
@@ -63,7 +70,18 @@ public sealed partial class HanView
         Sfx.Play(_battleShop ? "han_open" : "han_click");
         Render();
         if (before != null && SnapshotBar() is { } after) DiceRoll(before, after, _battleShop);
-        if (_live && _battleShop) _shop.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(320)) { BeginTime = TimeSpan.FromMilliseconds(120) });
+        // tezgâh bandı aynı çizimde görünmez başlar (BeginTime'lı animasyon beklerken bandı tam görünür bırakıyordu: bir an
+        // belirip siliniyordu), zar dönerken belirir
+        if (_live && _battleShop)
+        {
+            _shop.Opacity = 0;   // animasyon saati ilk karede işlemese de band görünmez
+            _shop.BeginAnimation(OpacityProperty, new DoubleAnimationUsingKeyFrames
+            {
+                Duration = TimeSpan.FromMilliseconds(560),
+                KeyFrames = { new DiscreteDoubleKeyFrame(0, KeyTime.FromPercent(0)), new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(220))), new LinearDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(560))) }
+            });
+        }
+        else ResetShopFade();
     }
 
     /// <summary>Savaş ekranının alt şeridinin üstünde tezgâh düğmesi (açıkken "kapat").</summary>
@@ -87,7 +105,9 @@ public sealed partial class HanView
         var next = HanUi.T($"+{inc.Sum(x => x.Value)} sonraki round", 13, HanUi.Br(HanUi.Muted));
         next.ToolTip = IncomeTip(inc);
         Put(next, EcoX + 16, BarY + 62);
-        Put(HanUi.T($"Seviye {Me.Level}   masa {Me.Used}/{Me.Slots}", 15, HanUi.Br(HanUi.Parchment), FontWeights.Bold), EcoX + 16, BarY + 86);
+        var lvT = HanUi.T($"Seviye {Me.Level}   masa {Me.Used}/{Me.Slots}", 15, HanUi.Br(HanUi.Parchment), FontWeights.Bold);
+        lvT.ToolTip = SlotTip;
+        Put(lvT, EcoX + 16, BarY + 86);
         Put(HanUi.Body("Savaşta tezgâha bakabilir ve kilitleyebilirsin. Alım, satış ve yenileme hazırlıkta.", 12.5, HanUi.Br(HanUi.Muted)), EcoX + 16, BarY + 116).Width = EcoW - 30;
 
         // depo: kartlar yalnız gösterilir (savaşta taşınmaz)
@@ -183,21 +203,24 @@ public sealed partial class HanView
         var lift = new TranslateTransform3D(0, 0, 0);
         cube.Transform = new Transform3DGroup
         {
-            Children = { new RotateTransform3D(rot), lift, new TranslateTransform3D(12 + w - 960, 540 - (BarY + h), -h) }
+            Children = { new RotateTransform3D(rot), lift, new TranslateTransform3D(12 + w - 960, 0, -h) }
         };
         var scene = new Model3DGroup();
         scene.Children.Add(new AmbientLight(Color.FromRgb(0x78, 0x72, 0x6a)));
         scene.Children.Add(new DirectionalLight(Color.FromRgb(0x9a, 0x94, 0x8a), new Vector3D(0, -0.45, -1)));
         scene.Children.Add(cube);
+        // Görüş alanı şeridin hizasına ortalanır: kamera şeride tam karşıdan bakar, dönme başlamadan küpün üst/alt yüzü (yeni
+        // şerit) hiç görünmez. (Ekranın ortasından bakınca üst yüz şeridin üstünde ince bir şerit olarak beliriyordu.)
+        const double VpH = 640;
         var vp = new Viewport3D
         {
-            Width = 1920, Height = 1080, IsHitTestVisible = false, ClipToBounds = false,
+            Width = 1920, Height = VpH, IsHitTestVisible = false, ClipToBounds = false,
             Camera = new PerspectiveCamera(new Point3D(0, 0, D), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), 2 * Math.Atan(960 / D) * 180 / Math.PI) { NearPlaneDistance = 10, FarPlaneDistance = D * 3 }
         };
         RenderOptions.SetEdgeMode(vp, EdgeMode.Unspecified);
         vp.Children.Add(new ModelVisual3D { Content = scene });
         Canvas.SetLeft(vp, 0);
-        Canvas.SetTop(vp, 0);
+        Canvas.SetTop(vp, BarY + h - VpH / 2);
         _roll = vp;
         // Pürüzsüz başlangıç: yeni şerit aynı çizimde gizlenir (yoksa küp ekrana gelmeden bir kare görünüyordu), yerinde eski
         // şeridin düz görüntüsü durur; küp ilk kez çizildikten sonra (iki kare) görüntü kalkar ve dönüş başlar. Gerçek şerit
@@ -206,8 +229,8 @@ public sealed partial class HanView
         _rollCover = new Image { Source = from, Width = BarRect.Width, Height = BarRect.Height, Stretch = Stretch.Fill, IsHitTestVisible = false };
         Canvas.SetLeft(_rollCover, BarRect.X);
         Canvas.SetTop(_rollCover, BarRect.Y);
-        _fx.Children.Add(_rollCover);
         _fx.Children.Add(vp);
+        _fx.Children.Add(_rollCover);   // küpün de üstünde: küp çizilip dönmeye başlayana kadar ekranda yalnız eski şerit
 
         // zar gibi: hızlanarak yuvarlanır, biraz fazla döner (~8°) ve geri oturur
         var dir = forward ? 1 : -1;
@@ -223,18 +246,27 @@ public sealed partial class HanView
             EndRoll();
             if (gen == _gen) Sfx.Play("han_place");
         };
+        // Kare zamanlamasına güvenilmez (fareyle tıklamada düğmenin üzerine gelme animasyonu kareleri erken tetikliyordu):
+        // - eski şeridin görüntüsü küp belirgin biçimde dönmeye başlayana kadar (≥ 3 kare ve ≥ 60 ms bekleme, sonra ~4°) üstte kalır;
+        // - dönüş boyunca şerit bölgesine sonradan çizilen öğeler de her karede gizlenir.
         var frames = 0;
+        var waitClock = System.Diagnostics.Stopwatch.StartNew();
+        var started = false;
         _rollWait = (_, _) =>
         {
-            if (++frames < 2) return;
-            CompositionTarget.Rendering -= _rollWait;
-            _rollWait = null;
             if (_roll != vp) return;
-            if (_rollCover != null) { _fx.Children.Remove(_rollCover); _rollCover = null; }
-            rot.BeginAnimation(AxisAngleRotation3D.AngleProperty, spin);
-            // dönerken öne kalkar (zar masadan sekip döner)
-            lift.BeginAnimation(TranslateTransform3D.OffsetZProperty, new DoubleAnimation(0, H * 0.35, TimeSpan.FromMilliseconds(230)) { AutoReverse = true, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } });
-            Sfx.Play("han_reroll");
+            foreach (var fe in BarElements()) if (fe.Opacity > 0 && _rollHidden.All(x => x.El != fe)) { _rollHidden.Add((fe, fe.Opacity)); fe.Opacity = 0; }
+            if (!started)
+            {
+                if (++frames < 3 || waitClock.ElapsedMilliseconds < 60) return;
+                started = true;
+                rot.BeginAnimation(AxisAngleRotation3D.AngleProperty, spin);
+                // dönerken öne kalkar (zar masadan sekip döner)
+                lift.BeginAnimation(TranslateTransform3D.OffsetZProperty, new DoubleAnimation(0, H * 0.35, TimeSpan.FromMilliseconds(230)) { AutoReverse = true, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } });
+                Sfx.Play("han_reroll");
+                return;
+            }
+            if (_rollCover != null && Math.Abs(rot.Angle) >= 4) { _fx.Children.Remove(_rollCover); _rollCover = null; }
         };
         CompositionTarget.Rendering += _rollWait;
     }

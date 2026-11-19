@@ -25,7 +25,7 @@ public static partial class UiSelfTest
         if (s.Player.PotionOptions.Length > 0) s.Act(HanActKind.Potion, 0);
         s.Timed = true;
         var view = new HanView(s, () => { }, () => { }, animate: true);
-        var win = new Window { Width = 1600, Height = 900, Content = view, WindowStartupLocation = WindowStartupLocation.CenterScreen, Title = "Han Ligi ölçüm" };
+        var win = new Window { Width = 1600, Height = 900, Content = view, WindowStartupLocation = WindowStartupLocation.CenterScreen, Title = "Han Ligi ölçüm", Topmost = true };
         win.Show();
         Console.WriteLine($"Görüntü katmanı (RenderCapability.Tier): {RenderCapability.Tier >> 16}");
 
@@ -70,14 +70,34 @@ public static partial class UiSelfTest
         if (Environment.GetEnvironmentVariable("HAN_ROLL_FRAMES") is { Length: > 0 } dir)
         {
             System.IO.Directory.CreateDirectory(dir);
-            foreach (var pass in new[] { "ac", "kapa" })
+            foreach (var pass in new[] { "ac", "kapa", "fare_ac", "fare_kapa" })
             {
                 var r = view.BarScreenRect();
+                {
+                    var whole = ScreenGrab(new Int32Rect(0, 0, (int)SystemParameters.PrimaryScreenWidth, (int)SystemParameters.PrimaryScreenHeight));
+                    var e0 = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    e0.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(whole));
+                    using var f0 = System.IO.File.Create(System.IO.Path.Combine(dir, $"ekran_{pass}.png"));
+                    e0.Save(f0);
+                    Console.WriteLine($"önce: depo satırı {FindAll<FrameworkElement>(view, x => (x.Tag as string) == "han-battle-bench").Count()}, düğme {string.Join(",", FindAll<Button>(view, x => (x.Tag as string) == "han-battle-shop").Select(x => x.IsEnabled))}, {view.DebugState}");
+                }
                 var shots = new List<System.Windows.Media.Imaging.BitmapSource>();
-                void Grab(object? o, EventArgs e) { if (shots.Count < 14) shots.Add(ScreenGrab(r)); }
+                void Grab(object? o, EventArgs e) { if (shots.Count < 30) shots.Add(ScreenGrab(r)); }
                 shots.Add(ScreenGrab(r));
                 CompositionTarget.Rendering += Grab;
-                Click("han-battle-shop");
+                if (pass.StartsWith("fare") && FindAll<Button>(view, x => (x.Tag as string) == "han-battle-shop").FirstOrDefault() is { } fb)
+                {
+                    // gerçek fare: imleç düğmeye gider, bas-bırak (Space ile tıklamanın farkı görülsün)
+                    var c = fb.PointToScreen(new Point(fb.ActualWidth / 2, fb.ActualHeight / 2));
+                    SetCursorPos((int)c.X, (int)c.Y);
+                    Wait(250);
+                    shots.Clear();
+                    shots.Add(ScreenGrab(r));
+                    mouse_event(0x0002, 0, 0, 0, IntPtr.Zero);
+                    Wait(60);
+                    mouse_event(0x0004, 0, 0, 0, IntPtr.Zero);
+                }
+                else Click("han-battle-shop");
                 Wait(900);
                 CompositionTarget.Rendering -= Grab;
                 for (var i = 0; i < shots.Count; i++)
@@ -109,6 +129,8 @@ public static partial class UiSelfTest
         return 0;
     }
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern void mouse_event(int flags, int dx, int dy, int data, IntPtr extra);
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr hwnd);
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr hwnd, IntPtr dc);
     [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr dc);
