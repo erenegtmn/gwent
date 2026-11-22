@@ -100,7 +100,7 @@ public static class CardSet
         S("scorch", "Kavurma", 4, Special.Scorch, "scorch");
         // ---- Kahramanlar (18-22; evolve olmaz) ----
         H("geralt", "Rivyalı Geralt", 22, Row.Close, Hero.Geralt, "geralt_of_rivia", Tag.Soldier);
-        H("ciri", "Cirilla", 20, Row.Close, Hero.Ciri, "cirilla_fiona_elen_riannon", Tag.Bandit, Ability.Ambush, Tag.Mage);
+        H("ciri", "Cirilla", 20, Row.Close, Hero.Ciri, "cirilla_fiona_elen_riannon", Tag.Bandit, Ability.Ambush);
         H("yennefer", "Vengerbergli Yennefer", 19, Row.Ranged, Hero.Yennefer, "yennefer_of_vengerberg", Tag.Mage);
         H("triss", "Triss Merigold", 18, Row.Ranged, Hero.Triss, "triss_merigold", Tag.Mage);
         H("jaskier", "Jaskier", 18, Row.Close, Hero.Jaskier, "dandelion", Tag.Noble);
