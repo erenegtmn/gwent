@@ -182,6 +182,22 @@ public class BattleTests
     }
 
     [Fact]
+    public void Four_bandits_are_immune_to_yrden_ambush_block()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        a.Tags[Tag.Bandit] = 4;
+        a.Ambush.Add(new BattleUnit { Uid = 5000, Def = CardSet.Get("dol_blathanna_scout"), Power = 7, Row = Row.Close });
+        Add(b, "sweers", Row.Siege);
+        var bt = Make(a, b);
+        bt.Start();
+        Play(bt, WindowChoice.None, WindowChoice.None);
+        Play(bt, WindowChoice.None, WindowChoice.None);
+        var o = Play(bt, new WindowChoice(Array.Empty<Sign>(), null, 5000), C(Sign.Yrden));
+        Assert.True(o.ValueA > 0);   // 4 Haydut: pusu Yrden'e rağmen iner
+        Assert.Empty(a.Ambush);
+    }
+
+    [Fact]
     public void Yrden_delays_a_chosen_ambush_until_a_later_row()
     {
         var (a, b) = (Side("A"), Side("B"));

@@ -427,7 +427,7 @@ public static class Texts
         Tag.Monster => new[] { "Canavarlar +1", "Canavarlar +2", "Canavarlar +3" },
         Tag.Soldier => new[] { "Askerler havada 2", "Askerler havadan etkilenmez", "Askerler +2, havadan etkilenmez" },
         Tag.Mage => new[] { "İşaretler +%25", "+1 Odak, işaretler +%50", "Savaş başına bir işaret bedava" },
-        Tag.Bandit => new[] { "Pusu yeri 3 kart", "Pusudan inen +%25", "Pusudan inen +%50" },
+        Tag.Bandit => new[] { "Pusu yeri 3 kart", "Pusudan inen +%25", "Pusudan inen +%50 · Pusu Yrden'den etkilenmez" },
         Tag.Noble => new[] { "İlk yenileme bedava", "Round başı +1 altın", "Round başı +3 altın" },
         _ => new[] { "Cüceler bombalardan yarı etkilenir", "Cüceler +1, Kavurma'dan korunur", "Cücelerin satırına +%20" }
     };

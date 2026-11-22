@@ -375,7 +375,9 @@ public sealed class Battle
             var hit = false;
             if (potion[i] != null && Tuning.YrdenMode != 2 && Tuning.YrdenPotion) { log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} tarafının {Texts.Name(potion[i]!.Value)} kartı etkisiz."); potion[i] = null; hit = true; }
             // 4: yalnız bilerek indirilen pusu zayıflar; 5: bilerek indirilen pusu bu pencerede inemez (son pencerede kendiliğinden inenlere dokunmaz)
-            if (Tuning.YrdenMode == 5 && ambush[i].Count > 0)
+            if (Tuning.YrdenMode == 5 && ambush[i].Count > 0 && s.Th(Tag.Bandit) >= 3)
+                log.Add($"{s.Name} 4 Haydut: pusu Yrden'den etkilenmedi.");   // 4 haydut (kademe 3) Yrden'e bağışık
+            else if (Tuning.YrdenMode == 5 && ambush[i].Count > 0)
             {
                 log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} pusudan inemedi" + (Window < 2 ? " (sonra inebilir)." : "."));
                 ambush[i] = Array.Empty<int>();
