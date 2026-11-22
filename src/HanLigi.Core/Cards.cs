@@ -328,7 +328,7 @@ public static class Texts
             Sign.Aard => $"1 Odak · Rakibin bu satırı {Live(10, amp, why)}. Kahramanlara da işler; Yrden tutar.",
             Sign.Igni => $"2 Odak · Rakibin bu satırdaki en güçlü kartı {Live(50, amp, why)}. Quen engeller; Kara Kan kendine yansıtır.",
             Sign.Quen => "1 Odak · Sana atılan Igni'yi engeller; engellerse Odak geri gelir.",
-            _ => "2 Odak · Rakibin bu penceredeki Aard'ını keser; pusudan inmek isteyen kartı bu satırda indirmez (son satır dışında sonra inebilir; son satırda hiç inmez). Pusu kendiliğinden inmez, seçilmeli.",
+            _ => "2 Odak · Rakibin bu penceredeki Aard'ını keser ve pusudan indirmek istediği kartı indirtmez. İlk iki satırda kart pusuda kalır, sonraki satırda yeniden indirilebilir; son satırda ise hiç inemez.",
         };
     }
 
