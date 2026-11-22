@@ -182,10 +182,10 @@ public class BattleTests
     }
 
     [Fact]
-    public void Four_bandits_are_immune_to_yrden_ambush_block()
+    public void Bandit_third_threshold_is_immune_to_yrden_ambush_block()
     {
         var (a, b) = (Side("A"), Side("B"));
-        a.Tags[Tag.Bandit] = 4;
+        a.Tags[Tag.Bandit] = 6;   // Faz 2: Haydut eşikleri 2/4/6
         a.Ambush.Add(new BattleUnit { Uid = 5000, Def = CardSet.Get("dol_blathanna_scout"), Power = 7, Row = Row.Close });
         Add(b, "sweers", Row.Siege);
         var bt = Make(a, b);
@@ -193,7 +193,7 @@ public class BattleTests
         Play(bt, WindowChoice.None, WindowChoice.None);
         Play(bt, WindowChoice.None, WindowChoice.None);
         var o = Play(bt, new WindowChoice(Array.Empty<Sign>(), null, 5000), C(Sign.Yrden));
-        Assert.True(o.ValueA > 0);   // 4 Haydut: pusu Yrden'e rağmen iner
+        Assert.True(o.ValueA > 0);   // Haydut 3. eşik: pusu Yrden'e rağmen iner
         Assert.Empty(a.Ambush);
     }
 

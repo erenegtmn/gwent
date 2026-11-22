@@ -40,7 +40,7 @@ public class MatchTests(ITestOutputHelper output)
     public void Shop_odds_tables_sum_to_100()
     {
         foreach (var row in Tuning.ShopOdds) Assert.Equal(100, row.Sum());
-        Assert.Equal(new[] { 11, 12, 12, 11, 8 }, Enumerable.Range(1, 5).Select(t => CardSet.All.Count(d => d.IsUnit && !d.IsHero && d.Tier == t)).ToArray());
+        Assert.Equal(new[] { 15, 18, 18, 17, 10 }, Enumerable.Range(1, 5).Select(t => CardSet.All.Count(d => d.IsUnit && !d.IsHero && d.Tier == t)).ToArray());
         Assert.Equal(8, CardSet.All.Count(d => d.IsHero));
     }
 

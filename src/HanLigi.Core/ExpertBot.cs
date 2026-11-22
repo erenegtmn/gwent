@@ -137,7 +137,8 @@ public static class ExpertBot
     {
         if (!d.IsUnit) return d.Special switch { Special.Horn => 3 + p.Level * 1.2, Special.Shield => 1.5, Special.Scorch => 2, _ => 2 + p.Level * 0.3 };
         double v = Tuning.Power(d, star);
-        v += d.Ability switch { Ability.Bond => 2.5, Ability.Growth => 3, Ability.Bard => 3, Ability.Treasure => 2, Ability.Spy => 1.5, Ability.Medic => 2.5, Ability.Morale => 2.5, Ability.Ambush => 1.5, Ability.Revenge => 1.5, Ability.Zeal => 1.5, Ability.Plunder => 2, Ability.RowScorch => 2, Ability.Challenge => 1.5,
+        v += d.Ability switch { Ability.Bond => 2.5, Ability.Growth => 3, Ability.Bard => 3, Ability.Treasure => 2, Ability.Spy => 1.5, Ability.Medic => 2.5, Ability.Morale => 2.5, Ability.Ambush => 1.5, Ability.Revenge => 1.5, Ability.Zeal => 1.5, Ability.Plunder => 2, Ability.RowScorch => 2, Ability.Challenge => 1.5, Ability.Drain => 2,
+            Ability.Trio => 1 + 3 * p.Cards.Where(c => c.Def.Ability == Ability.Trio && c.Def != d).Select(c => c.Def.Id).Distinct().Count(),
             Ability.Berserk => p.Cards.Any(c => c.Def.Special == Special.Mardroeme) ? Tuning.Power(d, star) * (Tuning.BerserkMult - 1) : 0.5, _ => 0 };
         if (d.IsHero) v += 10;
         return v;

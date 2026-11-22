@@ -499,9 +499,9 @@ public class MechanicsTests
     [Fact]
     public void Hero_tier_follows_own_class_threshold()
     {
-        var s = Side("A", 5, null, (Tag.Mage, 3), (Tag.Soldier, 2), (Tag.Noble, 6));
+        var s = Side("A", 5, null, (Tag.Mage, 4), (Tag.Soldier, 2), (Tag.Noble, 6));
         Add(s, "triss", Row.Siege); Add(s, "vesemir"); Add(s, "jaskier");
-        Assert.Equal(1, s.HeroTier(Hero.Triss));    // Büyücü 3 kart = 2. eşik
+        Assert.Equal(1, s.HeroTier(Hero.Triss));    // Büyücü 4 kart = 2. eşik
         Assert.Equal(0, s.HeroTier(Hero.Vesemir));  // Asker 2 kart = yalnız 1. eşik
         Assert.Equal(2, s.HeroTier(Hero.Jaskier));  // Soylu 6 kart = 3. eşik
         Assert.Equal(-1, s.HeroTier(Hero.Geralt));
@@ -510,7 +510,7 @@ public class MechanicsTests
     [Fact]
     public void Triss_tier3_makes_every_quen_free_tier2_two()
     {
-        foreach (var (mages, free) in new[] { (2, 1), (3, 2), (5, 99) })
+        foreach (var (mages, free) in new[] { (2, 1), (4, 2), (6, 99) })
         {
             var (a, b) = (Side("A", 5, null, (Tag.Mage, mages)), Side("B"));
             Add(a, "triss", Row.Siege); Add(a, "fiend"); Add(a, "dethmold");
@@ -680,6 +680,65 @@ public class MechanicsTests
         var o2 = Play(bt2, C(Sign.Igni), N);
         Assert.Equal(3, Val(o2, other));                     // Igni şövalyeyi atlar, öteki birime gider
         Assert.True(Val(o2, k2) >= 12);                      // 10 + 2 (2. eşik), dokunulmadı
+    }
+
+    // ===== Faz 2: Vampir, Kan Emme, Kocakarılar =====
+
+    [Fact]
+    public void Drain_takes_half_of_weakest_enemy()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        var v = Add(a, "vampire_bruxa");                     // 5
+        var weak = Add(b, "dwarven_skirmisher", power: 4);
+        var strong = Add(b, "fiend");                        // 8
+        var o = Play(Start(a, b), N, N);
+        Assert.Equal(2, Val(o, weak));                       // 4 → 2
+        Assert.Equal(8, Val(o, strong));
+        Assert.Equal(7, Val(o, v));                          // 5 + 2
+    }
+
+    [Fact]
+    public void Vampire_thresholds_raise_drain_and_take_two_targets()
+    {
+        var (a, b) = (Side("A", 5, null, (Tag.Vampire, 5)), Side("B"));
+        var v = Add(a, "vampire_katakan", power: 10);
+        var w1 = Add(b, "dwarven_skirmisher", power: 4);
+        var w2 = Add(b, "griffin", power: 6);
+        var o = Play(Start(a, b), N, N);
+        Assert.Equal(1, Val(o, w1));                         // −%75
+        Assert.Equal(1.5m, Val(o, w2));
+        Assert.Equal(17.5m, Val(o, v));                      // 10 + 3 + 4,5
+    }
+
+    [Fact]
+    public void Burned_vampire_returns_at_half_with_second_threshold()
+    {
+        var (a, b) = (Side("A", 5, null, (Tag.Vampire, 3)), Side("B"));
+        Add(a, "vampire_katakan", power: 10);
+        b.Specials.Add(Special.Scorch);
+        Add(b, "ghoul", power: 1);
+        Start(a, b);
+        var back = Assert.Single(a.Units);
+        Assert.True(back.Token);
+        Assert.Equal(5, back.Power);
+    }
+
+    [Fact]
+    public void Crones_trio_only_when_all_three_present()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        var w = Add(a, "crone_weavess");
+        Add(a, "crone_brewess");
+        Add(b, "ghoul", power: 1);
+        var o = Play(Start(a, b), N, N);
+        Assert.Equal(7, Val(o, w));
+        var (c, d) = (Side("C"), Side("D"));
+        var w2 = Add(c, "crone_weavess");
+        Add(c, "crone_brewess");
+        Add(c, "crone_whispess");
+        Add(d, "ghoul", power: 1);
+        var o2 = Play(Start(c, d), N, N);
+        Assert.Equal(11, Val(o2, w2));                       // 7 × 1,5 = 10,5 → 11
     }
 
     [Fact]

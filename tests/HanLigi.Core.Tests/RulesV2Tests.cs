@@ -190,8 +190,8 @@ public class RulesV2Tests
             var cards = CardSet.All.Count(d => d.IsUnit && !d.IsHero && d.Has(t));
             Assert.True(Tuning.Breakpoints(t)[2] <= cards, $"{t}: son eşik {Tuning.Breakpoints(t)[2]}, kart {cards}");
         }
-        Assert.Equal(new[] { 0, 0, 1, 2, 3 }, new[] { 0, 1, 2, 3, 4 }.Select(n => Tuning.TagLevel(Tag.Bandit, n)).ToArray());
-        Assert.Equal(new[] { 0, 1, 2, 2, 3 }, new[] { 1, 2, 3, 4, 5 }.Select(n => Tuning.TagLevel(Tag.Mage, n)).ToArray());
+        Assert.Equal(new[] { 0, 1, 1, 2, 3 }, new[] { 1, 2, 3, 4, 6 }.Select(n => Tuning.TagLevel(Tag.Bandit, n)).ToArray());
+        Assert.Equal(new[] { 0, 1, 2, 2, 3 }, new[] { 1, 2, 3, 4, 5 }.Select(n => Tuning.TagLevel(Tag.Vampire, n)).ToArray());
         Assert.Equal(new[] { 1, 1, 2, 2, 3 }, new[] { 2, 3, 4, 5, 6 }.Select(n => Tuning.TagLevel(Tag.Monster, n)).ToArray());
     }
 

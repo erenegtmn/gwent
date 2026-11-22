@@ -19,6 +19,8 @@ public static class Meta
         // Faz 1 (2026-11-23): Denizci Yağma ve Mardroeme ile dönüşen Berserker'larla, Şövalye Meydan Okuma ile
         new("sailor", "Denizci yağması", Tag: Tag.Sailor, Prefer: new[] { Special.Mardroeme }),
         new("knight", "Şövalyeler", Tag: Tag.Knight),
+        // Faz 2: Vampirler Kan Emme ile
+        new("vampire", "Vampirler", Tag: Tag.Vampire),
         new("spy", "Casus + pusu", Abilities: new[] { Ability.Spy, Ability.Ambush }),
         new("bond", "Sıkı bağ", Abilities: new[] { Ability.Bond }),
         new("fast", "Hızlı seviye", LevelShift: 1, ReserveHigh: 0),

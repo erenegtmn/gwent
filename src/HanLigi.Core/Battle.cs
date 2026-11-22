@@ -12,7 +12,7 @@ public sealed class BattleUnit
     public bool Revive { get; set; }
     public bool Token { get; init; }
     public bool Summoned { get; init; }
-    /// <summary>Bu pencerede pusudan indi (Ciri muafiyeti, Haydut 4 bonusu).</summary>
+    /// <summary>Bu pencerede pusudan indi (Ciri muafiyeti, Haydut 3. eşik bonusu).</summary>
     public bool Landed { get; set; }
     public bool IsHero => Def.IsHero;
     public bool Has(Tag t) => !Token && Def.Has(t);
@@ -169,6 +169,8 @@ public sealed class Battle
                 v += Math.Min(3, s.In(u.Row).Count(o => o != u && !o.Token && o.Def.Tags.Any(u.Def.Has)));
             if (u.Def.Ability == Ability.Growth)
                 v += Math.Min(4, s.In(u.Row).Count(o => o != u));
+            if (u.Def.Ability == Ability.Trio && Tuning.Crones.All(id => s.Units.Any(o => !o.Token && o.Def.Id == id)))
+                v = (int)Math.Round(v * 1.5, MidpointRounding.AwayFromZero);
         }
         foreach (var m in s.Units)
             if (m != u && m.Def.Ability == Ability.Morale && !m.Token && s.Act.Morale.TryGetValue(m.Uid, out var mr) && mr == u.Row)
@@ -327,7 +329,7 @@ public sealed class Battle
         PreFx.Add(new FxEvent("scorch", Array.IndexOf(Sides, s), (int)u.Row));
         if (!u.Token && u.Def.Ability == Ability.DeathEcho)
             s.Units.Add(new BattleUnit { Uid = _nextUid++, Def = u.Def, Power = u.Star == 1 ? 2 : u.Star == 2 ? 3 : 5, Row = u.Row, Token = true });
-        else if (u.Revive)
+        else if (u.Revive || (!u.Token && u.Has(Tag.Vampire) && s.Th(Tag.Vampire) >= 2))
             s.Units.Add(new BattleUnit { Uid = _nextUid++, Def = u.Def, Star = u.Star, Power = Math.Max(1, u.Power / 2), Row = u.Row, Token = true });
     }
 
@@ -421,7 +423,7 @@ public sealed class Battle
             if (potion[i] != null && Tuning.YrdenMode != 2 && Tuning.YrdenPotion) { log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} tarafının {Texts.Name(potion[i]!.Value)} kartı etkisiz."); potion[i] = null; hit = true; }
             // 4: yalnız bilerek indirilen pusu zayıflar; 5: bilerek indirilen pusu bu pencerede inemez (son pencerede kendiliğinden inenlere dokunmaz)
             if (Tuning.YrdenMode == 5 && ambush[i].Count > 0 && s.Th(Tag.Bandit) >= 3)
-                log.Add($"{s.Name} 4 Haydut: pusu Yrden'den etkilenmedi.");   // 4 haydut (kademe 3) Yrden'e bağışık
+                log.Add($"{s.Name} Haydut 3. eşik: pusu Yrden'den etkilenmedi.");   // Haydut kademe 3 Yrden'e bağışık
             else if (Tuning.YrdenMode == 5 && ambush[i].Count > 0)
             {
                 log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} pusudan inemedi" + (Window < 2 ? " (sonra inebilir)." : "."));
@@ -534,6 +536,29 @@ public sealed class Battle
                     Pct(t, -Tuning.ChallengePct);
                     log.Add($"{Sides[i].Name}: {c.Def.Name} meydan okudu, {t.Def.Name} −%{Texts.Pct(Tuning.ChallengePct * 100)}.");
                 }
+        // 4c. Kan Emme: rakibin bu satırdaki en zayıf hedeflenebilir biriminden pay alır (Vampir 1. eşik %75, 3. eşik iki hedef)
+        for (var i = 0; i < 2; i++)
+        {
+            var s = Sides[i];
+            var rate = s.Th(Tag.Vampire) >= 1 ? Tuning.DrainPctVampire : Tuning.DrainPct;
+            var n = s.Th(Tag.Vampire) >= 3 ? 2 : 1;
+            foreach (var vmp in s.In(row).Where(u => !u.Token && u.Def.Ability == Ability.Drain).ToList())
+            {
+                var taken = new List<BattleUnit>();
+                for (var k = 0; k < n; k++)
+                {
+                    var t = Sides[1 - i].In(row).Where(u => !u.IsHero && !u.Protected && !taken.Contains(u) && !(u.Has(Tag.Knight) && Sides[1 - i].Th(Tag.Knight) >= 3))
+                        .Select(u => (U: u, V: Value(Sides[1 - i], u, noWeather[1 - i]) * (1 + card.GetValueOrDefault(u))))
+                        .Where(x => x.V > 0).OrderBy(x => x.V).FirstOrDefault();
+                    if (t.U == null) break;
+                    taken.Add(t.U);
+                    Pct(t.U, -rate);
+                    var vv = Value(s, vmp, noWeather[i]);
+                    if (vv > 0) Pct(vmp, t.V * rate / vv);
+                    log.Add($"{s.Name}: {vmp.Def.Name} {t.U.Def.Name}'dan kan emdi (+{Texts.Pct(t.V * rate)}).");
+                }
+            }
+        }
         // 5. bombalar, Eredin, Ayı
         for (var i = 0; i < 2; i++)
         {

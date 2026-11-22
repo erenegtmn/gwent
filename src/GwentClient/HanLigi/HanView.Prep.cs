@@ -819,7 +819,7 @@ public sealed partial class HanView
             Put(g, SideX, y);
             y += 44;
         }
-        if (!any) Put(new TextBlock { Text = "Aynı sınıftan farklı kartlar bonus açar (çoğu sınıfta 2, 4, 6; Haydut 2, 3, 4; Büyücü ve Cüce 2, 3, 5). Sınıflar kartın altında yazar.", FontFamily = HanUi.Font, FontSize = HanUi.S(13), Foreground = Theme.B("#88e8dcc4"), TextWrapping = TextWrapping.Wrap, Width = SideW - 8 }, SideX + 4, y);
+        if (!any) Put(new TextBlock { Text = "Aynı sınıftan farklı kartlar bonus açar (çoğu sınıfta 2, 4, 6; Cüce ve Vampir 2, 3, 5). Sınıflar kartın altında yazar.", FontFamily = HanUi.Font, FontSize = HanUi.S(13), Foreground = Theme.B("#88e8dcc4"), TextWrapping = TextWrapping.Wrap, Width = SideW - 8 }, SideX + 4, y);
     }
 
     /// <summary>Tezgâh yalnız bir satın almayla mı değişti (yenileme değil)?</summary>

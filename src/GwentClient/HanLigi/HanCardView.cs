@@ -55,7 +55,7 @@ public sealed class HanCardView : Grid
         {
             Ability.Bond => "Bağ", Ability.Growth => "Büyüme", Ability.Morale => "Moral", Ability.Spy => "Casus", Ability.Bard => "Ozan", Ability.Treasure => "Hazine",
             Ability.Ambush => "Pusu", Ability.Revenge => "İntikam", Ability.Zeal => "Coşku", Ability.Summon => "Çağrı", Ability.Medic => "Şifacı", Ability.DeathEcho => "Yankı", Ability.Mirror => "Yansıma",
-            Ability.Plunder => "Yağma", Ability.Berserk => "Dönüşüm", Ability.RowScorch => "Yakıcı", Ability.Challenge => "Meydan", _ => ""
+            Ability.Plunder => "Yağma", Ability.Berserk => "Dönüşüm", Ability.RowScorch => "Yakıcı", Ability.Challenge => "Meydan", Ability.Drain => "Kan Emme", Ability.Trio => "Üçlü", _ => ""
         };
         return a.Length == 0 && d.Agile ? "Çevik" : a;
     }
@@ -76,7 +76,8 @@ public sealed class HanCardView : Grid
             Ability.Bard => "Savaşa +1 Odakla başla", Ability.Treasure => "Her round +1 altın", Ability.Ambush => "Savaşta istediğin satıra iner", Ability.Revenge => "Önceki satır kaybedildiyse +%50",
             Ability.Zeal => "Önceki satır kazanıldıysa +%30", Ability.Summon => "Depodaki eşini sahaya çeker (2★: 1, 3★: 2)", Ability.Medic => "En güçlünü etkilerden korur", Ability.DeathEcho => "Ölünce hayalet bırakır",
             Ability.Mirror => "En güçlü dostun yarısı kadar", Ability.Plunder => "Kazandığı satıra +1 altın", Ability.Berserk => "Mardroeme ile gücü ×3",
-            Ability.RowScorch => "Rakip satır 10+ ise en güçlüyü yakar", Ability.Challenge => "Kendinden güçlü rakibe −%25", _ => d.Agile ? "Yakın ya da Menzilli" : ""
+            Ability.RowScorch => "Rakip satır 10+ ise en güçlüyü yakar", Ability.Challenge => "Kendinden güçlü rakibe −%25",
+            Ability.Drain => "En zayıf rakipten güç çalar", Ability.Trio => "Üç Kocakarı birlikteyse ×1,5", _ => d.Agile ? "Yakın ya da Menzilli" : ""
         };
     }
 
@@ -84,7 +85,7 @@ public sealed class HanCardView : Grid
     {
         global::HanLigi.Tag.Monster => Color.FromRgb(0xe0, 0x6a, 0x58), global::HanLigi.Tag.Soldier => Color.FromRgb(0x7a, 0xaa, 0xe8), global::HanLigi.Tag.Mage => Color.FromRgb(0xc0, 0x8a, 0xff),
         global::HanLigi.Tag.Bandit => Color.FromRgb(0x7a, 0xd0, 0x6a), global::HanLigi.Tag.Noble => Color.FromRgb(0xf0, 0xc8, 0x5a),
-        global::HanLigi.Tag.Sailor => Color.FromRgb(0x4e, 0xc3, 0xc9), global::HanLigi.Tag.Knight => Color.FromRgb(0xc8, 0xcc, 0xd6), _ => Color.FromRgb(0xd8, 0xa2, 0x6a)
+        global::HanLigi.Tag.Sailor => Color.FromRgb(0x4e, 0xc3, 0xc9), global::HanLigi.Tag.Knight => Color.FromRgb(0xc8, 0xcc, 0xd6), global::HanLigi.Tag.Vampire => Color.FromRgb(0xd0, 0x40, 0x70), _ => Color.FromRgb(0xd8, 0xa2, 0x6a)
     };
 
     /// <summary>Yeteneğin Gwent simgesi (ab_*.png; görselin sol yarısı).</summary>
@@ -95,7 +96,7 @@ public sealed class HanCardView : Grid
             Ability.Bond => "ab_bond", Ability.Morale => "ab_morale", Ability.Spy => "ab_spy", Ability.Medic => "ab_medic", Ability.Summon => "ab_muster",
             Ability.Bard => "ab_horn", Ability.DeathEcho => "ab_avenger", Ability.Mirror => "ab_berserker", Ability.Growth => "ab_mardroeme", Ability.Ambush => "ab_decoy",
             Ability.Revenge => "ab_scorch", Ability.Zeal => "ab_storm", Ability.Plunder => "ab_clear", Ability.Berserk => "ab_berserker", Ability.RowScorch => "ab_scorch",
-            Ability.Challenge => "ab_avenger", _ => d.Agile ? "ab_agile" : null
+            Ability.Challenge => "ab_avenger", Ability.Drain => "ab_medic", Ability.Trio => "ab_muster", _ => d.Agile ? "ab_agile" : null
         };
         if (d.Special != Special.None) name = d.Special switch { Special.Frost => "ab_frost", Special.Fog => "ab_fog", Special.Rain => "ab_rain", Special.Scorch => "ab_scorch", Special.Horn => "ab_horn", Special.Mardroeme => "ab_mardroeme", _ => "ab_decoy" };
         if (d.IsHero) name = null;
