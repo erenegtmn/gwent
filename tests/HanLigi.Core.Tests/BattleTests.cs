@@ -225,8 +225,8 @@ public class BattleTests
         var o = Play(bt, C(Sign.Aard), C(Sign.Yrden));
         Assert.Equal(10, o.ValueB);   // Aard tutuldu
         Assert.Equal(-1, o.Winner);
-        Assert.Equal(Tuning.StartFocus - 1, a.Focus);
-        Assert.Equal(Tuning.StartFocus - 1, b.Focus);
+        Assert.Equal(Tuning.StartFocus - 1, a.Focus);              // Aard 1 Odak
+        Assert.Equal(Tuning.StartFocus - Tuning.YrdenCost, b.Focus);
         Assert.DoesNotContain(o.RowMods, m => m.Source == "Aard");
     }
 

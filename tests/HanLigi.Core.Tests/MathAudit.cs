@@ -215,7 +215,7 @@ public class MathAudit(ITestOutputHelper output)
         var o = Round(bt, S(Sign.Yrden), new WindowChoice(Array.Empty<Sign>(), Potion.Thunderbolt));
         Assert.Equal(10, o.ValueB);                   // Meta 4: Yrden simyaya dokunmaz (8 +%25)
         Assert.Empty(bt.Sides[1].Potions);            // kart harcandı
-        Assert.Equal(2, bt.Sides[0].Focus);           // 2 − 1 Yrden + 1 Öfke (satırı kaybetti)
+        Assert.Equal(Tuning.StartFocus - Tuning.YrdenCost + 1, bt.Sides[0].Focus);   // Yrden bedeli + 1 Öfke (satırı kaybetti)
     }
 
     [Fact]
