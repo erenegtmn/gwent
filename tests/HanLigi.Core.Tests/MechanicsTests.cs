@@ -494,6 +494,74 @@ public class MechanicsTests
         Play(bt, N, N); Assert.Equal(5, a.Focus);
     }
 
+    // ===== kahraman güç basamakları: kahramanın sınıf eşiği 2 → II, 3 → III =====
+
+    [Fact]
+    public void Hero_tier_follows_own_class_threshold()
+    {
+        var s = Side("A", 5, null, (Tag.Mage, 3), (Tag.Soldier, 2), (Tag.Noble, 6));
+        Add(s, "triss", Row.Siege); Add(s, "vesemir"); Add(s, "jaskier");
+        Assert.Equal(1, s.HeroTier(Hero.Triss));    // Büyücü 3 kart = 2. eşik
+        Assert.Equal(0, s.HeroTier(Hero.Vesemir));  // Asker 2 kart = yalnız 1. eşik
+        Assert.Equal(2, s.HeroTier(Hero.Jaskier));  // Soylu 6 kart = 3. eşik
+        Assert.Equal(-1, s.HeroTier(Hero.Geralt));
+    }
+
+    [Fact]
+    public void Triss_tier3_makes_every_quen_free_tier2_two()
+    {
+        foreach (var (mages, free) in new[] { (2, 1), (3, 2), (5, 99) })
+        {
+            var (a, b) = (Side("A", 5, null, (Tag.Mage, mages)), Side("B"));
+            Add(a, "triss", Row.Siege); Add(a, "fiend"); Add(a, "dethmold");
+            Add(b, "ghoul", power: 1); Add(b, "sweers");
+            var bt = Start(a, b);
+            for (var i = 0; i < Math.Min(free, 3); i++)
+            {
+                Assert.Equal(0, bt.Cost(0, C(Sign.Quen)));
+                Play(bt, C(Sign.Quen), N);
+            }
+            if (free < 3) Assert.Equal(1, bt.Cost(0, C(Sign.Quen)));
+        }
+    }
+
+    [Fact]
+    public void Jaskier_tier2_doubles_twice()
+    {
+        var (a, b) = (Side("A", 5, School.Wolf, (Tag.Noble, 4)), Side("B"));
+        Add(a, "jaskier"); Add(a, "sabrina_glevissig", Row.Siege);
+        Add(b, "fiend"); Add(b, "griffin");
+        var bt = Start(a, b);
+        Play(bt, C(Sign.Aard, Sign.Aard), N);
+        Assert.True(bt.CanDouble(0));
+        Play(bt, C(Sign.Aard, Sign.Aard), N);
+        Assert.False(bt.CanDouble(0));
+    }
+
+    [Fact]
+    public void Vesemir_tier3_rage_four()
+    {
+        var (a, b) = (Side("A", 5, null, (Tag.Soldier, 6)), Side("B"));
+        Add(a, "vesemir", Row.Close, power: 1);
+        Add(b, "fiend"); Add(b, "dethmold"); Add(b, "trebuchet");
+        var bt = Start(a, b);
+        Play(bt, N, N);
+        Assert.Equal(2 + 4, a.Focus);
+    }
+
+    [Fact]
+    public void Eredin_tier_scales_percentage()
+    {
+        foreach (var (n, pct) in new[] { (1, 0.30), (4, 0.40), (6, 0.50) })
+        {
+            var (a, b) = (Side("A", 5, null, (Tag.Monster, n)), Side("B"));
+            Add(a, "eredin", Row.Close);
+            Add(b, "fiend", Row.Close);
+            var bt = Start(a, b);
+            Assert.Equal(pct, b.EredinPct, 3);
+        }
+    }
+
     [Fact]
     public void Normal_rage_caps_at_two()
     {

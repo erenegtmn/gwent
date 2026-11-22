@@ -220,7 +220,15 @@ public static class Tuning
         new[] { 8, 12, 26, 34, 20 }, new[] { 5, 10, 22, 38, 25 }
     };
     /// <summary>Seviyeye göre yuva başına kahraman olasılığı.</summary>
-    public static readonly double[] HeroOdds = { 0, 0, 0, 0, 0.0025, 0.005, 0.01, 0.015, 0.02, 0.025 };
+    public static readonly double[] HeroOdds = { 0, 0, 0, 0, 0.004, 0.008, 0.015, 0.022, 0.03, 0.04 };
+    // Kahraman güç basamakları [I, II, III]: basamak, kahramanın kendi sınıfının eşiğine göre (II: 2. eşik, III: 3. eşik)
+    public static readonly double[] EredinPct = { 0.30, 0.40, 0.50 };
+    public static readonly double[] YenPct = { 0.20, 0.30, 0.40 };
+    public static readonly int[] VesemirGain = { 2, 3, 4 };
+    public static readonly int[] TrissFree = { 1, 2, 99 };
+    public static readonly int[] JaskierUses = { 1, 2, 3 };
+    public static readonly double[] GeraltRow = { 0, 0.10, 0.20 };
+    public static readonly double[] CiriRow = { 0, 0.15, 0.30 };
     public static readonly double[] SpyRate = { 0.20, 0.35, 0.50 };
 
     public static int Slots(int level) => Math.Min(10, level + 2);
@@ -348,7 +356,7 @@ public static class Texts
     /// (+1 kazandın, −1 kaybettin, 0 ilk satır/berabere); <paramref name="eredinRow"/>: rakibin Eredin'i senin hangi satırını vurdu;
     /// <paramref name="foeEredinRow"/>: senin Eredin'in rakibin hangi satırını vurdu; <paramref name="banditLevel"/>: Haydut eşiği.
     /// </summary>
-    public static List<string> LiveNotes(CardDef d, int? prev, Row? eredinRow, Row? foeEredinRow, int banditLevel)
+    public static List<string> LiveNotes(CardDef d, int? prev, Row? eredinRow, Row? foeEredinRow, int banditLevel, double eredinPct = 0.30, double foeEredinPct = 0.30)
     {
         var l = new List<string>();
         if (!d.IsUnit) return l;
@@ -362,9 +370,9 @@ public static class Texts
         if (d.Ability == Ability.Ambush && banditLevel >= 2 && !d.IsHero)
             l.Add($"Haydut bonusu: pusudan inince +%{(banditLevel >= 3 ? 50 : 25)}.");
         if (d.Hero == Hero.Eredin && foeEredinRow is { } fr)
-            l.Add($"Eredin bu savaş: rakibin {Name(fr)} satırındaki birimler −%30.");
+            l.Add($"Eredin bu savaş: rakibin {Name(fr)} satırındaki birimler −%{Pct(foeEredinPct * 100)}.");
         if (!d.IsHero && eredinRow is { } er)
-            l.Add($"Rakibin Eredin'i bu savaş senin {Name(er)} satırını vurdu: o satırdaki kahraman olmayan birimler −%30 (bu kart oradaysa).");
+            l.Add($"Rakibin Eredin'i bu savaş senin {Name(er)} satırını vurdu: o satırdaki kahraman olmayan birimler −%{Pct(eredinPct * 100)} (bu kart oradaysa).");
         return l;
     }
 
@@ -419,6 +427,20 @@ public static class Texts
         Hero.Zoltan => "Satırındaki Cüceler bombalardan etkilenmez.",
         Hero.Eredin => "Savaş başında rakibin rastgele bir satırındaki birimler −%30.",
         _ => ""
+    };
+
+    /// <summary>Kahramanın II ve III basamaklarının eklediği güç (sınıfının 2. ve 3. eşiğinde açılır).</summary>
+    public static string[] HeroTiers(Hero h) => h switch
+    {
+        Hero.Geralt => new[] { "Bulunduğu satırın penceresinde satırına +%10.", "Bulunduğu satırın penceresinde satırına +%20." },
+        Hero.Ciri => new[] { "İndiğinde satırındaki öteki birimler +%15.", "İndiğinde satırındaki öteki birimler +%30." },
+        Hero.Yennefer => new[] { "Kazandığında sonraki satırına +%30.", "Kazandığında sonraki satırına +%40." },
+        Hero.Triss => new[] { "İlk iki Quen bedava.", "Her Quen bedava." },
+        Hero.Jaskier => new[] { "Savaşta iki kez iki işaret atabilirsin.", "Her pencerede iki işaret atabilirsin." },
+        Hero.Vesemir => new[] { "Satırını kaybedersen Öfke +3 (üst sınır +1 daha).", "Satırını kaybedersen Öfke +4 (üst sınır +1 daha)." },
+        Hero.Zoltan => new[] { "Tüm Cüceler (hangi satırda olursa) bombalardan etkilenmez.", "Satırındaki bütün birimler bombalardan etkilenmez." },
+        Hero.Eredin => new[] { "Rakibin satırı −%40.", "Rakibin satırı −%50." },
+        _ => new[] { "", "" }
     };
 
     /// <summary>Etiket eşik bonuslarının açıklaması (eşikler: <see cref="Tuning.Breakpoints"/>).</summary>

@@ -61,8 +61,10 @@ public sealed class BattleSide
     public int Rage { get; set; }
     public int Points { get; set; }
     public decimal Total { get; set; }
-    public bool JaskierUsed { get; set; }
-    public bool TrissUsed { get; set; }
+    public int JaskierUses { get; set; }
+    public int TrissUses { get; set; }
+    /// <summary>Rakibin Eredin'inin bu tarafa uyguladığı yüzde (basamağa göre, <see cref="Tuning.EredinPct"/>).</summary>
+    public double EredinPct { get; set; } = 0.30;
     public bool MageFreeUsed { get; set; }
     public bool YenPending { get; set; }
     public Row? EredinRow { get; set; }
@@ -75,6 +77,14 @@ public sealed class BattleSide
 
     public IEnumerable<BattleUnit> In(Row r) => Units.Where(u => u.Row == r);
     public bool HasHero(Hero h) => Units.Any(u => u.Def.Hero == h);
+    /// <summary>Kahramanın güç basamağı: kendi sınıfının eşiği 2'ye varınca 1 (II), 3'e varınca 2 (III); yoksa 0. Sahada (pusu dahil) değilse −1.</summary>
+    public int HeroTier(Hero h)
+    {
+        var u = Units.FirstOrDefault(x => x.Def.Hero == h) ?? Ambush.FirstOrDefault(x => x.Def.Hero == h);
+        if (u == null) return -1;
+        var th = u.Def.Tags.Length > 0 ? Th(u.Def.Tags[0]) : 0;
+        return th >= 3 ? 2 : th >= 2 ? 1 : 0;
+    }
     public int Count(Special s) => Specials.Count(x => x == s);
 }
 
@@ -278,8 +288,10 @@ public sealed class Battle
             if (s.HasHero(Hero.Eredin) || s.Ambush.Any(u => u.Def.Hero == Hero.Eredin))
             {
                 var r = Order[_rng.Next(3)];
+                var ep = Tuning.EredinPct[Math.Max(0, s.HeroTier(Hero.Eredin))];
                 Sides[1 - i].EredinRow = r;
-                PreLog.Add($"Eredin: {Sides[1 - i].Name} tarafının {Texts.Name(r)} satırı −%30.");
+                Sides[1 - i].EredinPct = ep;
+                PreLog.Add($"Eredin: {Sides[1 - i].Name} tarafının {Texts.Name(r)} satırı −%{Texts.Pct(ep * 100)}.");
             }
             s.Focus = Math.Min(Tuning.FocusCap, Tuning.StartFocus + s.Units.Count(u => !u.Token && u.Def.Ability == Ability.Bard)
                       + (s.School == HanLigi.School.Wolf ? 1 : 0) + (s.Th(Tag.Mage) >= 2 ? 1 : 0));
@@ -290,7 +302,7 @@ public sealed class Battle
 
     public int AmbushCap(BattleSide s) => Tuning.AmbushBase + (s.Th(Tag.Bandit) >= 1 ? 1 : 0);
 
-    public bool CanDouble(int side) => !Sides[side].JaskierUsed && Sides[side].HasHero(Hero.Jaskier);
+    public bool CanDouble(int side) => Sides[side].HasHero(Hero.Jaskier) && Sides[side].JaskierUses < Tuning.JaskierUses[Sides[side].HeroTier(Hero.Jaskier)];
 
     /// <summary>Seçilen işaretlerin Odak bedeli (bedavalar düşülmüş); durumu değiştirmez.</summary>
     public int Cost(int side, WindowChoice c) => Cost(side, c, false);
@@ -300,14 +312,14 @@ public sealed class Battle
         var s = Sides[side];
         var row = CurrentRow;
         var geralt = s.In(row).Any(u => u.Def.Hero == Hero.Geralt);
-        var triss = !s.TrissUsed && s.HasHero(Hero.Triss);
+        var trissLeft = s.HasHero(Hero.Triss) ? Tuning.TrissFree[s.HeroTier(Hero.Triss)] - s.TrissUses : 0;
         var mage = !s.MageFreeUsed && s.Th(Tag.Mage) >= 3;
         var total = 0;
         for (var i = 0; i < c.Signs.Count; i++)
         {
             var sg = c.Signs[i];
             if (i == 0 && geralt) continue;
-            if (sg == Sign.Quen && triss) { triss = false; if (commit) s.TrissUsed = true; continue; }
+            if (sg == Sign.Quen && trissLeft > 0) { trissLeft--; if (commit) s.TrissUses++; continue; }
             if (mage) { mage = false; if (commit) s.MageFreeUsed = true; continue; }
             total += Tuning.SignCost(sg);
         }
@@ -360,7 +372,7 @@ public sealed class Battle
         {
             var s = Sides[i];
             s.Focus -= Cost(i, ch[i], true);
-            if (ch[i].Signs.Count > 1) s.JaskierUsed = true;
+            if (ch[i].Signs.Count > 1) s.JaskierUses++;
             potion[i] = ch[i].Potion;
             if (potion[i] is { } p) s.Potions.Remove(p);
             ambush[i] = ch[i].AmbushUids;
@@ -424,6 +436,11 @@ public sealed class Battle
                 log.Add($"{s.Name} pusudan {u.Def.Name} indirdi.");
                 fx.Add(new FxEvent("ambush", i, u.Uid));
             }
+            if (landing.Any(u => u.Def.Hero == Hero.Ciri) && Tuning.CiriRow[s.HeroTier(Hero.Ciri)] is > 0 and var cp)
+            {
+                foreach (var u in s.In(row).Where(u => !u.IsHero)) Pct(u, cp);
+                log.Add($"{s.Name}: Cirilla indi, satırındaki birimler +%{Texts.Pct(cp * 100)}.");
+            }
         }
         // 4. iksirler
         for (var i = 0; i < 2; i++)
@@ -443,7 +460,13 @@ public sealed class Battle
         double Bomb(int side, BattleUnit target, int victim)
         {
             var v = Sides[victim];
-            if (target.Has(Tag.Dwarf) && v.In(row).Any(u => u.Def.Hero == Hero.Zoltan)) return 0;
+            var zol = v.Units.FirstOrDefault(u => u.Def.Hero == Hero.Zoltan);
+            if (zol != null)
+            {
+                var zt = v.HeroTier(Hero.Zoltan);
+                if (target.Has(Tag.Dwarf) && (zt >= 1 || zol.Row == row)) return 0;
+                if (zt >= 2 && zol.Row == row) return 0;
+            }
             return (Sides[side].School == HanLigi.School.Viper ? 1.25 : 1) * (target.Has(Tag.Dwarf) && v.Th(Tag.Dwarf) >= 1 ? 0.5 : 1);
         }
         static string BombNote(double basePct, double f) =>
@@ -491,7 +514,7 @@ public sealed class Battle
             }
             if (potion[i] == Potion.BlackBlood && !ch[o].Signs.Contains(Sign.Igni)) log.Add($"{Sides[i].Name} Kara Kan içti, boşa gitti.");
             if (potion[i] == Potion.BlackBlood) fx.Add(new FxEvent("blackblood", i, 0, ch[o].Signs.Contains(Sign.Igni)));
-            if (Sides[i].EredinRow == row) foreach (var u in Sides[i].In(row).Where(u => !u.IsHero)) Pct(u, -0.30);
+            if (Sides[i].EredinRow == row) foreach (var u in Sides[i].In(row).Where(u => !u.IsHero)) Pct(u, -Sides[i].EredinPct);
             if (quenBlocks[i] > 0 && Sides[i].School == HanLigi.School.Bear) { foe[o] -= 0.10; mods.Add((o, "Ayı karşı vuruşu", -0.10)); log.Add($"{Sides[i].Name} (Ayı): karşı vuruş −%10."); }
         }
         // 7. İntikam / Coşku, Yennefer, Cüce 6, Boynuz
@@ -503,7 +526,8 @@ public sealed class Battle
                 if (u.Def.Ability == Ability.Revenge && s.Prev < 0) Pct(u, 0.5);
                 if (u.Def.Ability == Ability.Zeal && s.Prev > 0) Pct(u, 0.3);
             }
-            if (s.YenPending) { own[i] += 0.2; s.YenPending = false; mods.Add((i, "Yennefer", 0.2)); }
+            if (s.YenPending) { var yp = Tuning.YenPct[Math.Max(0, s.HeroTier(Hero.Yennefer))]; own[i] += yp; s.YenPending = false; mods.Add((i, "Yennefer", yp)); }
+            if (s.In(row).Any(u => u.Def.Hero == Hero.Geralt) && Tuning.GeraltRow[s.HeroTier(Hero.Geralt)] is > 0 and var gp) { own[i] += gp; mods.Add((i, "Geralt", gp)); }
             if (s.Th(Tag.Dwarf) >= 3 && s.In(row).Any(u => u.Has(Tag.Dwarf))) { own[i] += 0.2; mods.Add((i, "Cüce sinerjisi", 0.2)); }
             var horns = s.Act.Horns.Count(h => h == row);
             if (horns > 0) { own[i] += 0.5 * horns; mods.Add((i, horns > 1 ? $"Boynuz ×{horns}" : "Boynuz", 0.5 * horns)); }
@@ -549,7 +573,8 @@ public sealed class Battle
                 s.Prev = -1;
                 if (!s.In(row).Any()) continue;
                 var ves = s.In(row).Any(u => u.Def.Hero == Hero.Vesemir);
-                var gain = Math.Min(ves ? 2 : 1, (ves ? Tuning.RageCap + 1 : Tuning.RageCap) - s.Rage);
+                var vt = ves ? Math.Max(0, s.HeroTier(Hero.Vesemir)) : -1;
+                var gain = Math.Min(ves ? Tuning.VesemirGain[vt] : 1, (ves ? Tuning.RageCap + 1 + vt : Tuning.RageCap) - s.Rage);
                 if (gain > 0) { s.Rage += gain; s.Focus = Math.Min(Tuning.FocusCap, s.Focus + gain); log.Add($"{s.Name}: Öfke +{gain} Odak."); fx.Add(new FxEvent("rage", i, gain)); }
             }
             else s.Prev = 0;

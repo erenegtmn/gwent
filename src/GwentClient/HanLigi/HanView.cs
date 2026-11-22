@@ -507,7 +507,17 @@ public sealed partial class HanView : Grid
         }
         if (d.IsHero)
         {
-            Section(d.Name.Split(' ').Last() + "'in gücü", HT.Describe(d.Hero), null, HanUi.GoldText);
+            {
+                var htag = d.Tags[0];
+                var hth = _screen == Screen.Battle && Session.MyBattle != null ? B.Sides[Mine].Th(htag) : Me.Th(htag);
+                var tiers = HT.HeroTiers(d.Hero);
+                var bp = Tuning.Breakpoints(htag);
+                var tierNow = hth >= 3 ? 2 : hth >= 2 ? 1 : 0;
+                var body = HT.Describe(d.Hero)
+                    + $"\n{(tierNow == 1 ? "▶ " : "")}II · {HT.Name(htag)} {bp[1]} kart: {tiers[0]}"
+                    + $"\n{(tierNow == 2 ? "▶ " : "")}III · {HT.Name(htag)} {bp[2]} kart: {tiers[1]}";
+                Section(d.Name.Split(' ').Last() + "'in gücü", body, null, HanUi.GoldText);
+            }
             if (d.Ability == Ability.Ambush) Section("Pusu", HT.Describe(Ability.Ambush), HanCardView.AbilityIcon(CardSet.All.First(x => x.Ability == Ability.Ambush && !x.IsHero)), HanUi.Br(Color.FromRgb(0xff, 0xe2, 0xa0)));
             var imm = HanUi.T("Kahraman: hava, Kavurma ve karta hedefli etkiler işlemez.", 13, HanUi.Br(HanUi.Muted), FontWeights.Normal);
             imm.FontStyle = FontStyles.Italic;
@@ -524,7 +534,8 @@ public sealed partial class HanView : Grid
             var inBattle = _screen == Screen.Battle && Session.MyBattle != null;
             var bs = inBattle ? B.Sides[Mine] : null;
             var live = HT.LiveNotes(d, inBattle ? bs!.Prev : null, bs?.EredinRow, inBattle ? B.Sides[1 - Mine].EredinRow : null,
-                inBattle ? bs!.Th(global::HanLigi.Tag.Bandit) : Me.Th(global::HanLigi.Tag.Bandit));
+                inBattle ? bs!.Th(global::HanLigi.Tag.Bandit) : Me.Th(global::HanLigi.Tag.Bandit),
+                inBattle ? bs!.EredinPct : 0.30, inBattle ? B.Sides[1 - Mine].EredinPct : 0.30);
             if (live.Count > 0) Section("Şu an", string.Join("\n", live), null, HanUi.Br(Color.FromRgb(0x9f, 0xe8, 0xa8)));
         }
 
