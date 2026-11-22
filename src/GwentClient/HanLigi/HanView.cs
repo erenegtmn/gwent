@@ -529,7 +529,7 @@ public sealed partial class HanView : Grid
         }
 
         // sınıflar ve eşikleri (sahadaki sayınla)
-        if (d.IsUnit && !d.IsHero && d.Tags.Length > 0)
+        if (d.IsUnit && d.Tags.Length > 0)
         {
             var counts = Me.TagCounts();
             foreach (var tag in d.Tags)

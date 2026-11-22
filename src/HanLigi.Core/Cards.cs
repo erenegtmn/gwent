@@ -44,8 +44,8 @@ public static class CardSet
     private static void S(string id, string name, int tier, Special sp, string art)
         => Add(new CardDef(id, name, tier, 0, Row.Close, false, Array.Empty<Tag>(), Ability.None, sp, Hero.None, art));
 
-    private static void H(string id, string name, int power, Row row, Hero hero, string art, Ability ab = Ability.None)
-        => Add(new CardDef(id, name, 6, power, row, false, Array.Empty<Tag>(), ab, Special.None, hero, art));
+    private static void H(string id, string name, int power, Row row, Hero hero, string art, Tag tag, Ability ab = Ability.None, Tag? tag2 = null)
+        => Add(new CardDef(id, name, 6, power, row, false, tag2 is { } t2 ? new[] { tag, t2 } : new[] { tag }, ab, Special.None, hero, art));
 
     private static void Add(CardDef d) { _all.Add(d); _byId[d.Id] = d; }
 
@@ -99,14 +99,14 @@ public static class CardSet
         S("shield", "Kalkan Alayı", 4, Special.Shield, "decoy");
         S("scorch", "Kavurma", 4, Special.Scorch, "scorch");
         // ---- Kahramanlar (18-22; evolve olmaz) ----
-        H("geralt", "Rivyalı Geralt", 22, Row.Close, Hero.Geralt, "geralt_of_rivia");
-        H("ciri", "Cirilla", 20, Row.Close, Hero.Ciri, "cirilla_fiona_elen_riannon", Ability.Ambush);
-        H("yennefer", "Vengerbergli Yennefer", 19, Row.Ranged, Hero.Yennefer, "yennefer_of_vengerberg");
-        H("triss", "Triss Merigold", 18, Row.Ranged, Hero.Triss, "triss_merigold");
-        H("jaskier", "Jaskier", 18, Row.Close, Hero.Jaskier, "dandelion");
-        H("vesemir", "Vesemir", 20, Row.Close, Hero.Vesemir, "vesemir");
-        H("zoltan", "Zoltan Chivay", 19, Row.Close, Hero.Zoltan, "zoltan_chivay");
-        H("eredin", "Eredin", 21, Row.Close, Hero.Eredin, "imlerith");
+        H("geralt", "Rivyalı Geralt", 22, Row.Close, Hero.Geralt, "geralt_of_rivia", Tag.Soldier);
+        H("ciri", "Cirilla", 20, Row.Close, Hero.Ciri, "cirilla_fiona_elen_riannon", Tag.Bandit, Ability.Ambush, Tag.Mage);
+        H("yennefer", "Vengerbergli Yennefer", 19, Row.Ranged, Hero.Yennefer, "yennefer_of_vengerberg", Tag.Mage);
+        H("triss", "Triss Merigold", 18, Row.Ranged, Hero.Triss, "triss_merigold", Tag.Mage);
+        H("jaskier", "Jaskier", 18, Row.Close, Hero.Jaskier, "dandelion", Tag.Noble);
+        H("vesemir", "Vesemir", 20, Row.Close, Hero.Vesemir, "vesemir", Tag.Soldier);
+        H("zoltan", "Zoltan Chivay", 19, Row.Close, Hero.Zoltan, "zoltan_chivay", Tag.Dwarf);
+        H("eredin", "Eredin", 21, Row.Close, Hero.Eredin, "imlerith", Tag.Monster);
     }
 }
 
@@ -181,7 +181,7 @@ public static class Tuning
     /// 4 bilerek indirilenler −%, <b>5 bilerek indirilen bu pencerede inemez</b> (sonra inebilir; son pencerede kendiliğinden inenlere
     /// dokunmaz). Meta 4: son pencerede bütün pusuyu kesen Yrden açık ara en güçlüydü (hep Yrden ort. sıra 2,4); 3-4 de baskındı.</summary>
     public static int YrdenMode = 5;
-    public static int YrdenCost = 1;
+    public static int YrdenCost = 2;
     /// <summary>YrdenMode 3: simya + Aard kesilir, pusudan inen kartlar bu kadar zayıflar (iptal yerine).</summary>
     public static double YrdenAmbushPct = 0.5;
     /// <summary>Temel pusu yeri (Haydut 2 eşiği +1).</summary>
@@ -320,7 +320,7 @@ public static class Texts
             Sign.Aard => $"1 Odak · Rakibin bu satırı {Live(10, amp, why)}. Kahramanlara da işler; Yrden tutar.",
             Sign.Igni => $"2 Odak · Rakibin bu satırdaki en güçlü kartı {Live(50, amp, why)}. Quen engeller; Kara Kan kendine yansıtır.",
             Sign.Quen => "1 Odak · Sana atılan Igni'yi engeller; engellerse Odak geri gelir.",
-            _ => "1 Odak · Rakibin bu penceredeki Aard'ını keser; pusudan inmek isteyen kartı bu satırda indirmez (son satır dışında sonra inebilir). Son satırda pusu kendiliğinden inmez; seçilmeli.",
+            _ => "2 Odak · Rakibin bu penceredeki Aard'ını keser; pusudan inmek isteyen kartı bu satırda indirmez (son satır dışında sonra inebilir; son satırda hiç inmez). Pusu kendiliğinden inmez, seçilmeli.",
         };
     }
 

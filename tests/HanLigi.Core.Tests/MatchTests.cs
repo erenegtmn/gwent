@@ -27,6 +27,16 @@ public class MatchTests(ITestOutputHelper output)
         $"{p.Hp},{p.Gold},{p.Level},{p.Xp},{p.Place},{string.Join(",", p.Cards.Select(c => c.Def.Id + c.Star + c.Zone))},{string.Join(",", p.Shop.Select(d => d?.Id))}")) + $"|{m.Round}|{m.Phase}";
 
     [Fact]
+    public void Heroes_carry_classes_and_count_toward_thresholds()
+    {
+        Assert.All(CardSet.All.Where(d => d.IsHero), h => Assert.NotEmpty(h.Tags));
+        var p = new PlayerState { Name = "t" };
+        foreach (var id in new[] { "yennefer", "triss" })
+            p.Cards.Add(new OwnedCard { Def = CardSet.All.First(d => d.Id == id), Zone = Zone.Close });
+        Assert.Equal(1, p.Th(Tag.Mage));
+    }
+
+    [Fact]
     public void Shop_odds_tables_sum_to_100()
     {
         foreach (var row in Tuning.ShopOdds) Assert.Equal(100, row.Sum());
