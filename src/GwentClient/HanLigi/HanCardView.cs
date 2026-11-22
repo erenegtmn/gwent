@@ -35,7 +35,7 @@ public sealed class HanCardView : Grid
             lines.Add($"Güç {Tuning.Power(d, star)} · {row}" + (d.IsHero ? "" : $" · Tier {d.Tier}"));
             if (d.Tags.Length > 0) lines.Add("Sınıf: " + string.Join(", ", d.Tags.Select(HT.Name)));
             if (d.IsHero) { lines.Add(HT.Describe(d.Hero)); lines.Add("Hava, Kavurma ve kart hedefli etkilere bağışık."); }
-            if (d.Ability != Ability.None && !(d.IsHero && d.Ability == Ability.Ambush)) lines.Add(HT.Describe(d.Ability));
+            if (d.Ability != Ability.None && !d.IsHero) lines.Add(HT.Describe(d.Ability));   // kahramanın yeteneği kendi metninde
         }
         else
         {
@@ -50,7 +50,7 @@ public sealed class HanCardView : Grid
     {
         if (d.IsHero) return "Kahraman";
         if (!d.IsUnit)
-            return d.Special switch { Special.Frost => "Ayaz", Special.Fog => "Sis", Special.Rain => "Yağmur", Special.Scorch => "Kavurma", Special.Horn => "Boynuz", Special.Shield => "Kalkan", Special.Mardroeme => "Mardroeme", _ => "Özel" };
+            return d.Special switch { Special.Frost => "Ayaz", Special.Fog => "Sis", Special.Rain => "Yağmur", Special.Scorch => "Kavurma", Special.Horn => "Boynuz", Special.Shield => "Kalkan", Special.Mardroeme => "Mardroeme", Special.Storm => "Fırtına", _ => "Özel" };
         var a = d.Ability switch
         {
             Ability.Bond => "Bağ", Ability.Growth => "Büyüme", Ability.Morale => "Moral", Ability.Spy => "Casus", Ability.Bard => "Ozan", Ability.Treasure => "Hazine",
@@ -68,7 +68,7 @@ public sealed class HanCardView : Grid
             return d.Special switch
             {
                 Special.Frost => "Yakın satırlar 1 olur", Special.Fog => "Menzilli satırlar 1 olur", Special.Rain => "Kuşatma satırları 1 olur", Special.Scorch => "En güçlü birimi yakar",
-                Special.Horn => "Bir satıra +%50", Special.Shield => "Satırı havadan korur", Special.Mardroeme => "Berserker'ları dönüştürür (×3)", _ => ""
+                Special.Horn => "Bir satıra +%50", Special.Shield => "Satırı havadan korur", Special.Mardroeme => "Berserker'ları dönüştürür (×3)", Special.Storm => "Menzilli ve Kuşatma 1 olur", _ => ""
             };
         return d.Ability switch
         {
@@ -98,7 +98,7 @@ public sealed class HanCardView : Grid
             Ability.Revenge => "ab_scorch", Ability.Zeal => "ab_storm", Ability.Plunder => "ab_clear", Ability.Berserk => "ab_berserker", Ability.RowScorch => "ab_scorch",
             Ability.Challenge => "ab_avenger", Ability.Drain => "ab_medic", Ability.Trio => "ab_muster", _ => d.Agile ? "ab_agile" : null
         };
-        if (d.Special != Special.None) name = d.Special switch { Special.Frost => "ab_frost", Special.Fog => "ab_fog", Special.Rain => "ab_rain", Special.Scorch => "ab_scorch", Special.Horn => "ab_horn", Special.Mardroeme => "ab_mardroeme", _ => "ab_decoy" };
+        if (d.Special != Special.None) name = d.Special switch { Special.Frost => "ab_frost", Special.Fog => "ab_fog", Special.Rain => "ab_rain", Special.Scorch => "ab_scorch", Special.Horn => "ab_horn", Special.Mardroeme => "ab_mardroeme", Special.Storm => "ab_storm", _ => "ab_decoy" };
         if (d.IsHero) name = null;
         if (name == null || Assets.Ui(name) is not BitmapSource src) return null;
         lock (IconCache)

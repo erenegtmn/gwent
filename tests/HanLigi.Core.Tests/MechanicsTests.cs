@@ -630,7 +630,7 @@ public class MechanicsTests
         Add(d, "ghoul", power: 1);
         var bt2 = Start(c, d);
         Play(bt2, N, N);
-        Assert.Equal(2, c.Plunder);                          // Denizci 2. eşik: satır başına 2
+        Assert.Equal(1, c.Plunder);                          // Faz 3: Denizci eşiği artık altın değil güç verir
     }
 
     [Fact]
@@ -739,6 +739,120 @@ public class MechanicsTests
         Add(d, "ghoul", power: 1);
         var o2 = Play(Start(c, d), N, N);
         Assert.Equal(11, Val(o2, w2));                       // 7 × 1,5 = 10,5 → 11
+    }
+
+    // ===== Faz 3: yeni kahramanlar, Skellige Fırtınası, Denizci gücü =====
+
+    [Fact]
+    public void Sailor_thresholds_give_flat_power()
+    {
+        foreach (var (n, plus) in new[] { (2, 0), (4, 2), (6, 3) })
+        {
+            var (a, b) = (Side("A", 5, null, (Tag.Sailor, n)), Side("B"));
+            var u = Add(a, "clan_an_craite_warrior", Row.Ranged, power: 10);   // Bağ: satırda tek, +0
+            var bt = Start(a, b);
+            Assert.Equal(10 + plus, bt.Value(a, u));
+        }
+    }
+
+    [Fact]
+    public void Storm_weathers_ranged_and_siege()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        a.Specials.Add(Special.Storm);
+        Add(b, "fiend");
+        var r = Add(b, "dethmold");
+        var g = Add(b, "trebuchet");
+        var bt = Start(a, b);
+        Assert.Contains(Row.Ranged, bt.Weather);
+        Assert.Contains(Row.Siege, bt.Weather);
+        Assert.DoesNotContain(Row.Close, bt.Weather);
+        Assert.Equal(1, bt.Value(b, r));
+        Assert.Equal(1, bt.Value(b, g));
+    }
+
+    [Fact]
+    public void Letho_cuts_strongest_enemy_for_the_whole_battle()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "letho");
+        var f = Add(b, "fiend", Row.Close, power: 10);
+        var r = Add(b, "dethmold", Row.Ranged, power: 6);
+        var bt = Start(a, b);
+        var o1 = Play(bt, N, N);
+        Assert.Equal(7, Val(o1, f));                         // −%30
+        var o2 = Play(bt, N, N);
+        Assert.Equal(6, Val(o2, r));
+    }
+
+    [Fact]
+    public void Cerys_calls_longships_by_tier()
+    {
+        foreach (var (n, ships) in new[] { (1, 1), (4, 2), (6, 3) })
+        {
+            var (a, b) = (Side("A", 5, null, (Tag.Sailor, n)), Side("B"));
+            Add(a, "cerys");
+            Add(b, "ghoul", power: 1);
+            Start(a, b);
+            Assert.Equal(ships, a.Units.Count(u => u.Token && u.Def.Id == "light_longship" && u.Power == Tuning.CerysShipPower));
+        }
+    }
+
+    [Fact]
+    public void Iorveth_boosts_landing_ambush()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "iorveth");
+        var h = Hide(a, "elven_skirmisher", power: 10);
+        Add(b, "sweers", Row.Siege);
+        var bt = Start(a, b);
+        var o = Play(bt, new WindowChoice(Array.Empty<Sign>(), null, h.Uid), N);
+        Assert.Equal(11.5m, Val(o, h));                      // +%15
+    }
+
+    [Fact]
+    public void Philippa_doubles_first_aard_only_at_tier_one()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "philippa", Row.Siege);
+        Add(b, "fiend", Row.Close, power: 10);
+        Add(b, "dethmold", Row.Ranged, power: 10);
+        var bt = Start(a, b);
+        var o1 = Play(bt, C(Sign.Aard), N);
+        Assert.Equal(8, o1.ValueB);                          // −%20
+        var o2 = Play(bt, C(Sign.Aard), N);
+        Assert.Equal(9, o2.ValueB);                          // −%10
+    }
+
+    [Fact]
+    public void Regis_raises_drain_in_his_row()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "regis");
+        var v = Add(a, "vampire_bruxa");                     // 5
+        var w = Add(b, "dwarven_skirmisher", power: 4);
+        var o = Play(Start(a, b), N, N);
+        Assert.Equal(1, Val(o, w));                          // −%75 (%50 + Regis %25)
+        Assert.Equal(8, Val(o, v));                          // 5 + 3
+    }
+
+    [Fact]
+    public void Menno_protects_two_then_three_with_revive()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "menno");
+        var x = Add(a, "fiend"); var y = Add(a, "dethmold"); var z = Add(a, "griffin");
+        Add(b, "ghoul", power: 1);
+        Start(a, b);
+        Assert.True(x.Protected && y.Protected);
+        Assert.False(z.Protected);
+        var (c, d) = (Side("C", 5, null, (Tag.Knight, 6)), Side("D"));
+        Add(c, "menno");
+        var p = Add(c, "fiend"); var q = Add(c, "dethmold"); var r = Add(c, "griffin"); var s4 = Add(c, "nekker");
+        Add(d, "ghoul", power: 1);
+        Start(c, d);
+        Assert.True(p.Protected && q.Protected && r.Protected);
+        Assert.True(s4.Revive);
     }
 
     [Fact]

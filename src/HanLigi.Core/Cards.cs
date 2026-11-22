@@ -8,9 +8,9 @@ public enum Tag { Monster, Soldier, Mage, Bandit, Noble, Dwarf, Sailor, Knight, 
 public enum Ability { None, Bond, Growth, Morale, Spy, Bard, Treasure, Ambush, Revenge, Zeal, Summon, Medic, DeathEcho, Mirror, Plunder, Berserk, RowScorch, Challenge, Drain, Trio }
 
 /// <summary>Özel kartlar: gücü yok, slot tüketir, etikete sayılmaz.</summary>
-public enum Special { None, Frost, Fog, Rain, Scorch, Horn, Shield, Mardroeme }
+public enum Special { None, Frost, Fog, Rain, Scorch, Horn, Shield, Mardroeme, Storm }
 
-public enum Hero { None, Geralt, Ciri, Yennefer, Triss, Jaskier, Vesemir, Zoltan, Eredin }
+public enum Hero { None, Geralt, Ciri, Yennefer, Triss, Jaskier, Vesemir, Zoltan, Eredin, Letho, Cerys, Iorveth, Philippa, Regis, Menno }
 
 /// <summary>Witcher işaretleri (v0: Axii yok, §7.13).</summary>
 public enum Sign { Aard, Igni, Quen, Yrden }
@@ -150,6 +150,7 @@ public static class CardSet
         S("shield", "Kalkan Alayı", 4, Special.Shield, "decoy");
         S("scorch", "Kavurma", 4, Special.Scorch, "scorch");
         S("mardroeme", "Mardroeme", 3, Special.Mardroeme, "mardroeme");
+        S("storm", "Skellige Fırtınası", 4, Special.Storm, "skellige_storm");
         // ---- Kahramanlar (18-22; evolve olmaz) ----
         H("geralt", "Rivyalı Geralt", 22, Row.Close, Hero.Geralt, "geralt_of_rivia", Tag.Soldier);
         H("ciri", "Cirilla", 20, Row.Close, Hero.Ciri, "cirilla_fiona_elen_riannon", Tag.Bandit, Ability.Ambush);
@@ -159,6 +160,13 @@ public static class CardSet
         H("vesemir", "Vesemir", 20, Row.Close, Hero.Vesemir, "vesemir", Tag.Soldier);
         H("zoltan", "Zoltan Chivay", 19, Row.Close, Hero.Zoltan, "zoltan_chivay", Tag.Dwarf);
         H("eredin", "Eredin", 21, Row.Close, Hero.Eredin, "imlerith", Tag.Monster);
+        // Faz 3 (2026-11-23)
+        H("letho", "Gulet'li Letho", 21, Row.Close, Hero.Letho, "letho_of_gulet", Tag.Soldier);
+        H("cerys", "Cerys", 19, Row.Close, Hero.Cerys, "cerys", Tag.Sailor);
+        H("iorveth", "Iorveth", 20, Row.Ranged, Hero.Iorveth, "iorveth", Tag.Bandit);
+        H("philippa", "Philippa Eilhart", 19, Row.Ranged, Hero.Philippa, "philippa_eilhart", Tag.Mage);
+        H("regis", "Regis", 19, Row.Close, Hero.Regis, "emiel_regis_rohellec_terzieff", Tag.Vampire);
+        H("menno", "Menno Coehoorn", 20, Row.Close, Hero.Menno, "menno_coehoorn", Tag.Knight, Ability.Medic);
     }
 }
 
@@ -275,8 +283,8 @@ public static class Tuning
     /// <summary>Seviyeye göre yuva başına kahraman olasılığı.</summary>
     /// <summary>Her maçta rastgele açık sınıf sayısı (alt havuz; kapalı sınıfın kartları ve kahramanları markete gelmez). Sınıf sayısını aşarsa hepsi açık.</summary>
     public static int ActiveClasses = 6;
-    /// <summary>Yağma: kazanılan satırdaki Yağma kartı başına altın (Denizci 2. eşikte 2) ve savaş başına üst sınır.</summary>
-    public const int PlunderCap = 2, PlunderCapSailor = 4;
+    /// <summary>Yağma: kazanılan satırdaki Yağma kartı başına 1 altın, savaş başına üst sınır.</summary>
+    public const int PlunderCap = 2;
     /// <summary>Yakıcı: rakibin aynı satırının toplamı en az bu kadarsa en güçlü birimi yanar.</summary>
     public const int RowScorchMin = 10;
     /// <summary>Dönüşüm: Mardroeme ile Berserker gücü çarpanı.</summary>
@@ -296,6 +304,13 @@ public static class Tuning
     public static readonly int[] JaskierUses = { 1, 2, 3 };
     public static readonly double[] GeraltRow = { 0, 0.10, 0.20 };
     public static readonly double[] CiriRow = { 0, 0.15, 0.30 };
+    public static readonly double[] LethoPct = { 0.30, 0.45, 0.60 };
+    public static readonly int[] CerysShips = { 1, 2, 3 };
+    public const int CerysShipPower = 4;
+    public static readonly double[] IorvethPct = { 0.15, 0.25, 0.40 };
+    public static readonly int[] PhilippaAards = { 1, 2, 99 };
+    public static readonly double[] RegisPct = { 0.25, 0.50, 0.75 };
+    public static readonly int[] MennoProtect = { 2, 3, 3 };
     public static readonly double[] SpyRate = { 0.20, 0.35, 0.50 };
 
     public static int Slots(int level) => Math.Min(10, level + 2);
@@ -486,6 +501,7 @@ public static class Texts
         Special.Scorch => "Kavurma: iki sahadaki en güçlü birim(ler) savaş başında yok olur.",
         Special.Horn => "Boynuz: seçtiğin satıra +%50.",
         Special.Shield => "Kalkan: seçtiğin satırını hava ve Kavurma'dan korur.",
+        Special.Storm => "Skellige Fırtınası: iki tarafın Menzilli ve Kuşatma satırlarındaki birimler 1 olur.",
         Special.Mardroeme => "Mardroeme: savaş başında sahandaki Berserker'lar dönüşür (gücü ×3). Berserker yoksa etkisiz.",
         _ => ""
     };
@@ -500,6 +516,12 @@ public static class Texts
         Hero.Vesemir => "Satırını kaybedersen Öfke +2 (+1 yerine).",
         Hero.Zoltan => "Satırındaki Cüceler bombalardan etkilenmez.",
         Hero.Eredin => "Savaş başında rakibin rastgele bir satırındaki birimler −%30.",
+        Hero.Letho => "Savaş başında rakibin en güçlü birimi bütün savaş boyunca −%30.",
+        Hero.Cerys => "Savaş başında satırına 4 güçlü bir Uzun Gemi çağırır.",
+        Hero.Iorveth => "Pusudan inen birimlerin +%15.",
+        Hero.Philippa => "Savaştaki ilk Aard'ının etkisi iki kat.",
+        Hero.Regis => "Satırındaki Vampirlerin Kan Emme oranı +%25.",
+        Hero.Menno => "Şifacı: en güçlü iki birimini hava, Kavurma ve Igni'den korur.",
         _ => ""
     };
 
@@ -514,6 +536,12 @@ public static class Texts
         Hero.Vesemir => new[] { "Satırını kaybedersen Öfke +3 (üst sınır +1 daha).", "Satırını kaybedersen Öfke +4 (üst sınır +1 daha)." },
         Hero.Zoltan => new[] { "Tüm Cüceler (hangi satırda olursa) bombalardan etkilenmez.", "Satırındaki bütün birimler bombalardan etkilenmez." },
         Hero.Eredin => new[] { "Rakibin satırı −%40.", "Rakibin satırı −%50." },
+        Hero.Letho => new[] { "En güçlü birim −%45.", "En güçlü birim −%60." },
+        Hero.Cerys => new[] { "İki Uzun Gemi.", "Üç Uzun Gemi." },
+        Hero.Iorveth => new[] { "Pusudan inenler +%25.", "Pusudan inenler +%40." },
+        Hero.Philippa => new[] { "İlk iki Aard iki kat.", "Her Aard iki kat." },
+        Hero.Regis => new[] { "Kan Emme +%50.", "Kan Emme +%75." },
+        Hero.Menno => new[] { "Üç birimi korur.", "Üç birimi korur, ayrıca bir birime diriliş (yanarsa yarı güçle döner)." },
         _ => new[] { "", "" }
     };
 
@@ -525,7 +553,7 @@ public static class Texts
         Tag.Mage => new[] { "İşaretler +%25", "+1 Odak, işaretler +%50", "Savaş başına bir işaret bedava" },
         Tag.Bandit => new[] { "Pusu yeri 3 kart", "Pusudan inen +%25", "Pusudan inen +%50 · Pusu Yrden'den etkilenmez" },
         Tag.Noble => new[] { "İlk yenileme bedava", "Round başı +1 altın", "Round başı +3 altın" },
-        Tag.Sailor => new[] { "İlk pencerede Denizciler +%30", "Yağma satır başına +2 altın", "Denizciler +2, ilk pencerede +%50" },
+        Tag.Sailor => new[] { "İlk pencerede Denizciler +%30", "Denizciler +2", "Denizciler +3, ilk pencerede +%50" },
         Tag.Knight => new[] { "Şövalyeler Igni ve bombalardan yarı etkilenir", "Şövalyeler +2", "Şövalye satırlarına +%15, Igni ve bombalara bağışık" },
         Tag.Vampire => new[] { "Kan Emme %75", "Yanan Vampir yarı güçle döner", "Kan Emme iki hedeften" },
         _ => new[] { "Cüceler bombalardan yarı etkilenir", "Cüceler +1, Kavurma'dan korunur", "Cücelerin satırına +%20" }

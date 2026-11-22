@@ -426,7 +426,10 @@ public sealed class Match
     public static bool Aimable(CardDef d) => d.Special is Special.Horn or Special.Shield;
 
     /// <summary>Hava kartının etkilediği satır (Ayaz yakın, Sis menzilli, Yağmur kuşatma); yoksa null.</summary>
-    public static Row? WeatherRow(Special s) => s switch { Special.Frost => HanLigi.Row.Close, Special.Fog => HanLigi.Row.Ranged, Special.Rain => HanLigi.Row.Siege, _ => null };
+    /// <summary>Hava kartının (masada gösterildiği) satırı; Fırtına Menzilli'de durur.</summary>
+    public static Row? WeatherRow(Special s) => s switch { Special.Frost => HanLigi.Row.Close, Special.Fog => HanLigi.Row.Ranged, Special.Rain => HanLigi.Row.Siege, Special.Storm => HanLigi.Row.Ranged, _ => null };
+    /// <summary>Hava kartının etkilediği bütün satırlar (Fırtına: Menzilli ve Kuşatma).</summary>
+    public static Row[] WeatherRows(Special s) => s == Special.Storm ? new[] { HanLigi.Row.Ranged, HanLigi.Row.Siege } : WeatherRow(s) is { } r ? new[] { r } : Array.Empty<Row>();
 
     /// <summary>
     /// Kart taşınabilir mi. Masa sınırı (<see cref="PlayerState.Slots"/>) satırları ve özel kartları sayar; <b>pusu sayılmaz</b>

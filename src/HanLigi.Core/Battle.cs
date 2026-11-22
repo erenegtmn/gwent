@@ -14,6 +14,8 @@ public sealed class BattleUnit
     public bool Summoned { get; init; }
     /// <summary>Bu pencerede pusudan indi (Ciri muafiyeti, Haydut 3. eşik bonusu).</summary>
     public bool Landed { get; set; }
+    /// <summary>Bütün savaş boyunca her pencerede uygulanan kart yüzdesi (Letho).</summary>
+    public double StartPct { get; set; }
     public bool IsHero => Def.IsHero;
     public bool Has(Tag t) => !Token && Def.Has(t);
 }
@@ -61,6 +63,7 @@ public sealed class BattleSide
     public int Rage { get; set; }
     /// <summary>Bu savaşta Yağma ile kazanılan altın (sonuçta oyuncuya eklenir).</summary>
     public int Plunder { get; set; }
+    public int PhilippaUses { get; set; }
     public int Points { get; set; }
     public decimal Total { get; set; }
     public int JaskierUses { get; set; }
@@ -178,7 +181,7 @@ public sealed class Battle
         if (u.Has(Tag.Monster)) v += s.Th(Tag.Monster);
         if (u.Has(Tag.Soldier) && s.Th(Tag.Soldier) >= 3) v += 2;
         if (u.Has(Tag.Dwarf) && s.Th(Tag.Dwarf) >= 2) v += 1;
-        if (u.Has(Tag.Sailor) && s.Th(Tag.Sailor) >= 3) v += 2;
+        if (u.Has(Tag.Sailor) && s.Th(Tag.Sailor) >= 2) v += s.Th(Tag.Sailor) >= 3 ? 3 : 2;
         if (u.Has(Tag.Knight) && s.Th(Tag.Knight) >= 2) v += 2;
         if (mirror && !u.Token && u.Def.Ability == Ability.Mirror)
         {
@@ -249,12 +252,21 @@ public sealed class Battle
                     PreLog.Add($"{s.Name}: {c.Def.Name} depodan bir eşini çağırdı.");
                 }
             }
+            // 1b. Cerys: satırına Uzun Gemi jetonları
+            if (s.Units.FirstOrDefault(u => u.Def.Hero == Hero.Cerys) is { } cerys)
+            {
+                var ships = Tuning.CerysShips[Math.Max(0, s.HeroTier(Hero.Cerys))];
+                for (var k = 0; k < ships; k++)
+                    s.Units.Add(new BattleUnit { Uid = _nextUid++, Def = CardSet.Get("light_longship"), Power = Tuning.CerysShipPower, Row = cerys.Row, Token = true, Summoned = true });
+                PreLog.Add($"{s.Name}: Cerys {ships} Uzun Gemi çağırdı.");
+            }
             // 2. Şifacı korumaları (v0'da hedef otomatik: en güçlü kahraman olmayan birimler)
             foreach (var m in s.Units.Where(u => u.Def.Ability == Ability.Medic).ToList())
             {
-                var n = m.Star >= 2 ? 2 : 1;
+                var mt = m.Def.Hero == Hero.Menno ? Math.Max(0, s.HeroTier(Hero.Menno)) : -1;
+                var n = mt >= 0 ? Tuning.MennoProtect[mt] : m.Star >= 2 ? 2 : 1;
                 foreach (var t in s.Units.Where(u => !u.IsHero && !u.Protected).OrderByDescending(u => u.Power).Take(n)) t.Protected = true;
-                if (m.Star >= 3 && s.Units.Where(u => !u.IsHero && !u.Protected).OrderByDescending(u => u.Power).FirstOrDefault() is { } rv) rv.Revive = true;
+                if ((m.Star >= 3 || mt >= 2) && s.Units.Where(u => !u.IsHero && !u.Protected).OrderByDescending(u => u.Power).FirstOrDefault() is { } rv) rv.Revive = true;
             }
         }
         // 2b. Mardroeme: Berserker'lar dönüşür
@@ -269,8 +281,8 @@ public sealed class Battle
         foreach (var s in Sides)
             foreach (var sp in s.Specials)
             {
-                Row? r = sp switch { Special.Frost => Row.Close, Special.Fog => Row.Ranged, Special.Rain => Row.Siege, _ => null };
-                if (r is { } row && Weather.Add(row)) { PreLog.Add($"{s.Name} hava açtı: {Texts.Name(row)} satırı (iki taraf)."); PreFx.Add(new FxEvent("weather", Array.IndexOf(Sides, s), (int)row)); }
+                foreach (var row in Match.WeatherRows(sp))
+                    if (Weather.Add(row)) { PreLog.Add($"{s.Name} hava açtı: {Texts.Name(row)} satırı (iki taraf)."); PreFx.Add(new FxEvent("weather", Array.IndexOf(Sides, s), (int)row)); }
             }
         // 4. Kavurma
         var scorches = Sides.Sum(s => s.Count(Special.Scorch));
@@ -313,6 +325,16 @@ public sealed class Battle
                 Sides[1 - i].EredinRow = r;
                 Sides[1 - i].EredinPct = ep;
                 PreLog.Add($"Eredin: {Sides[1 - i].Name} tarafının {Texts.Name(r)} satırı −%{Texts.Pct(ep * 100)}.");
+            }
+            if (s.HasHero(Hero.Letho))
+            {
+                var o = Sides[1 - i];
+                var lp = Tuning.LethoPct[Math.Max(0, s.HeroTier(Hero.Letho))];
+                if (o.Units.Where(u => !u.IsHero && !u.Protected && !(u.Has(Tag.Knight) && o.Th(Tag.Knight) >= 3)).OrderByDescending(u => Value(o, u)).FirstOrDefault() is { } lt)
+                {
+                    lt.StartPct -= lp;
+                    PreLog.Add($"Letho: {o.Name} tarafında {lt.Def.Name} bütün savaş −%{Texts.Pct(lp * 100)}.");
+                }
             }
             s.Focus = Math.Min(Tuning.FocusCap, Tuning.StartFocus + s.Units.Count(u => !u.Token && u.Def.Ability == Ability.Bard)
                       + (s.School == HanLigi.School.Wolf ? 1 : 0) + (s.Th(Tag.Mage) >= 2 ? 1 : 0));
@@ -467,6 +489,7 @@ public sealed class Battle
                 u.Landed = true;
                 s.Units.Add(u);
                 if (s.Th(Tag.Bandit) >= 2) Pct(u, s.Th(Tag.Bandit) >= 3 ? 0.5 : 0.25);
+                if (s.HasHero(Hero.Iorveth) && !u.IsHero) Pct(u, Tuning.IorvethPct[Math.Max(0, s.HeroTier(Hero.Iorveth))]);
                 if (sealedLanding || (yrden[1 - i] && Tuning.YrdenMode == 4 && chosen.Contains(u.Uid))) Pct(u, -Tuning.YrdenAmbushPct);
                 log.Add($"{s.Name} pusudan {u.Def.Name} indirdi.");
                 fx.Add(new FxEvent("ambush", i, u.Uid));
@@ -477,6 +500,9 @@ public sealed class Battle
                 log.Add($"{s.Name}: Cirilla indi, satırındaki birimler +%{Texts.Pct(cp * 100)}.");
             }
         }
+        // Letho'nun savaş boyu yüzdesi
+        foreach (var sd in Sides)
+            foreach (var u in sd.In(row).Where(u => u.StartPct != 0)) Pct(u, u.StartPct);
         // 4. iksirler
         for (var i = 0; i < 2; i++)
         {
@@ -516,7 +542,15 @@ public sealed class Battle
             foreach (var sg in ch[i].Signs)
             {
                 if (sg == Sign.Aard && Tuning.YrdenBlocksAard && yrden[o]) { log.Add($"{s.Name} Aard attı; {Sides[o].Name} Yrden ile tuttu."); fx.Add(new FxEvent("aard", i, 0, true)); continue; }
-                if (sg == Sign.Aard) { foe[o] -= 0.10 * Amp(i); mods.Add((o, "Aard", -0.10 * Amp(i))); log.Add($"{s.Name} Aard: {Sides[o].Name} satırı {AmpNote(i, 10)}."); fx.Add(new FxEvent("aard", i, (int)Math.Round(0.10 * Amp(i) * 100))); }
+                if (sg == Sign.Aard)
+                {
+                    var ph = s.HasHero(Hero.Philippa) && s.PhilippaUses < Tuning.PhilippaAards[Math.Max(0, s.HeroTier(Hero.Philippa))] ? 2 : 1;
+                    if (ph == 2) s.PhilippaUses++;
+                    var ap = 0.10 * Amp(i) * ph;
+                    foe[o] -= ap; mods.Add((o, ph == 2 ? "Aard (Philippa ×2)" : "Aard", -ap));
+                    log.Add($"{s.Name} Aard: {Sides[o].Name} satırı {(ph == 2 ? $"−%{Texts.Pct(ap * 100)} (Philippa ×2)" : AmpNote(i, 10))}.");
+                    fx.Add(new FxEvent("aard", i, (int)Math.Round(ap * 100)));
+                }
                 if (sg == Sign.Quen && !ch[o].Signs.Contains(Sign.Igni)) log.Add($"{s.Name} Quen attı, boşa gitti.");
                 if (sg == Sign.Quen) fx.Add(new FxEvent("quen", i, 0, ch[o].Signs.Contains(Sign.Igni) && potion[i] != Potion.BlackBlood));
                 if (sg != Sign.Igni) continue;
@@ -541,6 +575,7 @@ public sealed class Battle
         {
             var s = Sides[i];
             var rate = s.Th(Tag.Vampire) >= 1 ? Tuning.DrainPctVampire : Tuning.DrainPct;
+            if (s.In(row).Any(u => u.Def.Hero == Hero.Regis)) rate = Math.Min(1, rate + Tuning.RegisPct[Math.Max(0, s.HeroTier(Hero.Regis))]);
             var n = s.Th(Tag.Vampire) >= 3 ? 2 : 1;
             foreach (var vmp in s.In(row).Where(u => !u.Token && u.Def.Ability == Ability.Drain).ToList())
             {
@@ -640,8 +675,7 @@ public sealed class Battle
                 var plunderers = s.In(row).Count(u => !u.Token && u.Def.Ability == Ability.Plunder);
                 if (plunderers > 0)
                 {
-                    var sailor = s.Th(Tag.Sailor) >= 2;
-                    var got = Math.Min(plunderers * (sailor ? 2 : 1), (sailor ? Tuning.PlunderCapSailor : Tuning.PlunderCap) - s.Plunder);
+                    var got = Math.Min(plunderers, Tuning.PlunderCap - s.Plunder);
                     if (got > 0) { s.Plunder += got; log.Add($"{s.Name}: Yağma +{got} altın."); fx.Add(new FxEvent("plunder", i, got)); }
                 }
                 if (s.In(row).Any(u => u.Def.Hero == Hero.Yennefer)) s.YenPending = true;

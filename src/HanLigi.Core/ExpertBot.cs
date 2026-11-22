@@ -235,8 +235,7 @@ public static class ExpertBot
         var weatherHurt = 0.0;
         foreach (var sp in s.Specials)
         {
-            Row? wr = sp switch { Special.Frost => Row.Close, Special.Fog => Row.Ranged, Special.Rain => Row.Siege, _ => null };
-            if (wr is { } r) weatherHurt += s.In(r).Where(u => !u.IsHero && !u.Protected).Sum(u => Math.Max(0, b.Value(s, u) - 1)) * 0.8;
+            foreach (var r in Match.WeatherRows(sp)) weatherHurt += s.In(r).Where(u => !u.IsHero && !u.Protected).Sum(u => Math.Max(0, b.Value(s, u) - 1)) * 0.8;
         }
         var rowBias = _b?.Row is { } br ? (double)b.PlainRow(0, br) * 0.6 : 0;
         return rows[0] * K.Top + rows[1] * K.Second + rows[2] * K.Third + ambush + rowBias - weatherHurt;
