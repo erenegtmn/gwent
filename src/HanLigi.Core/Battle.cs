@@ -431,13 +431,20 @@ public sealed class Battle
         BattleUnit? Strongest(int side, IEnumerable<BattleUnit>? skip = null) =>
             Sides[side].In(row).Where(u => !u.IsHero && !u.Protected && skip?.Contains(u) != true)
                 .OrderByDescending(u => Value(Sides[side], u, noWeather[side]) * (1 + card.GetValueOrDefault(u))).FirstOrDefault();
-        double Amp(int side) => 1 + (Sides[side].School == HanLigi.School.Griffin ? 0.5 : 0) + (Sides[side].Th(Tag.Mage) >= 2 ? 0.5 : Sides[side].Th(Tag.Mage) >= 1 ? 0.25 : 0);
+        double Amp(int side) => Texts.SignAmp(Sides[side].School, Sides[side].Th(Tag.Mage)).Amp;
+        string AmpNote(int side, double basePct)
+        {
+            var (a, why) = Texts.SignAmp(Sides[side].School, Sides[side].Th(Tag.Mage));
+            return Texts.Live(basePct, a, why);
+        }
         double Bomb(int side, BattleUnit target, int victim)
         {
             var v = Sides[victim];
             if (target.Has(Tag.Dwarf) && v.In(row).Any(u => u.Def.Hero == Hero.Zoltan)) return 0;
             return (Sides[side].School == HanLigi.School.Viper ? 1.25 : 1) * (target.Has(Tag.Dwarf) && v.Th(Tag.Dwarf) >= 1 ? 0.5 : 1);
         }
+        static string BombNote(double basePct, double f) =>
+            f <= 0 ? "etkisiz (Zoltan)" : Math.Abs(f - 1) < 1e-9 ? $"−%{Texts.Pct(basePct)}" : $"−%{Texts.Pct(basePct * f)} (−%{Texts.Pct(basePct)} × {Texts.Pct(f)})";
         // 2 + 5. işaretler
         for (var i = 0; i < 2; i++)
         {
@@ -446,7 +453,7 @@ public sealed class Battle
             foreach (var sg in ch[i].Signs)
             {
                 if (sg == Sign.Aard && Tuning.YrdenBlocksAard && yrden[o]) { log.Add($"{s.Name} Aard attı; {Sides[o].Name} Yrden ile tuttu."); fx.Add(new FxEvent("aard", i, 0, true)); continue; }
-                if (sg == Sign.Aard) { foe[o] -= 0.10 * Amp(i); mods.Add((o, "Aard", -0.10 * Amp(i))); log.Add($"{s.Name} Aard: {Sides[o].Name} satırı −%{0.10 * Amp(i) * 100:0}."); fx.Add(new FxEvent("aard", i, (int)Math.Round(0.10 * Amp(i) * 100))); }
+                if (sg == Sign.Aard) { foe[o] -= 0.10 * Amp(i); mods.Add((o, "Aard", -0.10 * Amp(i))); log.Add($"{s.Name} Aard: {Sides[o].Name} satırı {AmpNote(i, 10)}."); fx.Add(new FxEvent("aard", i, (int)Math.Round(0.10 * Amp(i) * 100))); }
                 if (sg == Sign.Quen && !ch[o].Signs.Contains(Sign.Igni)) log.Add($"{s.Name} Quen attı, boşa gitti.");
                 if (sg == Sign.Quen) fx.Add(new FxEvent("quen", i, 0, ch[o].Signs.Contains(Sign.Igni) && potion[i] != Potion.BlackBlood));
                 if (sg != Sign.Igni) continue;
@@ -454,7 +461,7 @@ public sealed class Battle
                 if (potion[o] == Potion.BlackBlood) { victim = i; log.Add($"{s.Name} Igni attı; Kara Kan onu kendisine yansıttı."); }
                 else if (ch[o].Signs.Contains(Sign.Quen)) { quenBlocks[o]++; log.Add($"{s.Name} Igni attı; {Sides[o].Name} Quen ile engelledi."); fx.Add(new FxEvent("igni", i, 0, true)); continue; }
                 else victim = o;
-                if (Strongest(victim) is { } t) { Pct(t, -0.5 * Amp(i)); if (victim == o) log.Add($"{s.Name} Igni: {t.Def.Name} −%{0.5 * Amp(i) * 100:0}."); fx.Add(new FxEvent(victim == o ? "igni" : "igni_reflect", i, t.Uid)); }
+                if (Strongest(victim) is { } t) { Pct(t, -0.5 * Amp(i)); if (victim == o) log.Add($"{s.Name} Igni: {t.Def.Name} {AmpNote(i, 50)}."); fx.Add(new FxEvent(victim == o ? "igni" : "igni_reflect", i, t.Uid)); }
                 else { log.Add($"{s.Name} Igni attı ama hedef yok."); fx.Add(new FxEvent("igni", i)); }
             }
         }
@@ -466,16 +473,18 @@ public sealed class Battle
             {
                 var a = Strongest(o);
                 var b = a == null ? null : Strongest(o, new[] { a });
-                foreach (var t in new[] { a, b }) if (t != null) { Pct(t, -0.30 * Bomb(i, t, o)); fx.Add(new FxEvent("dancingstar", i, t.Uid)); }
+                var hit = new List<string>();
+                foreach (var t in new[] { a, b }) if (t != null) { var bm = Bomb(i, t, o); Pct(t, -0.30 * bm); hit.Add($"{t.Def.Name} {BombNote(30, bm)}"); fx.Add(new FxEvent("dancingstar", i, t.Uid)); }
                 if (a == null) fx.Add(new FxEvent("dancingstar", i));
-                log.Add($"{Sides[i].Name}: Dans Eden Yıldız ({(a == null ? "hedef yok" : b == null ? a.Def.Name : a.Def.Name + ", " + b.Def.Name)}).");
+                log.Add($"{Sides[i].Name}: Dans Eden Yıldız ({(hit.Count == 0 ? "hedef yok" : string.Join(", ", hit))}).");
             }
             if (potion[i] == Potion.NorthernWind)
             {
                 var t = Strongest(o);
-                if (t != null) Pct(t, -0.70 * Bomb(i, t, o));
+                var nb = t == null ? 1 : Bomb(i, t, o);
+                if (t != null) Pct(t, -0.70 * nb);
                 fx.Add(new FxEvent("northernwind", i, t?.Uid ?? 0));
-                log.Add($"{Sides[i].Name}: Kuzey Rüzgârı ({t?.Def.Name ?? "hedef yok"}).");
+                log.Add($"{Sides[i].Name}: Kuzey Rüzgârı ({(t == null ? "hedef yok" : $"{t.Def.Name} {BombNote(70, nb)}")}).");
             }
             if (potion[i] == Potion.BlackBlood && !ch[o].Signs.Contains(Sign.Igni)) log.Add($"{Sides[i].Name} Kara Kan içti, boşa gitti.");
             if (potion[i] == Potion.BlackBlood) fx.Add(new FxEvent("blackblood", i, 0, ch[o].Signs.Contains(Sign.Igni)));

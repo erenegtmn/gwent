@@ -275,22 +275,102 @@ public static class Texts
         _ => "Simya seçimi 2. round'dan başlar, 2 yerine 3 karttan yaparsın ve üç simya kartı taşıyabilirsin."
     };
 
-    public static string Describe(Potion p) => p switch
-    {
-        Potion.Thunderbolt => "İksir: bu satırına +%25.",
-        Potion.Swallow => "İksir: bu satırındaki hava etkisini kaldırır.",
-        Potion.BlackBlood => "İksir: bu pencerede sana atılan Igni rakibin kendi satırına yansır.",
-        Potion.DancingStar => "Bomba: rakibin bu satırdaki en güçlü iki kartı −%30.",
-        _ => "Bomba: rakibin bu satırdaki en güçlü kartı −%70."
-    };
+    public static string Describe(Potion p) => Describe(p, null);
 
-    public static string Describe(Sign s) => s switch
+    public static string Describe(Sign s) => Describe(s, null, 0);
+
+    /// <summary>Yüzdeyi okunur yazar: 87,5 → "87,5", 50 → "50".</summary>
+    public static string Pct(double v) => (Math.Round(v, 1)).ToString("0.#", System.Globalization.CultureInfo.GetCultureInfo("tr-TR"));
+
+    /// <summary>
+    /// Okul ve Büyücü eşiğinden gelen etki büyütücü: Aard, Igni (okul + Büyücü) ve bombalar (Engerek) buna göre değişir.
+    /// <c>Amp</c> çarpandır (1 = büyütücü yok); <c>Why</c> kaynakları sayar ("Griffin +%50, Büyücü 1. eşik +%25").
+    /// </summary>
+    public static (double Amp, string Why) SignAmp(School? school, int mageLevel)
     {
-        Sign.Aard => "1 Odak · Rakibin bu satırı −%10. Kahramanlara da işler; Yrden tutar.",
-        Sign.Igni => "2 Odak · Rakibin bu satırdaki en güçlü kartı −%50. Quen engeller.",
-        Sign.Quen => "1 Odak · Sana atılan Igni'yi engeller; engellerse Odak geri gelir.",
-        _ => "1 Odak · Rakibin bu penceredeki Aard'ını keser; pusudan inmek isteyen kartı bu satırda indirmez (sonra inebilir).",
-    };
+        var parts = new List<string>();
+        var amp = 1.0;
+        if (school == School.Griffin) { amp += 0.5; parts.Add("Griffin +%50"); }
+        if (mageLevel >= 1) { var m = mageLevel >= 2 ? 0.5 : 0.25; amp += m; parts.Add($"Büyücü {mageLevel}. eşik +%{m * 100:0}"); }
+        return (amp, string.Join(", ", parts));
+    }
+
+    /// <summary>Bir yüzdenin güncel hâli: büyütücü yoksa "−%50", varsa "−%87,5 (−%50 × 1,75: Griffin +%50, ...)".</summary>
+    public static string Live(double basePct, double amp, string why, string sign = "−")
+    {
+        var now = basePct * amp;
+        return Math.Abs(amp - 1) < 1e-9 ? $"{sign}%{Pct(now)}" : $"{sign}%{Pct(now)} ({sign}%{Pct(basePct)} × {Pct(amp)}: {why})";
+    }
+
+    /// <summary>
+    /// İşaretin bu oyuncu için GÜNCEL etkisi. Okul ve Büyücü eşiği sayıları değiştirir; değişen her sayı hesabıyla yazılır.
+    /// </summary>
+    public static string Describe(Sign s, School? school, int mageLevel)
+    {
+        var (amp, why) = SignAmp(school, mageLevel);
+        return s switch
+        {
+            Sign.Aard => $"1 Odak · Rakibin bu satırı {Live(10, amp, why)}. Kahramanlara da işler; Yrden tutar.",
+            Sign.Igni => $"2 Odak · Rakibin bu satırdaki en güçlü kartı {Live(50, amp, why)}. Quen engeller; Kara Kan kendine yansıtır.",
+            Sign.Quen => "1 Odak · Sana atılan Igni'yi engeller; engellerse Odak geri gelir.",
+            _ => "1 Odak · Rakibin bu penceredeki Aard'ını keser; pusudan inmek isteyen kartı bu satırda indirmez (sonra inebilir).",
+        };
+    }
+
+    /// <summary>
+    /// İksir / bombanın güncel etkisi. <paramref name="foeDwarf"/>: rakipte Cüce eşiği var (Cüce hedeflere bomba yarı etki),
+    /// <paramref name="foeZoltan"/>: rakibin satırında Zoltan var (Cüce hedeflere bomba işlemez).
+    /// </summary>
+    public static string Describe(Potion p, School? school, bool foeDwarf = false, bool foeZoltan = false)
+    {
+        var f = school == School.Viper ? 1.25 : 1.0;
+        var why = "Engerek ×1,25";
+        string Dw() => foeZoltan ? " Rakibin Zoltan'ı satırdaysa Cüce kartlara işlemez." : foeDwarf ? " Rakibin Cüce eşiği açık: Cüce kartlara yarı etki." : "";
+        return p switch
+        {
+            Potion.Thunderbolt => "İksir: bu satırına +%25.",
+            Potion.Swallow => "İksir: bu satırındaki hava etkisini kaldırır.",
+            Potion.BlackBlood => "İksir: bu pencerede sana atılan Igni rakibin kendi satırına yansır.",
+            Potion.DancingStar => $"Bomba: rakibin bu satırdaki en güçlü iki kartı {Live(30, f, why)}." + Dw(),
+            _ => $"Bomba: rakibin bu satırdaki en güçlü kartı {Live(70, f, why)}." + Dw()
+        };
+    }
+
+    /// <summary>
+    /// Kartın bu an geçerli yüzdeleri (kart bilgi paneli "Şu an" bölümü). <paramref name="prev"/>: önceki satırın sonucu
+    /// (+1 kazandın, −1 kaybettin, 0 ilk satır/berabere); <paramref name="eredinRow"/>: rakibin Eredin'i senin hangi satırını vurdu;
+    /// <paramref name="foeEredinRow"/>: senin Eredin'in rakibin hangi satırını vurdu; <paramref name="banditLevel"/>: Haydut eşiği.
+    /// </summary>
+    public static List<string> LiveNotes(CardDef d, int? prev, Row? eredinRow, Row? foeEredinRow, int banditLevel)
+    {
+        var l = new List<string>();
+        if (!d.IsUnit) return l;
+        if (!d.IsHero && prev != null)
+        {
+            if (d.Ability == Ability.Revenge)
+                l.Add(prev < 0 ? "İntikam AKTİF: önceki satırı kaybettin, bu satırda +%50." : "İntikam pasif: önceki satırı kaybedersen +%50 (şu an +%0).");
+            if (d.Ability == Ability.Zeal)
+                l.Add(prev > 0 ? "Coşku AKTİF: önceki satırı kazandın, bu satırda +%30." : "Coşku pasif: önceki satırı kazanırsan +%30 (şu an +%0).");
+        }
+        if (d.Ability == Ability.Ambush && banditLevel >= 2 && !d.IsHero)
+            l.Add($"Haydut bonusu: pusudan inince +%{(banditLevel >= 3 ? 50 : 25)}.");
+        if (d.Hero == Hero.Eredin && foeEredinRow is { } fr)
+            l.Add($"Eredin bu savaş: rakibin {Name(fr)} satırındaki birimler −%30.");
+        if (!d.IsHero && eredinRow is { } er)
+            l.Add($"Rakibin Eredin'i bu savaş senin {Name(er)} satırını vurdu: o satırdaki kahraman olmayan birimler −%30 (bu kart oradaysa).");
+        return l;
+    }
+
+    /// <summary>Okulun açıklaması ve bu okulla bu an geçerli sayılar (varsa).</summary>
+    public static string DescribeLive(School s, int mageLevel)
+    {
+        var d = Describe(s);
+        if (s != School.Griffin && s != School.Viper) return d;
+        var (amp, why) = SignAmp(s, mageLevel);
+        return s == School.Griffin
+            ? d + $"\nŞu an: Aard {Live(10, amp, why)}, Igni {Live(50, amp, why)}."
+            : d + $"\nŞu an: Dans Eden Yıldız −%{Pct(30 * 1.25)}, Kuzey Rüzgârı −%{Pct(70 * 1.25)}.";
+    }
 
     public static string Describe(Ability a) => a switch
     {

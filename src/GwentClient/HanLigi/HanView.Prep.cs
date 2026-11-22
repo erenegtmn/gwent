@@ -376,7 +376,7 @@ public sealed partial class HanView
                 Me.RewardOptions.Select((d, i) => ((FrameworkElement)CardEl(d, 1, 200, "han-reward:" + i, () => Do(() => Session.Act(HanActKind.Reward, i), "han_buy"), named: true, aspect: 1.34), "")).ToList());
         else if (Me.PotionOptions.Length > 0)
             DrawChoice("Simya kartını seç", "Savaşta, bir satır açılmadan önce oynarsın. Tek kullanımlık.",
-                Me.PotionOptions.Select((p, i) => ((FrameworkElement)Bare(HanArt.IconToken(HanArt.PotionIcon(p), 150, false, HT.Name(p)[..1]), "han-potion:" + i, () => Do(() => Session.Act(HanActKind.Potion, i), "han_drink")), HT.Name(p) + "\n" + HT.Describe(p))).ToList());
+                Me.PotionOptions.Select((p, i) => ((FrameworkElement)Bare(HanArt.IconToken(HanArt.PotionIcon(p), 150, false, HT.Name(p)[..1]), "han-potion:" + i, () => Do(() => Session.Act(HanActKind.Potion, i), "han_drink")), HT.Name(p) + "\n" + HT.Describe(p, Me.School))).ToList());
 
         // ---- canlılık ----
         if (_live)
@@ -417,7 +417,7 @@ public sealed partial class HanView
             {
                 var ic = HanArt.Icon(HanArt.PotionIcon(p), 24, "⚗");
                 ic.IsHitTestVisible = true;
-                ic.ToolTip = HT.Name(p) + "\n" + HT.Describe(p);
+                ic.ToolTip = HT.Name(p) + "\n" + HT.Describe(p, Me.School);
                 ic.Margin = new Thickness(0, -6, 2, 0);
                 pots.Children.Add(ic);
             }
@@ -780,8 +780,9 @@ public sealed partial class HanView
     private void Synergies()
     {
         var counts = Me.TagCounts();
-        Put(Caption("SİNERJİLER"), SideX + 4, 66);
-        var y = 86.0;
+        Put(SchoolBadge(Me.School, Me.Th(HTag.Mage), true), SideX, 64);
+        Put(Caption("SİNERJİLER"), SideX + 4, 134);
+        var y = 154.0;
         var any = false;
         foreach (var t in Enum.GetValues<HTag>().OrderByDescending(t => counts.GetValueOrDefault(t)).ThenBy(t => t))
         {

@@ -519,6 +519,15 @@ public sealed partial class HanView : Grid
         else if (d.Ability != Ability.None) Section(HanCardView.Keyword(d), HT.Describe(d.Ability), HanCardView.AbilityIcon(d), HanUi.Br(Color.FromRgb(0xff, 0xe2, 0xa0)));
         else if (d.Agile) Section("Çevik", "Yakın ya da Menzilli satıra konabilir.", HanCardView.AbilityIcon(d), HanUi.Br(Color.FromRgb(0xff, 0xe2, 0xa0)));
 
+        // bu an geçerli yüzdeler (İntikam, Coşku, Eredin, Haydut)
+        {
+            var inBattle = _screen == Screen.Battle && Session.MyBattle != null;
+            var bs = inBattle ? B.Sides[Mine] : null;
+            var live = HT.LiveNotes(d, inBattle ? bs!.Prev : null, bs?.EredinRow, inBattle ? B.Sides[1 - Mine].EredinRow : null,
+                inBattle ? bs!.Th(global::HanLigi.Tag.Bandit) : Me.Th(global::HanLigi.Tag.Bandit));
+            if (live.Count > 0) Section("Şu an", string.Join("\n", live), null, HanUi.Br(Color.FromRgb(0x9f, 0xe8, 0xa8)));
+        }
+
         // sınıflar ve eşikleri (sahadaki sayınla)
         if (d.IsUnit && !d.IsHero && d.Tags.Length > 0)
         {
@@ -650,6 +659,36 @@ public sealed partial class HanView : Grid
 
     private static string SchoolName(School? s) => s is { } x ? HT.Name(x) : "—";
 
+    /// <summary>Oyuncu çerçevesinin köşesine konan küçük okul simgesi; üstüne gelince okulun açıklaması çıkar.</summary>
+    private static FrameworkElement SchoolPip(School? s, int mageLevel, double size, bool mine, HorizontalAlignment ha, VerticalAlignment va, Thickness margin)
+    {
+        var g = new Grid { Width = size, Height = size, Background = Brushes.Transparent, HorizontalAlignment = ha, VerticalAlignment = va, Margin = margin };
+        g.Children.Add(HanArt.SchoolMedallion(s, size, mine));
+        if (s is { } school) g.ToolTip = HT.Name(school) + " okulu\n" + HT.DescribeLive(school, mageLevel);
+        return g;
+    }
+
+    /// <summary>Seçilen okulun rozeti: amblem, ad ve kısa özet; üstüne gelince tam açıklama ve güncel sayılar.</summary>
+    private static FrameworkElement SchoolBadge(School? s, int mageLevel, bool mine)
+    {
+        var g = new Grid { Width = SideW, Height = 64, Background = Brushes.Transparent };
+        g.Children.Add(new Border
+        {
+            CornerRadius = new CornerRadius(32, 8, 8, 32), BorderThickness = new Thickness(1.5), BorderBrush = mine ? Theme.B("#c9a24b") : Theme.B("#a05a48"),
+            Background = new LinearGradientBrush(Color.FromArgb(0xe0, 0x2c, 0x20, 0x12), Color.FromArgb(0xc0, 0x0c, 0x07, 0x04), 0)
+        });
+        var med = HanArt.SchoolMedallion(s, 52, mine);
+        med.HorizontalAlignment = HorizontalAlignment.Left;
+        med.Margin = new Thickness(6, 0, 0, 0);
+        g.Children.Add(med);
+        var sp = new StackPanel { Margin = new Thickness(66, 6, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+        sp.Children.Add(new TextBlock { Text = "OKULUN", FontFamily = HanUi.Font, FontSize = HanUi.S(10), FontWeight = FontWeights.Bold, Foreground = Theme.B("#a8905a") });
+        sp.Children.Add(new TextBlock { Text = SchoolName(s), FontFamily = HanUi.Font, FontSize = HanUi.S(19), FontWeight = FontWeights.Bold, Foreground = Theme.B("#ffe9a3") });
+        g.Children.Add(sp);
+        if (s is { } school) g.ToolTip = HT.Name(school) + " okulu\n" + HT.DescribeLive(school, mageLevel);
+        return g;
+    }
+
     private string? Face(int pid) => pid == Session.Me ? Settings.Portrait : Session.FaceOf(pid);
 
     // ---------- üst şerit, oyuncu listesi ----------
@@ -735,6 +774,7 @@ public sealed partial class HanView : Grid
             port.VerticalAlignment = VerticalAlignment.Center;
             port.Margin = new Thickness(2, 0, 0, 0);
             g.Children.Add(port);
+            if (p.School != null) g.Children.Add(SchoolPip(p.School, 0, 19, me, HorizontalAlignment.Left, VerticalAlignment.Bottom, new Thickness(30, 0, 0, 0)));
             var name = new TextBlock
             {
                 Text = (foe ? "⚔ " : "") + p.Name, FontFamily = HanUi.Font, FontSize = HanUi.S(13), FontWeight = me || foe ? FontWeights.Bold : FontWeights.SemiBold, Width = 100, TextTrimming = TextTrimming.CharacterEllipsis,

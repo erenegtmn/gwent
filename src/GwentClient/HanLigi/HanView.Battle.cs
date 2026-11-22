@@ -352,7 +352,9 @@ public sealed partial class HanView
         g.Children.Add(port);
         var name = new TextBlock { Text = s.Name, FontFamily = HanUi.Font, FontSize = HanUi.S(19), FontWeight = FontWeights.Bold, Foreground = mine ? Theme.B("#ffe9a3") : Theme.B("#f0a090"), Margin = new Thickness(76, 8, 8, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         g.Children.Add(name);
-        g.Children.Add(new TextBlock { Text = $"Seviye {s.Level} · {SchoolName(s.School)}", FontFamily = HanUi.Font, FontSize = HanUi.S(12), Foreground = Theme.TextDim, Margin = new Thickness(76, 34, 0, 0) });
+        g.Children.Add(new TextBlock { Text = $"Seviye {s.Level}", FontFamily = HanUi.Font, FontSize = HanUi.S(13), FontWeight = FontWeights.SemiBold, Foreground = Theme.B("#e8d49a"), Margin = new Thickness(76, 33, 0, 0) });
+        // okul: oyuncu çerçevesinin köşesinde simge (üstüne gelince açıklama)
+        g.Children.Add(SchoolPip(s.School, s.Th(global::HanLigi.Tag.Mage), 34, mine, HorizontalAlignment.Right, VerticalAlignment.Top, new Thickness(0, 8, 8, 0)));
         // satır puanı (iki satır kazanan savaşı alır)
         var gems = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(76, 52, 0, 0), VerticalAlignment = VerticalAlignment.Top };
         for (var i = 0; i < 2; i++)
@@ -580,6 +582,7 @@ public sealed partial class HanView
     private void SignTray(Battle b, BattleSide me)
     {
         var maxSigns = b.CanDouble(Mine) ? 2 : 1;
+        var foe = b.Sides[1 - Mine];
         var x = 40.0;
         Put(Caption("İŞARETLER"), x, BarY + 10);
         foreach (var s in Enum.GetValues<Sign>())
@@ -589,7 +592,7 @@ public sealed partial class HanView
             var ok = on || b.Valid(Mine, WindowChoice.With(trial.ToArray(), _potion, _ambush));
             var cost = b.Cost(Mine, new WindowChoice(new[] { s }));
             var med = HanArt.SignMedallion(s, 104, on, ok, cost);
-            Put(Bare(med, "han-sign:" + s, () => { _signs.Clear(); _signs.AddRange(trial); Sfx.Play("han_click"); Render(); }, ok, $"{s}\n{HT.Describe(s)}"), x, BarY + 32);
+            Put(Bare(med, "han-sign:" + s, () => { _signs.Clear(); _signs.AddRange(trial); Sfx.Play("han_click"); Render(); }, ok, $"{s}\n{HT.Describe(s, me.School, me.Th(global::HanLigi.Tag.Mage))}"), x, BarY + 32);
             x += 122;
         }
         x += 24;
@@ -599,7 +602,7 @@ public sealed partial class HanView
         {
             var pp = p;
             var tok = HanArt.IconToken(HanArt.PotionIcon(p), 96, _potion == p, HT.Name(p)[..1]);
-            Put(Bare(tok, "han-use:" + p, () => { _potion = _potion == pp ? null : pp; Sfx.Play("han_click"); Render(); }, true, HT.Name(p) + "\n" + HT.Describe(p)), x, BarY + 36);
+            Put(Bare(tok, "han-use:" + p, () => { _potion = _potion == pp ? null : pp; Sfx.Play("han_click"); Render(); }, true, HT.Name(p) + "\n" + HT.Describe(p, me.School, foe.Th(global::HanLigi.Tag.Dwarf) >= 1, foe.In(b.CurrentRow).Any(u => u.Def.Hero == Hero.Zoltan))), x, BarY + 36);
             var n = me.Potions.Count(v => v == p);
             if (n > 1) Put(Txt("×" + n, 18, Theme.B("#ffd76a"), true), x + 76, BarY + 120);
             Put(new TextBlock { Text = HT.Name(p), FontFamily = HanUi.Font, FontSize = HanUi.S(12), Foreground = Theme.TextDim, Width = 96, TextAlignment = TextAlignment.Center }, x, BarY + 140);
