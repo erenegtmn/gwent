@@ -784,7 +784,8 @@ public sealed partial class HanView
         Put(Caption("SİNERJİLER"), SideX + 4, 134);
         var y = 154.0;
         var any = false;
-        foreach (var t in Enum.GetValues<HTag>().OrderByDescending(t => counts.GetValueOrDefault(t)).ThenBy(t => t))
+        // alt havuz: yalnız bu maçta açık sınıflar (ya da elinde kartı olan)
+        foreach (var t in Enum.GetValues<HTag>().Where(t => M.ActiveTags.Contains(t) || counts.GetValueOrDefault(t) > 0).OrderByDescending(t => counts.GetValueOrDefault(t)).ThenBy(t => t))
         {
             var n = counts.GetValueOrDefault(t);
             any |= n > 0;

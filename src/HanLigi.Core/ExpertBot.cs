@@ -51,6 +51,21 @@ public static class ExpertBot
         return Meta.Builds[order[pid % order.Length]];
     }
 
+    /// <summary>
+    /// Alt havuzda düzenin işe yarayan hâli: sınıfı bu maçta kapalıysa ya da satır düzeninin o satırda yeterli kartı yoksa (ör. Asker
+    /// kapalıyken Kuşatma) açık bir sınıfın düzenine geçer (koltuktan belirlenir).
+    /// </summary>
+    public static Build? Effective(Match m, int pid, Build? build)
+    {
+        if ((build?.Tag is { } bt && !m.ActiveTags.Contains(bt))
+            || (build?.Row is { } br && CardSet.All.Count(d => d.IsUnit && !d.IsHero && !d.Agile && d.Row == br && m.IsActive(d)) < 6))
+        {
+            var alt = Meta.Builds.Where(b => b.Tag is { } t && m.ActiveTags.Contains(t)).ToArray();
+            return alt.Length > 0 ? alt[pid % alt.Length] : null;
+        }
+        return build;
+    }
+
     [ThreadStatic] private static Build? _b;
 
     // ---------- hazırlık ----------
@@ -58,6 +73,7 @@ public static class ExpertBot
     public static void Prep(Match m, int pid, Random rng, Build? build)
     {
         var old = _b;
+        build = Effective(m, pid, build);
         _b = build;
         try { Prep(m, pid, rng); }
         finally { _b = old; }
@@ -121,7 +137,8 @@ public static class ExpertBot
     {
         if (!d.IsUnit) return d.Special switch { Special.Horn => 3 + p.Level * 1.2, Special.Shield => 1.5, Special.Scorch => 2, _ => 2 + p.Level * 0.3 };
         double v = Tuning.Power(d, star);
-        v += d.Ability switch { Ability.Bond => 2.5, Ability.Growth => 3, Ability.Bard => 3, Ability.Treasure => 2, Ability.Spy => 1.5, Ability.Medic => 2.5, Ability.Morale => 2.5, Ability.Ambush => 1.5, Ability.Revenge => 1.5, Ability.Zeal => 1.5, _ => 0 };
+        v += d.Ability switch { Ability.Bond => 2.5, Ability.Growth => 3, Ability.Bard => 3, Ability.Treasure => 2, Ability.Spy => 1.5, Ability.Medic => 2.5, Ability.Morale => 2.5, Ability.Ambush => 1.5, Ability.Revenge => 1.5, Ability.Zeal => 1.5, Ability.Plunder => 2, Ability.RowScorch => 2, Ability.Challenge => 1.5,
+            Ability.Berserk => p.Cards.Any(c => c.Def.Special == Special.Mardroeme) ? Tuning.Power(d, star) * (Tuning.BerserkMult - 1) : 0.5, _ => 0 };
         if (d.IsHero) v += 10;
         return v;
     }

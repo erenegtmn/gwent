@@ -74,6 +74,8 @@ public class ExpertBotTests(ITestOutputHelper output)
     [Fact]
     public void Bots_use_special_cards_and_builds_diverge()
     {
+        // 0. koltuk hep Kuşatma düzeni (alt havuzda Kuşatma kartı yetmiyorsa Effective başka düzene geçirir): yeterli örnek için
+        static ExpertBot.Build Seat(Match m, int pid) => pid == 0 ? Meta.Builds.First(b => b.Id == "siege") : ExpertBot.BuildFor(m.Seed, pid);
         var fielded = new Dictionary<Special, int>();
         double siegeShareSiege = 0, siegeShareOthers = 0;
         int nSiege = 0, nOthers = 0;
@@ -84,7 +86,7 @@ public class ExpertBotTests(ITestOutputHelper output)
             foreach (var p in m.Players) m.ChooseSchool(p.Id, p.SchoolOptions[rng.Next(3)]);
             for (var guard = 0; guard < 80 && m.Phase != Phase.Finished; guard++)
             {
-                foreach (var p in m.Alive.ToList()) ExpertBot.Prep(m, p.Id, rng, ExpertBot.BuildFor(m.Seed, p.Id));
+                foreach (var p in m.Alive.ToList()) ExpertBot.Prep(m, p.Id, rng, Seat(m, p.Id));
                 if (m.Phase == Phase.Prep) m.ForceLock();
                 if (m.Round >= 6)
                     foreach (var p in m.Alive)
@@ -97,7 +99,7 @@ public class ExpertBotTests(ITestOutputHelper output)
                         var tot = units.Sum(c => c.Power);
                         if (tot == 0) continue;
                         var share = units.Where(c => c.Row == Row.Siege).Sum(c => c.Power) / (double)tot;
-                        if (ExpertBot.BuildFor(m.Seed, p.Id).Id == "siege") { siegeShareSiege += share; nSiege++; }
+                        if (ExpertBot.Effective(m, p.Id, Seat(m, p.Id))?.Id == "siege") { siegeShareSiege += share; nSiege++; }
                         else { siegeShareOthers += share; nOthers++; }
                     }
                 foreach (var b in m.Battles)
@@ -109,7 +111,7 @@ public class ExpertBotTests(ITestOutputHelper output)
             }
         }
         output.WriteLine("sahada özel kart (koltuk-round): " + string.Join(", ", fielded.Select(k => $"{k.Key} {k.Value}")));
-        output.WriteLine($"Kuşatma payı: Kuşatma düzeni %{100 * siegeShareSiege / nSiege:F0}, ötekiler %{100 * siegeShareOthers / nOthers:F0}");
+        output.WriteLine($"Kuşatma payı: Kuşatma düzeni %{100 * siegeShareSiege / nSiege:F0}, ötekiler %{100 * siegeShareOthers / nOthers:F0} (n={nSiege}/{nOthers})");
         Assert.True(fielded.GetValueOrDefault(Special.Horn) > 0, "Boynuz kullanılmalı");
         Assert.True(fielded.Where(k => Match.WeatherRow(k.Key) != null).Sum(k => k.Value) > 20, "hava kullanılmalı");
         Assert.True(siegeShareSiege / nSiege > siegeShareOthers / nOthers + 0.1, "Kuşatma düzeni Kuşatma satırını kurmalı");

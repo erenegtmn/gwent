@@ -64,9 +64,9 @@ public static class HanBot
     /// <summary>Bir kartın bot için değeri (güç eşdeğeri).</summary>
     private static double Worth(PlayerState p, CardDef d, int star)
     {
-        if (!d.IsUnit) return d.Special switch { Special.Horn => 4 + p.Level, Special.Scorch => 3 + p.Level * 0.5, Special.Shield => 2, _ => 1.5 + p.Level * 0.3 };
+        if (!d.IsUnit) return d.Special switch { Special.Horn => 4 + p.Level, Special.Scorch => 3 + p.Level * 0.5, Special.Shield => 2, Special.Mardroeme => p.Cards.Any(c => c.Def.Ability == Ability.Berserk) ? 3 + p.Level * 0.5 : -3, _ => 1.5 + p.Level * 0.3 };
         double v = Tuning.Power(d, star);
-        v += d.Ability switch { Ability.Bond => 2, Ability.Growth => 3, Ability.Bard => 2.5, Ability.Treasure => 2.5, Ability.Spy => 2, Ability.Medic => 2, Ability.Morale => 2, Ability.Ambush => 1, _ => 0 };
+        v += d.Ability switch { Ability.Bond => 2, Ability.Growth => 3, Ability.Bard => 2.5, Ability.Treasure => 2.5, Ability.Spy => 2, Ability.Medic => 2, Ability.Morale => 2, Ability.Ambush => 1, Ability.Plunder => 2, Ability.RowScorch => 2, Ability.Challenge => 1.5, _ => 0 };
         if (d.IsHero) v += 8;
         return v;
     }

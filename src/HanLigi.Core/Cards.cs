@@ -2,13 +2,13 @@ namespace HanLigi;
 
 public enum Row { Close, Ranged, Siege }
 
-public enum Tag { Monster, Soldier, Mage, Bandit, Noble, Dwarf }
+public enum Tag { Monster, Soldier, Mage, Bandit, Noble, Dwarf, Sailor, Knight }
 
 /// <summary>Birim yetenekleri (YENI_MOD.md §6.3).</summary>
-public enum Ability { None, Bond, Growth, Morale, Spy, Bard, Treasure, Ambush, Revenge, Zeal, Summon, Medic, DeathEcho, Mirror }
+public enum Ability { None, Bond, Growth, Morale, Spy, Bard, Treasure, Ambush, Revenge, Zeal, Summon, Medic, DeathEcho, Mirror, Plunder, Berserk, RowScorch, Challenge }
 
 /// <summary>Özel kartlar: gücü yok, slot tüketir, etikete sayılmaz.</summary>
-public enum Special { None, Frost, Fog, Rain, Scorch, Horn, Shield }
+public enum Special { None, Frost, Fog, Rain, Scorch, Horn, Shield, Mardroeme }
 
 public enum Hero { None, Geralt, Ciri, Yennefer, Triss, Jaskier, Vesemir, Zoltan, Eredin }
 
@@ -91,6 +91,27 @@ public static class CardSet
         U("yarpen_zigrin", "Yarpen Zigrin", 5, 10, Row.Close, Tag.Dwarf, Ability.Bond);
         U("tibor_eggebracht", "Tibor Eggebracht", 5, 11, Row.Ranged, Tag.Noble);
         U("fringilla_vigo", "Fringilla Vigo", 5, 10, Row.Ranged, Tag.Mage, Ability.Mirror);
+        // ---- Denizci (Skellige klanları; Faz 1, 2026-11-23) ----
+        U("clan_heymaey_skald", "Heymaey Ozanı", 1, 2, Row.Close, Tag.Sailor, Ability.Bard);
+        U("young_berserker", "Genç Berserker", 1, 2, Row.Ranged, Tag.Sailor, Ability.Berserk);
+        U("clan_drummond_shield_maiden", "Drummond Kalkan Kızı", 2, 4, Row.Close, Tag.Sailor, Ability.Bond);
+        U("light_longship", "Hafif Uzun Gemi", 2, 3, Row.Ranged, Tag.Sailor, Ability.Summon);
+        U("berserker", "Berserker", 2, 4, Row.Close, Tag.Sailor, Ability.Berserk);
+        U("clan_brokvar_archer", "Brokvar Okçusu", 3, 6, Row.Ranged, Tag.Sailor, Ability.Plunder);
+        U("clan_dimun_pirate", "Dimun Korsanı", 3, 5, Row.Ranged, Tag.Sailor, Ability.RowScorch);
+        U("clan_an_craite_warrior", "an Craite Savaşçısı", 4, 7, Row.Close, Tag.Sailor, Ability.Bond);
+        U("war_longship", "Savaş Gemisi", 4, 8, Row.Siege, Tag.Sailor, Ability.Plunder);
+        U("olaf", "Olaf", 5, 11, Row.Close, Tag.Sailor, Ability.Morale, agile: true);
+        // ---- Şövalye (Nilfgaard ve Kuzey; Faz 1) ----
+        U("nausicaa_cavalry_rider", "Nausicaa Süvarisi", 1, 2, Row.Close, Tag.Knight, Ability.Bond);
+        U("vreemde", "Vreemde", 1, 2, Row.Close, Tag.Knight);
+        U("impera_brigade_guard", "İmpera Muhafızı", 2, 3, Row.Close, Tag.Knight, Ability.Bond, tag2: Tag.Soldier);
+        U("morteisen", "Morteisen", 2, 4, Row.Close, Tag.Knight, Ability.Challenge);
+        U("rainfarn", "Rainfarn", 3, 5, Row.Close, Tag.Knight, Ability.Challenge);
+        U("ves", "Ves", 3, 5, Row.Close, Tag.Knight, Ability.Zeal, tag2: Tag.Soldier);
+        U("siegfried_of_denesle", "Denesle'li Siegfried", 4, 8, Row.Close, Tag.Knight, Ability.Challenge);
+        U("cahir_mawr_dyffryn_aep_ceallach", "Cahir", 4, 8, Row.Close, Tag.Knight, Ability.Revenge);
+        U("renuald_aep_matsen", "Renuald aep Matsen", 5, 11, Row.Ranged, Tag.Knight, Ability.Morale);
         // ---- Özel kartlar ----
         S("frost", "Dondurucu Ayaz", 3, Special.Frost, "biting_frost");
         S("fog", "Geçit Vermez Sis", 3, Special.Fog, "impenetrable_fog");
@@ -98,6 +119,7 @@ public static class CardSet
         S("horn", "Komutan Boynuzu", 3, Special.Horn, "commanders_horn");
         S("shield", "Kalkan Alayı", 4, Special.Shield, "decoy");
         S("scorch", "Kavurma", 4, Special.Scorch, "scorch");
+        S("mardroeme", "Mardroeme", 3, Special.Mardroeme, "mardroeme");
         // ---- Kahramanlar (18-22; evolve olmaz) ----
         H("geralt", "Rivyalı Geralt", 22, Row.Close, Hero.Geralt, "geralt_of_rivia", Tag.Soldier);
         H("ciri", "Cirilla", 20, Row.Close, Hero.Ciri, "cirilla_fiona_elen_riannon", Tag.Bandit, Ability.Ambush);
@@ -220,6 +242,16 @@ public static class Tuning
         new[] { 8, 12, 26, 34, 20 }, new[] { 5, 10, 22, 38, 25 }
     };
     /// <summary>Seviyeye göre yuva başına kahraman olasılığı.</summary>
+    /// <summary>Her maçta rastgele açık sınıf sayısı (alt havuz; kapalı sınıfın kartları ve kahramanları markete gelmez). Sınıf sayısını aşarsa hepsi açık.</summary>
+    public static int ActiveClasses = 6;
+    /// <summary>Yağma: kazanılan satırdaki Yağma kartı başına altın (Denizci 2. eşikte 2) ve savaş başına üst sınır.</summary>
+    public const int PlunderCap = 2, PlunderCapSailor = 4;
+    /// <summary>Yakıcı: rakibin aynı satırının toplamı en az bu kadarsa en güçlü birimi yanar.</summary>
+    public const int RowScorchMin = 10;
+    /// <summary>Dönüşüm: Mardroeme ile Berserker gücü çarpanı.</summary>
+    public const int BerserkMult = 3;
+    /// <summary>Meydan Okuma: kendisinden güçlü rakip birime yüzde.</summary>
+    public const double ChallengePct = 0.25;
     public static readonly double[] HeroOdds = { 0, 0, 0, 0, 0.004, 0.008, 0.015, 0.022, 0.03, 0.04 };
     // Kahraman güç basamakları [I, II, III]: basamak, kahramanın kendi sınıfının eşiğine göre (II: 2. eşik, III: 3. eşik)
     public static readonly double[] EredinPct = { 0.30, 0.40, 0.50 };
@@ -271,7 +303,7 @@ public static class Tuning
 public static class Texts
 {
     public static string Name(Row r) => r switch { Row.Close => "Yakın", Row.Ranged => "Menzilli", _ => "Kuşatma" };
-    public static string Name(Tag t) => t switch { Tag.Monster => "Canavar", Tag.Soldier => "Asker", Tag.Mage => "Büyücü", Tag.Bandit => "Haydut", Tag.Noble => "Soylu", _ => "Cüce" };
+    public static string Name(Tag t) => t switch { Tag.Monster => "Canavar", Tag.Soldier => "Asker", Tag.Mage => "Büyücü", Tag.Bandit => "Haydut", Tag.Noble => "Soylu", Tag.Sailor => "Denizci", Tag.Knight => "Şövalye", _ => "Cüce" };
     public static string Name(Sign s) => s.ToString();
     public static string Name(School s) => s switch { School.Wolf => "Kurt", School.Cat => "Kedi", School.Griffin => "Griffin", School.Bear => "Ayı", School.Viper => "Engerek", _ => "Mantikor" };
     public static string Name(Potion p) => p switch
@@ -402,6 +434,10 @@ public static class Texts
         Ability.Medic => "Şifacı: en güçlü birimini hava, Kavurma ve Igni'den korur (2★ iki birim; 3★ ayrıca diriliş).",
         Ability.DeathEcho => "Ölüm Yankısı: yok olunca satırına bir hayalet bırakır (2 / 3 / 5).",
         Ability.Mirror => "Yansıma: satırındaki en güçlü birimin yarısı kadar güce çıkar.",
+        Ability.Plunder => "Yağma: satırını kazanırsan +1 altın (savaş başına toplam en çok 2).",
+        Ability.Berserk => "Dönüşüm: sahanda Mardroeme varsa savaş başında gücü ×3 olur.",
+        Ability.RowScorch => "Yakıcı: savaş başında rakibin aynı satırının toplamı en az 10 ise oradaki en güçlü birim(ler) yanar (kahraman, Şifacı ve Kalkan korur).",
+        Ability.Challenge => "Meydan Okuma: satırının penceresinde rakibin aynı satırdaki en güçlü birimi bu karttan güçlüyse −%25.",
         _ => ""
     };
 
@@ -413,6 +449,7 @@ public static class Texts
         Special.Scorch => "Kavurma: iki sahadaki en güçlü birim(ler) savaş başında yok olur.",
         Special.Horn => "Boynuz: seçtiğin satıra +%50.",
         Special.Shield => "Kalkan: seçtiğin satırını hava ve Kavurma'dan korur.",
+        Special.Mardroeme => "Mardroeme: savaş başında sahandaki Berserker'lar dönüşür (gücü ×3). Berserker yoksa etkisiz.",
         _ => ""
     };
 
@@ -451,6 +488,8 @@ public static class Texts
         Tag.Mage => new[] { "İşaretler +%25", "+1 Odak, işaretler +%50", "Savaş başına bir işaret bedava" },
         Tag.Bandit => new[] { "Pusu yeri 3 kart", "Pusudan inen +%25", "Pusudan inen +%50 · Pusu Yrden'den etkilenmez" },
         Tag.Noble => new[] { "İlk yenileme bedava", "Round başı +1 altın", "Round başı +3 altın" },
+        Tag.Sailor => new[] { "İlk pencerede Denizciler +%30", "Yağma satır başına +2 altın", "Denizciler +2, ilk pencerede +%50" },
+        Tag.Knight => new[] { "Şövalyeler Igni ve bombalardan yarı etkilenir", "Şövalyeler +2", "Şövalye satırlarına +%15, Igni ve bombalara bağışık" },
         _ => new[] { "Cüceler bombalardan yarı etkilenir", "Cüceler +1, Kavurma'dan korunur", "Cücelerin satırına +%20" }
     };
 }

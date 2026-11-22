@@ -16,6 +16,9 @@ public static class Meta
         new("bandit", "Haydut pususu", Tag: Tag.Bandit),
         new("noble", "Soylular", Tag: Tag.Noble),
         new("dwarf", "Cüceler", Tag: Tag.Dwarf),
+        // Faz 1 (2026-11-23): Denizci Yağma ve Mardroeme ile dönüşen Berserker'larla, Şövalye Meydan Okuma ile
+        new("sailor", "Denizci yağması", Tag: Tag.Sailor, Prefer: new[] { Special.Mardroeme }),
+        new("knight", "Şövalyeler", Tag: Tag.Knight),
         new("spy", "Casus + pusu", Abilities: new[] { Ability.Spy, Ability.Ambush }),
         new("bond", "Sıkı bağ", Abilities: new[] { Ability.Bond }),
         new("fast", "Hızlı seviye", LevelShift: 1, ReserveHigh: 0),
@@ -129,8 +132,9 @@ public static class Meta
     {
         HashSet<int>? lowAt10 = null;
         var rng = new Random(seed);
-        var pick = Enumerable.Range(0, Builds.Length).OrderBy(_ => rng.Next()).Take(8).ToArray();
         var m = new Match(seed, Enumerable.Range(0, 8).Select(i => ($"B{i}", true)).ToList());
+        // alt havuz: yalnız sınıfı bu maçta açık olan (ya da sınıfsız) düzenler oturur
+        var pick = Enumerable.Range(0, Builds.Length).Where(i => Builds[i].Tag is not { } t || m.ActiveTags.Contains(t)).OrderBy(_ => rng.Next()).Take(8).ToArray();
         var pol = SignPolicies ? Enumerable.Range(0, 8).Select(_ => rng.Next(Policies.Length)).ToArray() : null;
         foreach (var p in m.Players) m.ChooseSchool(p.Id, p.SchoolOptions[rng.Next(p.SchoolOptions.Length)]);
         var traits = Enumerable.Range(0, 8).Select(_ => new HashSet<(Tag, int)>()).ToArray();

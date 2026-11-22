@@ -50,11 +50,12 @@ public sealed class HanCardView : Grid
     {
         if (d.IsHero) return "Kahraman";
         if (!d.IsUnit)
-            return d.Special switch { Special.Frost => "Ayaz", Special.Fog => "Sis", Special.Rain => "Yağmur", Special.Scorch => "Kavurma", Special.Horn => "Boynuz", Special.Shield => "Kalkan", _ => "Özel" };
+            return d.Special switch { Special.Frost => "Ayaz", Special.Fog => "Sis", Special.Rain => "Yağmur", Special.Scorch => "Kavurma", Special.Horn => "Boynuz", Special.Shield => "Kalkan", Special.Mardroeme => "Mardroeme", _ => "Özel" };
         var a = d.Ability switch
         {
             Ability.Bond => "Bağ", Ability.Growth => "Büyüme", Ability.Morale => "Moral", Ability.Spy => "Casus", Ability.Bard => "Ozan", Ability.Treasure => "Hazine",
-            Ability.Ambush => "Pusu", Ability.Revenge => "İntikam", Ability.Zeal => "Coşku", Ability.Summon => "Çağrı", Ability.Medic => "Şifacı", Ability.DeathEcho => "Yankı", Ability.Mirror => "Yansıma", _ => ""
+            Ability.Ambush => "Pusu", Ability.Revenge => "İntikam", Ability.Zeal => "Coşku", Ability.Summon => "Çağrı", Ability.Medic => "Şifacı", Ability.DeathEcho => "Yankı", Ability.Mirror => "Yansıma",
+            Ability.Plunder => "Yağma", Ability.Berserk => "Dönüşüm", Ability.RowScorch => "Yakıcı", Ability.Challenge => "Meydan", _ => ""
         };
         return a.Length == 0 && d.Agile ? "Çevik" : a;
     }
@@ -67,21 +68,23 @@ public sealed class HanCardView : Grid
             return d.Special switch
             {
                 Special.Frost => "Yakın satırlar 1 olur", Special.Fog => "Menzilli satırlar 1 olur", Special.Rain => "Kuşatma satırları 1 olur", Special.Scorch => "En güçlü birimi yakar",
-                Special.Horn => "Bir satıra +%50", Special.Shield => "Satırı havadan korur", _ => ""
+                Special.Horn => "Bir satıra +%50", Special.Shield => "Satırı havadan korur", Special.Mardroeme => "Berserker'ları dönüştürür (×3)", _ => ""
             };
         return d.Ability switch
         {
             Ability.Bond => "Aynı sınıftan dost başına +1", Ability.Growth => "Satırdaki her dosta +1", Ability.Morale => "Bir satıra +★ güç", Ability.Spy => "Rakibin kartlarını gösterir",
             Ability.Bard => "Savaşa +1 Odakla başla", Ability.Treasure => "Her round +1 altın", Ability.Ambush => "Savaşta istediğin satıra iner", Ability.Revenge => "Önceki satır kaybedildiyse +%50",
             Ability.Zeal => "Önceki satır kazanıldıysa +%30", Ability.Summon => "Depodaki eşini sahaya çeker (2★: 1, 3★: 2)", Ability.Medic => "En güçlünü etkilerden korur", Ability.DeathEcho => "Ölünce hayalet bırakır",
-            Ability.Mirror => "En güçlü dostun yarısı kadar", _ => d.Agile ? "Yakın ya da Menzilli" : ""
+            Ability.Mirror => "En güçlü dostun yarısı kadar", Ability.Plunder => "Kazandığı satıra +1 altın", Ability.Berserk => "Mardroeme ile gücü ×3",
+            Ability.RowScorch => "Rakip satır 10+ ise en güçlüyü yakar", Ability.Challenge => "Kendinden güçlü rakibe −%25", _ => d.Agile ? "Yakın ya da Menzilli" : ""
         };
     }
 
     public static Color TagColor(global::HanLigi.Tag t) => t switch
     {
         global::HanLigi.Tag.Monster => Color.FromRgb(0xe0, 0x6a, 0x58), global::HanLigi.Tag.Soldier => Color.FromRgb(0x7a, 0xaa, 0xe8), global::HanLigi.Tag.Mage => Color.FromRgb(0xc0, 0x8a, 0xff),
-        global::HanLigi.Tag.Bandit => Color.FromRgb(0x7a, 0xd0, 0x6a), global::HanLigi.Tag.Noble => Color.FromRgb(0xf0, 0xc8, 0x5a), _ => Color.FromRgb(0xd8, 0xa2, 0x6a)
+        global::HanLigi.Tag.Bandit => Color.FromRgb(0x7a, 0xd0, 0x6a), global::HanLigi.Tag.Noble => Color.FromRgb(0xf0, 0xc8, 0x5a),
+        global::HanLigi.Tag.Sailor => Color.FromRgb(0x4e, 0xc3, 0xc9), global::HanLigi.Tag.Knight => Color.FromRgb(0xc8, 0xcc, 0xd6), _ => Color.FromRgb(0xd8, 0xa2, 0x6a)
     };
 
     /// <summary>Yeteneğin Gwent simgesi (ab_*.png; görselin sol yarısı).</summary>
@@ -91,9 +94,10 @@ public sealed class HanCardView : Grid
         {
             Ability.Bond => "ab_bond", Ability.Morale => "ab_morale", Ability.Spy => "ab_spy", Ability.Medic => "ab_medic", Ability.Summon => "ab_muster",
             Ability.Bard => "ab_horn", Ability.DeathEcho => "ab_avenger", Ability.Mirror => "ab_berserker", Ability.Growth => "ab_mardroeme", Ability.Ambush => "ab_decoy",
-            Ability.Revenge => "ab_scorch", Ability.Zeal => "ab_storm", _ => d.Agile ? "ab_agile" : null
+            Ability.Revenge => "ab_scorch", Ability.Zeal => "ab_storm", Ability.Plunder => "ab_clear", Ability.Berserk => "ab_berserker", Ability.RowScorch => "ab_scorch",
+            Ability.Challenge => "ab_avenger", _ => d.Agile ? "ab_agile" : null
         };
-        if (d.Special != Special.None) name = d.Special switch { Special.Frost => "ab_frost", Special.Fog => "ab_fog", Special.Rain => "ab_rain", Special.Scorch => "ab_scorch", Special.Horn => "ab_horn", _ => "ab_decoy" };
+        if (d.Special != Special.None) name = d.Special switch { Special.Frost => "ab_frost", Special.Fog => "ab_fog", Special.Rain => "ab_rain", Special.Scorch => "ab_scorch", Special.Horn => "ab_horn", Special.Mardroeme => "ab_mardroeme", _ => "ab_decoy" };
         if (d.IsHero) name = null;
         if (name == null || Assets.Ui(name) is not BitmapSource src) return null;
         lock (IconCache)
@@ -258,13 +262,21 @@ public sealed class HanCardView : Grid
         if (key.Length > 0)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var avail = w - sp.Margin.Left - sp.Margin.Right;
             if (footer == null && AbilityIcon(d) is { } ic)
+            {
                 row.Children.Add(new Image { Source = ic, Width = w * 0.15, Height = w * 0.15, Margin = new Thickness(0, 0, w * 0.025, 0), VerticalAlignment = VerticalAlignment.Center });
-            row.Children.Add(new TextBlock
+                avail -= w * 0.175;
+            }
+            var kt = new TextBlock
             {
                 Text = HanUi.Tracked(HanUi.Upper(key)), FontFamily = HanUi.Font, FontSize = HanUi.S(w * 0.108), FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center,
                 Foreground = footer != null ? Theme.B("#ffd76a") : d.IsHero ? Theme.B("#ffd76a") : !d.IsUnit ? Theme.B("#9fd8ff") : Theme.B("#ffe2a0"), TextTrimming = TextTrimming.CharacterEllipsis
-            });
+            };
+            // uzun yetenek adı (Mardroeme, Meydan) kesilmesin: sığmazsa yazı küçülür
+            kt.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            if (avail > 0 && kt.DesiredSize.Width > avail) kt.FontSize = Math.Max(kt.FontSize * 0.6, kt.FontSize * avail / kt.DesiredSize.Width);
+            row.Children.Add(kt);
             sp.Children.Add(row);
             lines++;
         }
