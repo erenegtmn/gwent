@@ -186,6 +186,8 @@ public static class Tuning
     public static double YrdenAmbushPct = 0.5;
     /// <summary>Temel pusu yeri (Haydut 2 eşiği +1).</summary>
     public static int AmbushBase = 2;
+    /// <summary>Son pencerede seçilmeyen pusu kendiliğinden iner mi. Oyunda false: pusu hep isteğe bağlı, Yrden seçileni mutlak keser.</summary>
+    public static bool AutoLandLast = false;
     /// <summary>Yrden simyayı da keser mi (Meta 4: hayır; simya + pusu + Aard birlikte Yrden'i her işe yarar yapıyordu).</summary>
     public static bool YrdenPotion = false;
     public const int RageCap = 2;
@@ -235,18 +237,23 @@ public static class Tuning
     public static int Round(double v) => (int)Math.Floor(v + 0.5);
 
     /// <summary>
-    /// Yüzdesel etkiyi tam sayıya uygular (savaştaki bütün yüzdeler buradan geçer). Kurallar:
-    /// (1) etki en az 1 puan oynatır — %10'luk Aard 5'lik satırı da düşürür (eskiden 4,5 → 5 yuvarlanıp boşa gidiyordu);
-    /// (2) buçuklar etkinin lehine yuvarlanır: düşüşte aşağı, artışta yukarı (Igni 3 → 1,5 → 1);
-    /// (3) sonuç 0'ın altına inmez, %−100'den fazla düşüş yoktur. Değer 0 ise etki yoktur.
+    /// Yüzdesel etkiyi uygular (savaştaki bütün yüzdeler buradan geçer). Güç ondalıklıdır, hassasiyet 0,1 (§15.4):
+    /// (1) sonuç en yakın 0,1'e yuvarlanır; tam ortadaysa etkinin lehine (düşüşte aşağı, artışta yukarı) — 2 × −%10 = 1,8;
+    /// (2) sonuç 0'ın altına inmez, %−100'den fazla düşüş yoktur. Değer 0 ise etki yoktur.
+    /// Eski kural (tam sayı + "en az 1 puan") küçük güçlerde etkiyi katlıyordu: 2'lik karta −%10 → 1 (gerçekte −%50).
+    /// <c>decimal</c>: 10 tabanında tam ve her makinede aynı sonuç (online kopyalar sunucuyla birebir aynı kalır).
     /// </summary>
-    public static int ApplyPct(int value, double pct)
+    public static decimal ApplyPct(decimal value, double pct)
     {
         if (value <= 0 || Math.Abs(pct) < 1e-9) return Math.Max(0, value);
-        var x = value * (1 + Math.Max(-1, pct));
-        if (pct < 0) return Math.Max(0, Math.Min(value - 1, (int)Math.Ceiling(x - 0.5 - 1e-9)));
-        return Math.Max(value + 1, (int)Math.Floor(x + 0.5 + 1e-9));
+        var x = value * (1 + (decimal)Math.Max(-1, pct));
+        // en yakın 0,1; tam orta etkinin lehine (MidpointRounding.ToNegativeInfinity en yakın değil, düz aşağı keser: kullanılmaz)
+        var r = pct < 0 ? Math.Ceiling(x * 10 - 0.5m) / 10 : Math.Floor(x * 10 + 0.5m) / 10;
+        return Math.Max(0, r);
     }
+
+    /// <summary>Gücü yazar: tam sayıysa "7", değilse "6,8" (yüzdelerden doğan ondalık).</summary>
+    public static string Fmt(decimal v) => v.ToString("0.#", System.Globalization.CultureInfo.GetCultureInfo("tr-TR"));
 
     public static int SignCost(Sign s) => s == Sign.Igni ? 2 : s == Sign.Yrden ? YrdenCost : 1;
 
@@ -313,7 +320,7 @@ public static class Texts
             Sign.Aard => $"1 Odak · Rakibin bu satırı {Live(10, amp, why)}. Kahramanlara da işler; Yrden tutar.",
             Sign.Igni => $"2 Odak · Rakibin bu satırdaki en güçlü kartı {Live(50, amp, why)}. Quen engeller; Kara Kan kendine yansıtır.",
             Sign.Quen => "1 Odak · Sana atılan Igni'yi engeller; engellerse Odak geri gelir.",
-            _ => "1 Odak · Rakibin bu penceredeki Aard'ını keser; pusudan inmek isteyen kartı bu satırda indirmez (sonra inebilir).",
+            _ => "1 Odak · Rakibin bu penceredeki Aard'ını keser; pusudan inmek isteyen kartı bu satırda indirmez (son satır dışında sonra inebilir). Son satırda pusu kendiliğinden inmez; seçilmeli.",
         };
     }
 

@@ -174,9 +174,9 @@ public static class HanBot
         var me = b.Sides[side];
         var op = b.Sides[1 - side];
         var row = b.CurrentRow;
-        double own = b.PlainRow(side, row);
+        double own = (double)b.PlainRow(side, row);
         var seen = Enumerable.Range(0, b.Window).Select(i => (double)op.RowValues[i]).ToList();
-        var est = seen.Count > 0 ? seen.Average() : Enum.GetValues<Row>().Sum(r => b.PlainRow(side, r)) / 3.0;
+        var est = seen.Count > 0 ? seen.Average() : Enum.GetValues<Row>().Sum(r => (double)b.PlainRow(side, r)) / 3.0;
         est = Math.Max(1, est * (1 + (rng.NextDouble() - 0.5) * 0.5 * noiseScale));
         var margin = (own - est) / est;
         var last = b.Window == 2;
@@ -200,7 +200,7 @@ public static class HanBot
         }
         Consider(Sign.Aard, w * 0.10 * est - c);
         Consider(Sign.Quen, w * pi * 0.22 * own);
-        Consider(Sign.Yrden, w * (b.AmbushSeen[side] is > 0 && b.Window < 2 ? 0.4 : 0.15) * 0.2 * own - c);
+        Consider(Sign.Yrden, w * (b.AmbushSeen[side] is > 0 ? 0.4 : 0.15) * 0.2 * own - c);
         Consider(Sign.Igni, w * 0.22 * est * (1 - pq) - 2 * c);
 
         Potion? potion = null;
@@ -209,9 +209,10 @@ public static class HanBot
             var opts = me.Potions.Where(x => x != Potion.Swallow || b.Weather.Contains(row)).Where(x => x != Potion.BlackBlood || op.Focus >= 2).ToList();
             if (opts.Count > 0) potion = opts[rng.Next(opts.Count)];
         }
-        int? ambush = null;
-        if (me.Ambush.Count > 0 && (margin < 0.1 || last) && imp >= 1) ambush = me.Ambush.OrderByDescending(u => u.Power).First().Uid;
-        var choice = new WindowChoice(sign is { } sg ? new[] { sg } : Array.Empty<Sign>(), potion, ambush);
+        var ambush = new List<int>();
+        if (me.Ambush.Count > 0 && last) ambush.AddRange(me.Ambush.Select(u => u.Uid));   // son pencerede pusu kendiliğinden inmez: hepsi bilerek indirilir
+        else if (me.Ambush.Count > 0 && margin < 0.1 && imp >= 1) ambush.Add(me.Ambush.OrderByDescending(u => u.Power).First().Uid);
+        var choice = WindowChoice.With(sign is { } sg ? new[] { sg } : Array.Empty<Sign>(), potion, ambush);
         return b.Valid(side, choice) ? choice : WindowChoice.None;
     }
 

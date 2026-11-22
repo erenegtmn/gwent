@@ -318,15 +318,16 @@ public static class ExpertBot
         else if (me.Potions.Count > 0 && w == 2 && !dead)
             potion = me.Potions.Where(x => x is Potion.Thunderbolt or Potion.NorthernWind or Potion.DancingStar).Cast<Potion?>().FirstOrDefault();   // son satırda elde kalmasın
 
-        int? ambush = null;
-        if (me.Ambush.Count > 0 && (decisive || w == 2 || (margin < 0.15 && margin > -0.6)))
-            ambush = me.Ambush.OrderByDescending(u => u.Power).First().Uid;
+        var ambush = new List<int>();
+        if (me.Ambush.Count > 0 && w == 2) ambush.AddRange(me.Ambush.Select(u => u.Uid));   // son pencerede pusu kendiliğinden inmez
+        else if (me.Ambush.Count > 0 && (decisive || (margin < 0.15 && margin > -0.6)))
+            ambush.Add(me.Ambush.OrderByDescending(u => u.Power).First().Uid);
 
-        var choice = new WindowChoice(sign is { } sg ? new[] { sg } : Array.Empty<Sign>(), potion, ambush);
+        var choice = WindowChoice.With(sign is { } sg ? new[] { sg } : Array.Empty<Sign>(), potion, ambush);
         if (b.Valid(side, choice)) return choice;
-        choice = new WindowChoice(choice.Signs, null, ambush);
+        choice = WindowChoice.With(choice.Signs, null, ambush);
         if (b.Valid(side, choice)) return choice;
-        choice = new WindowChoice(Array.Empty<Sign>(), potion, ambush);
+        choice = WindowChoice.With(Array.Empty<Sign>(), potion, ambush);
         return b.Valid(side, choice) ? choice : WindowChoice.None;
     }
 }

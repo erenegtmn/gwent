@@ -60,7 +60,7 @@ public sealed class BattleSide
     public int Focus { get; set; }
     public int Rage { get; set; }
     public int Points { get; set; }
-    public int Total { get; set; }
+    public decimal Total { get; set; }
     public bool JaskierUsed { get; set; }
     public bool TrissUsed { get; set; }
     public bool MageFreeUsed { get; set; }
@@ -68,7 +68,7 @@ public sealed class BattleSide
     public Row? EredinRow { get; set; }
     /// <summary>Önceki satırın sonucu: +1 kazandı, −1 kaybetti, 0 berabere / ilk satır.</summary>
     public int Prev { get; set; }
-    public int[] RowValues { get; } = new int[3];
+    public decimal[] RowValues { get; } = new decimal[3];
 
     /// <summary>Etiket eşik seviyesi: 0 yok, 1 (2 kart), 2 (4 kart), 3 (6 kart).</summary>
     public int Th(Tag t) => Tags.TryGetValue(t, out var n) ? Tuning.TagLevel(t, n) : 0;
@@ -81,7 +81,32 @@ public sealed class BattleSide
 /// <summary>Arayüzün canlandıracağı bir olay: işaret, simya, pusu inişi, Öfke, hava, Kavurma. <c>Target</c> birim kimliği ya da satır numarasıdır.</summary>
 public sealed record FxEvent(string Kind, int Side, int Target = 0, bool Blocked = false);
 
-public sealed record WindowOutcome(int Index, Row Row, int ValueA, int ValueB, int Winner, WindowChoice ChoiceA, WindowChoice ChoiceB, IReadOnlyList<string> Log, IReadOnlyList<FxEvent> Fx, IReadOnlyDictionary<int, int> CardValues)
+/// <summary>GEÇİCİ ölçüm: ondalık güce geçişte eski tam sayı yuvarlamasıyla kaç satırın kazananı değişirdi (han-meta --rounding).</summary>
+public static class RoundingDiag
+{
+    public static bool On;
+    public static long Windows, WithPct, Flips, ToDraw, FromDraw, LegacyDraws, ExactDraws;
+    public static int Legacy(int value, double pct)
+    {
+        if (value <= 0 || Math.Abs(pct) < 1e-9) return Math.Max(0, value);
+        var x = value * (1 + Math.Max(-1, pct));
+        if (pct < 0) return Math.Max(0, Math.Min(value - 1, (int)Math.Ceiling(x - 0.5 - 1e-9)));
+        return Math.Max(value + 1, (int)Math.Floor(x + 0.5 + 1e-9));
+    }
+    public static void Count(int exact, int legacy, bool anyPct)
+    {
+        lock (typeof(RoundingDiag))
+        {
+            Windows++;
+            if (anyPct) WithPct++;
+            if (exact != legacy) { Flips++; if (exact == -1) ToDraw++; if (legacy == -1) FromDraw++; }
+            if (legacy == -1) LegacyDraws++;
+            if (exact == -1) ExactDraws++;
+        }
+    }
+}
+
+public sealed record WindowOutcome(int Index, Row Row, decimal ValueA, decimal ValueB, int Winner, WindowChoice ChoiceA, WindowChoice ChoiceB, IReadOnlyList<string> Log, IReadOnlyList<FxEvent> Fx, IReadOnlyDictionary<int, decimal> CardValues)
 {
     /// <summary>Kartların yüzdeler uygulanmadan önceki değeri (arayüz "8 → 4" gösterir).</summary>
     public IReadOnlyDictionary<int, int> BaseValues { get; init; } = new Dictionary<int, int>();
@@ -91,7 +116,7 @@ public sealed record WindowOutcome(int Index, Row Row, int ValueA, int ValueB, i
     /// </summary>
     public IReadOnlyList<(int Side, string Source, double Pct)> RowMods { get; init; } = Array.Empty<(int, string, double)>();
     /// <summary>[taraf] satırın, satır yüzdeleri (Aard, Gök Gürültüsü, Boynuz...) uygulanmadan önceki toplamı.</summary>
-    public int[] RowBase { get; init; } = new int[2];
+    public decimal[] RowBase { get; init; } = new decimal[2];
 }
 
 /// <summary>
@@ -173,10 +198,10 @@ public sealed class Battle
     }
 
     /// <summary>Bir satırın müdahalesiz değeri (arayüz ve botlar için).</summary>
-    public int PlainRow(int side, Row r)
+    public decimal PlainRow(int side, Row r)
     {
         var s = Sides[side];
-        var sum = s.In(r).Sum(u => Value(s, u));
+        decimal sum = s.In(r).Sum(u => Value(s, u));
         return Tuning.ApplyPct(sum, 0.5 * s.Act.Horns.Count(h => h == r));
     }
 
@@ -375,9 +400,9 @@ public sealed class Battle
             var hit = false;
             if (potion[i] != null && Tuning.YrdenMode != 2 && Tuning.YrdenPotion) { log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} tarafının {Texts.Name(potion[i]!.Value)} kartı etkisiz."); potion[i] = null; hit = true; }
             // 4: yalnız bilerek indirilen pusu zayıflar; 5: bilerek indirilen pusu bu pencerede inemez (son pencerede kendiliğinden inenlere dokunmaz)
-            if (Tuning.YrdenMode == 5 && ambush[i].Count > 0 && Window < 2)
+            if (Tuning.YrdenMode == 5 && ambush[i].Count > 0)
             {
-                log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} pusudan inemedi (sonra inebilir).");
+                log.Add($"{Sides[1 - i].Name} Yrden: {s.Name} pusudan inemedi" + (Window < 2 ? " (sonra inebilir)." : "."));
                 ambush[i] = Array.Empty<int>();
                 hit = true;
             }
@@ -409,7 +434,8 @@ public sealed class Battle
             var chosen = ambush[i].ToHashSet();
             var landing = new List<BattleUnit>();
             foreach (var uid in ambush[i]) if (s.Ambush.FirstOrDefault(u => u.Uid == uid) is { } au) landing.Add(au);
-            if (Window == 2 && !blocked) landing.AddRange(s.Ambush.Where(u => !landing.Contains(u)));
+            // son pencerede de pusu isteğe bağlı: seçilmeyen iner değil (Yrden seçileni kesince hiç inmez)
+            if (Window == 2 && Tuning.AutoLandLast && !blocked) landing.AddRange(s.Ambush.Where(u => !landing.Contains(u)));
             foreach (var u in landing)
             {
                 s.Ambush.Remove(u);
@@ -506,14 +532,16 @@ public sealed class Battle
             if (horns > 0) { own[i] += 0.5 * horns; mods.Add((i, horns > 1 ? $"Boynuz ×{horns}" : "Boynuz", 0.5 * horns)); }
         }
         // 8. karşılaştırma
-        var val = new int[2];
-        var cardValues = new Dictionary<int, int>();
+        var val = new decimal[2];
+        var cardValues = new Dictionary<int, decimal>();
         var baseValues = new Dictionary<int, int>();
-        var rowBase = new int[2];
+        var rowBase = new decimal[2];
+        var legacy = new int[2];   // GEÇİCİ ölçüm: eski tam sayı yuvarlaması
         for (var i = 0; i < 2; i++)
         {
             var s = Sides[i];
-            int normal = 0, exempt = 0;
+            decimal normal = 0, exempt = 0;
+            int ln = 0, le = 0;
             foreach (var u in s.In(row))
             {
                 var bv = Value(s, u, noWeather[i]);
@@ -522,14 +550,17 @@ public sealed class Battle
                 if (Tutorial(i)) v = Math.Max(1, v);   // öğretici canavar sıfırlanamaz
                 cardValues[u.Uid] = v;
                 if (u.Landed && u.Def.Hero == Hero.Ciri) exempt += v; else normal += v;
+                if (RoundingDiag.On) { var lv = RoundingDiag.Legacy(bv, card.GetValueOrDefault(u)); if (Tutorial(i)) lv = Math.Max(1, lv); if (u.Landed && u.Def.Hero == Hero.Ciri) le += lv; else ln += lv; }
             }
             rowBase[i] = normal + exempt;
             val[i] = Tuning.ApplyPct(normal, own[i] + foe[i]) + Tuning.ApplyPct(exempt, own[i]);
             if (Tutorial(i) && s.In(row).Any()) val[i] = Math.Max(1, val[i]);
+            if (RoundingDiag.On) { legacy[i] = RoundingDiag.Legacy(ln, own[i] + foe[i]) + RoundingDiag.Legacy(le, own[i]); if (Tutorial(i) && s.In(row).Any()) legacy[i] = Math.Max(1, legacy[i]); }
             s.RowValues[Window] = val[i];
             s.Total += val[i];
         }
         var winner = val[0] > val[1] ? 0 : val[1] > val[0] ? 1 : -1;
+        if (RoundingDiag.On) RoundingDiag.Count(winner, legacy[0] > legacy[1] ? 0 : legacy[1] > legacy[0] ? 1 : -1, card.Count > 0 || own.Any(x => x != 0) || foe.Any(x => x != 0));
         // 9. Öfke ve iadeler
         for (var i = 0; i < 2; i++)
         {

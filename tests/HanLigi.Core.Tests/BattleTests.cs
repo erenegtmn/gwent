@@ -176,9 +176,9 @@ public class BattleTests
         Play(bt, WindowChoice.None, WindowChoice.None);
         Play(bt, WindowChoice.None, WindowChoice.None);
         var o = Play(bt, new WindowChoice(Array.Empty<Sign>(), null, 5000), C(Sign.Yrden));
-        Assert.Equal(7, o.ValueA);   // Yrden yalnız simyayı ve Aard'ı keser; pusu iner
-        Assert.Equal(0, o.Winner);
-        Assert.Empty(a.Ambush);
+        Assert.Equal(0, o.ValueA);   // Yrden son pencerede de mutlak keser: bilerek indirilen pusu inmez
+        Assert.Equal(-1, o.Winner);
+        Assert.Single(a.Ambush);
     }
 
     [Fact]
@@ -224,10 +224,25 @@ public class BattleTests
         bt.Start();
         Play(bt, WindowChoice.None, WindowChoice.None);
         Play(bt, WindowChoice.None, WindowChoice.None);
-        var o = Play(bt, WindowChoice.None, WindowChoice.None);   // seçmedi: son pencerede kendiliğinden iner
+        var o = Play(bt, new WindowChoice(Array.Empty<Sign>(), null, 5001), WindowChoice.None);   // son pencerede de bilerek indirilir
         Assert.Equal(Row.Siege, o.Row);
         Assert.Equal(7, o.ValueA);
         Assert.Equal(0, o.Winner);
+    }
+
+    [Fact]
+    public void Ambush_does_not_land_on_its_own_in_last_window()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        a.Ambush.Add(new BattleUnit { Uid = 5001, Def = CardSet.Get("dol_blathanna_scout"), Power = 7, Row = Row.Close });
+        Add(b, "trebuchet");
+        var bt = Make(a, b);
+        bt.Start();
+        Play(bt, WindowChoice.None, WindowChoice.None);
+        Play(bt, WindowChoice.None, WindowChoice.None);
+        var o = Play(bt, WindowChoice.None, WindowChoice.None);
+        Assert.Equal(0, o.ValueA);
+        Assert.Single(a.Ambush);
     }
 
     [Fact]
