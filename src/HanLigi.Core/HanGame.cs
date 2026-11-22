@@ -333,10 +333,13 @@ public sealed class HanGame
         if (M.Phase == Phase.Battle) AfterLock();
     }
 
+    /// <summary>Satır değerleri kültürden bağımsız ("1.8"; makinenin dil ayarı özeti değiştirmesin).</summary>
+    private static string Rv(BattleSide s) => string.Join("/", s.RowValues.Select(v => v.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+
     /// <summary>Kopyaların karşılaştırılması için durum özeti (testler ve hata ayıklama).</summary>
     public string Fingerprint() => string.Join("|", M.Players.Select(p =>
         $"{p.Hp},{p.Gold},{p.Level},{p.Xp},{p.Place},{p.Streak},{string.Join(",", p.Cards.Select(c => c.Def.Id + c.Star + c.Zone + c.Aim))},{p.ShopLocked}"))
-        + $"|{M.Round}|{M.Phase}|" + string.Join(",", M.Battles.Select(b => $"{b.Window}:{b.Sides[0].Points}-{b.Sides[1].Points}:{b.Sides[0].Focus},{b.Sides[1].Focus}:{string.Join("/", b.Sides[0].RowValues)}:{string.Join("/", b.Sides[1].RowValues)}"))
+        + $"|{M.Round}|{M.Phase}|" + string.Join(",", M.Battles.Select(b => $"{b.Window}:{b.Sides[0].Points}-{b.Sides[1].Points}:{b.Sides[0].Focus},{b.Sides[1].Focus}:{Rv(b.Sides[0])}:{Rv(b.Sides[1])}"))
         + "|shop:" + string.Join(";", M.Players.Select(p => string.Join(",", p.Shop.Select(d => d?.Id)) + "#" + string.Join(",", p.Potions) + "#" + p.Ready))
         + "|pool:" + string.Join(",", M.Pool.OrderBy(k => k.Key, StringComparer.Ordinal).Select(k => k.Value));
 }

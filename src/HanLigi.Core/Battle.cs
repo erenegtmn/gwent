@@ -81,31 +81,6 @@ public sealed class BattleSide
 /// <summary>Arayüzün canlandıracağı bir olay: işaret, simya, pusu inişi, Öfke, hava, Kavurma. <c>Target</c> birim kimliği ya da satır numarasıdır.</summary>
 public sealed record FxEvent(string Kind, int Side, int Target = 0, bool Blocked = false);
 
-/// <summary>GEÇİCİ ölçüm: ondalık güce geçişte eski tam sayı yuvarlamasıyla kaç satırın kazananı değişirdi (han-meta --rounding).</summary>
-public static class RoundingDiag
-{
-    public static bool On;
-    public static long Windows, WithPct, Flips, ToDraw, FromDraw, LegacyDraws, ExactDraws;
-    public static int Legacy(int value, double pct)
-    {
-        if (value <= 0 || Math.Abs(pct) < 1e-9) return Math.Max(0, value);
-        var x = value * (1 + Math.Max(-1, pct));
-        if (pct < 0) return Math.Max(0, Math.Min(value - 1, (int)Math.Ceiling(x - 0.5 - 1e-9)));
-        return Math.Max(value + 1, (int)Math.Floor(x + 0.5 + 1e-9));
-    }
-    public static void Count(int exact, int legacy, bool anyPct)
-    {
-        lock (typeof(RoundingDiag))
-        {
-            Windows++;
-            if (anyPct) WithPct++;
-            if (exact != legacy) { Flips++; if (exact == -1) ToDraw++; if (legacy == -1) FromDraw++; }
-            if (legacy == -1) LegacyDraws++;
-            if (exact == -1) ExactDraws++;
-        }
-    }
-}
-
 public sealed record WindowOutcome(int Index, Row Row, decimal ValueA, decimal ValueB, int Winner, WindowChoice ChoiceA, WindowChoice ChoiceB, IReadOnlyList<string> Log, IReadOnlyList<FxEvent> Fx, IReadOnlyDictionary<int, decimal> CardValues)
 {
     /// <summary>Kartların yüzdeler uygulanmadan önceki değeri (arayüz "8 → 4" gösterir).</summary>
@@ -536,12 +511,10 @@ public sealed class Battle
         var cardValues = new Dictionary<int, decimal>();
         var baseValues = new Dictionary<int, int>();
         var rowBase = new decimal[2];
-        var legacy = new int[2];   // GEÇİCİ ölçüm: eski tam sayı yuvarlaması
         for (var i = 0; i < 2; i++)
         {
             var s = Sides[i];
             decimal normal = 0, exempt = 0;
-            int ln = 0, le = 0;
             foreach (var u in s.In(row))
             {
                 var bv = Value(s, u, noWeather[i]);
@@ -550,17 +523,14 @@ public sealed class Battle
                 if (Tutorial(i)) v = Math.Max(1, v);   // öğretici canavar sıfırlanamaz
                 cardValues[u.Uid] = v;
                 if (u.Landed && u.Def.Hero == Hero.Ciri) exempt += v; else normal += v;
-                if (RoundingDiag.On) { var lv = RoundingDiag.Legacy(bv, card.GetValueOrDefault(u)); if (Tutorial(i)) lv = Math.Max(1, lv); if (u.Landed && u.Def.Hero == Hero.Ciri) le += lv; else ln += lv; }
             }
             rowBase[i] = normal + exempt;
             val[i] = Tuning.ApplyPct(normal, own[i] + foe[i]) + Tuning.ApplyPct(exempt, own[i]);
             if (Tutorial(i) && s.In(row).Any()) val[i] = Math.Max(1, val[i]);
-            if (RoundingDiag.On) { legacy[i] = RoundingDiag.Legacy(ln, own[i] + foe[i]) + RoundingDiag.Legacy(le, own[i]); if (Tutorial(i) && s.In(row).Any()) legacy[i] = Math.Max(1, legacy[i]); }
             s.RowValues[Window] = val[i];
             s.Total += val[i];
         }
         var winner = val[0] > val[1] ? 0 : val[1] > val[0] ? 1 : -1;
-        if (RoundingDiag.On) RoundingDiag.Count(winner, legacy[0] > legacy[1] ? 0 : legacy[1] > legacy[0] ? 1 : -1, card.Count > 0 || own.Any(x => x != 0) || foe.Any(x => x != 0));
         // 9. Öfke ve iadeler
         for (var i = 0; i < 2; i++)
         {

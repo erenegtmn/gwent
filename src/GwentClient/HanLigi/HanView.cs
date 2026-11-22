@@ -398,7 +398,7 @@ public sealed partial class HanView : Grid
         return b;
     }
 
-    private HanCardView CardEl(CardDef d, int star, double w, string? tag, Action? click, int? value = null, bool selected = false, string? footer = null, bool dim = false, int? price = null, bool named = false, double aspect = HanCardView.CardAspect, bool plain = false)
+    private HanCardView CardEl(CardDef d, int star, double w, string? tag, Action? click, decimal? value = null, bool selected = false, string? footer = null, bool dim = false, int? price = null, bool named = false, double aspect = HanCardView.CardAspect, bool plain = false)
     {
         var v = new HanCardView(d, star, w, value, selected, footer, dim, price, aspect: aspect, named: named, plain: plain) { Tag = tag, ToolTip = null };
         if (click != null) v.MouseLeftButtonUp += (_, e) => { e.Handled = true; click(); };
@@ -433,7 +433,7 @@ public sealed partial class HanView : Grid
     /// güç / satır / kademe şeridi, yetenek (ikonu, adı, açıklaması; sayılar vurgulu), kahramanın gücü ve bağışıklığı, sınıflar ve
     /// eşikleri, altta satış değeri.
     /// </summary>
-    private StackPanel CardInfo(CardDef d, int star, int? value)
+    private StackPanel CardInfo(CardDef d, int star, decimal? value)
     {
         var tier = HanCardView.TierColor(d);
         var w = CardInfoW - 40;
@@ -474,14 +474,14 @@ public sealed partial class HanView : Grid
             }
             var basePow = Tuning.Power(d, star);
             var shown = value ?? basePow;
-            var pow = Cell("Güç", shown == basePow ? basePow.ToString() : $"{shown}", null, shown > basePow ? HanUi.Br(HanUi.Good) : shown < basePow ? HanUi.Br(HanUi.Bad) : HanUi.GoldText);
+            var pow = Cell("Güç", Tuning.Fmt(shown), null, shown > basePow ? HanUi.Br(HanUi.Good) : shown < basePow ? HanUi.Br(HanUi.Bad) : HanUi.GoldText);
             var rowIcon = d.Agile ? null : Assets.Ui(d.Row switch { Row.Close => "row_close", Row.Ranged => "row_ranged", _ => "row_siege" }) is { } ri ? new Image { Source = ri, Width = 22, Height = 22 } : null;
             var row = Cell("Satır", d.Agile ? "Çevik" : HT.Name(d.Row), rowIcon);
             var third = d.IsHero ? Cell("Durum", "Bağışık", null, HanUi.GoldText) : Cell("Satış", $"{Tuning.SellValue(d, star)} altın", null);
             Grid.SetColumn(row, 1); Grid.SetColumn(third, 2);
             strip.Children.Add(pow); strip.Children.Add(row); strip.Children.Add(third);
             info.Children.Add(strip);
-            if (shown != basePow) info.Children.Add(HanUi.Small($"Kartın kendi gücü {basePow}; masadaki etkilerle {shown}.", 12.5));
+            if (shown != basePow) info.Children.Add(HanUi.Small($"Kartın kendi gücü {basePow}; masadaki etkilerle {Tuning.Fmt(shown)}.", 12.5));
         }
 
         // yetenek / kahraman gücü / özel kart etkisi
@@ -563,7 +563,7 @@ public sealed partial class HanView : Grid
     }
 
     /// <summary>Anlık kart inceleme: büyük kart ve açıklaması, kartın yanında (ekrana sığacak tarafta).</summary>
-    private void Inspect(FrameworkElement anchor, CardDef d, int star, int? value)
+    private void Inspect(FrameworkElement anchor, CardDef d, int star, decimal? value)
     {
         _hover.Children.Clear();
         if (_dragging) return;
@@ -945,7 +945,7 @@ public sealed partial class HanView : Grid
     private FrameworkElement? _ghost;
 
     /// <summary>Kendi kartım: basınca seçilir (bırakılabilecek yerler parlar); sürüklenirse hayaleti imleci izler.</summary>
-    private HanCardView Own(OwnedCard c, double w, int? value)
+    private HanCardView Own(OwnedCard c, double w, decimal? value)
     {
         var uid = c.Uid;
         var el = CardEl(c.Def, c.Star, w, "han-card:" + c.Uid, () =>

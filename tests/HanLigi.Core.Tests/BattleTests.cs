@@ -116,7 +116,7 @@ public class BattleTests
         var bt = Make(a, b);
         bt.Start();                                        // Boynuz varsayılanla en güçlü satıra (Yakın)
         var o = Play(bt, C(Sign.Aard), WindowChoice.None);
-        Assert.Equal(Tuning.Round(17 * 1.4), o.ValueB);    // +%50 −%10 = +%40
+        Assert.Equal(17 * 1.4m, o.ValueB);                // +%50 −%10 = +%40: 23,8
     }
 
     [Fact]

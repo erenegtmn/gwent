@@ -5,7 +5,8 @@ namespace HanLigi.Tests;
 
 /// <summary>
 /// Savaş matematiği denetimi: her yüzdesel etki gerçek motordan geçirilir (küçük değerler dahil) ve etkinin gerçekten bir
-/// şey değiştirip değiştirmediği tabloya dökülür. Kural: uygulanan her yüzde etkisi değeri <b>en az 1 puan</b> oynatır.
+/// şey değiştirip değiştirmediği tabloya dökülür. Kural (§15.4): güç ondalıklıdır, yüzde tam uygulanır ve en yakın 0,1'e
+/// yuvarlanır (tam orta etkinin lehine). Eski "tam sayı + en az 1 puan" kuralı küçük güçte etkiyi katlıyordu (2 × −%10 → 1).
 /// </summary>
 public class MathAudit(ITestOutputHelper output)
 {
@@ -19,7 +20,7 @@ public class MathAudit(ITestOutputHelper output)
     }
 
     /// <summary>B tarafının Yakın satırında tek kart (güç p); A bir seçim yapar. B'nin satır değerini döner.</summary>
-    private static (int Row, int Card) Hit(int p, WindowChoice a, Potion? potionA = null, WindowChoice? bChoice = null, Potion? potionB = null)
+    private static (decimal Row, decimal Card) Hit(int p, WindowChoice a, Potion? potionA = null, WindowChoice? bChoice = null, Potion? potionB = null)
     {
         var sa = new BattleSide { Name = "A", Level = 5 };
         var sb = new BattleSide { Name = "B", Level = 5 };
@@ -36,7 +37,7 @@ public class MathAudit(ITestOutputHelper output)
     }
 
     /// <summary>A tarafının Yakın satırında tek kart (güç p) ve A'nın kendi iksiri: A'nın satır değeri.</summary>
-    private static int Self(int p, Potion potion)
+    private static decimal Self(int p, Potion potion)
     {
         var sa = new BattleSide { Name = "A", Level = 5 };
         var sb = new BattleSide { Name = "B", Level = 5 };
@@ -50,7 +51,7 @@ public class MathAudit(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Every_percentage_effect_changes_the_value_by_at_least_one()
+    public void Every_percentage_effect_is_exact_to_a_tenth()
     {
         var bad = new List<string>();
         var lines = new List<string> { "güç | Aard(satır) | Igni(kart) | DansYıldız | KuzeyRüzgârı | GökGürültüsü" };
@@ -67,10 +68,12 @@ public class MathAudit(ITestOutputHelper output)
             if (star >= p) bad.Add($"Dans Eden Yıldız güç {p}: değişmedi ({star})");
             if (wind >= p) bad.Add($"Kuzey Rüzgârı güç {p}: değişmedi ({wind})");
             if (thunder <= p) bad.Add($"Gök Gürültüsü güç {p}: değişmedi ({thunder})");
-            // etki gerçek yüzdeye yakın olmalı (en çok 1 puan sapma)
-            Assert.InRange(aard, p * 0.9 - 1, p * 0.9 + 0.5);
-            Assert.InRange(igni, p * 0.5 - 1, p * 0.5 + 0.5);
-            Assert.InRange(thunder, p * 1.25 - 0.5, p * 1.25 + 1);
+            // etki gerçek yüzdenin kendisi (en çok 0,05 sapma; tam sayı güçte −%10/−%50/−%30/−%70 tam çıkar)
+            Assert.Equal(p * 0.9m, aard);
+            Assert.Equal(p * 0.5m, igni);
+            Assert.Equal(p * 0.7m, star);
+            Assert.Equal(p * 0.3m, wind);
+            Assert.InRange(thunder, p * 1.25m - 0.05m, p * 1.25m + 0.05m);
         }
         foreach (var l in lines) output.WriteLine(l);
         foreach (var l in bad) output.WriteLine("ETKİSİZ: " + l);
@@ -176,13 +179,13 @@ public class MathAudit(ITestOutputHelper output)
     [Fact]
     public void School_and_mage_amplifiers_scale_signs()
     {
-        int IgniOn8(School? sc, int mages) => Round(Duel(a: A => { if (mages > 0) A.Tags[Tag.Mage] = mages; }, sa: sc), S(Sign.Igni), WindowChoice.None).CardValues.Values.Min();
+        decimal IgniOn8(School? sc, int mages) => Round(Duel(a: A => { if (mages > 0) A.Tags[Tag.Mage] = mages; }, sa: sc), S(Sign.Igni), WindowChoice.None).CardValues.Values.Min();
         Assert.Equal(4, IgniOn8(null, 0));            // −%50
         Assert.Equal(2, IgniOn8(School.Griffin, 0));  // −%75
-        Assert.Equal(3, IgniOn8(null, 2));            // −%62,5 → 3 (buçuk etkinin lehine)
+        Assert.Equal(3, IgniOn8(null, 2));            // −%62,5: 8 × 0,375 = 3
         Assert.Equal(1, IgniOn8(School.Griffin, 2));  // −%87,5
         var aard = Round(Duel(sa: School.Griffin), S(Sign.Aard), WindowChoice.None);
-        Assert.Equal(7, aard.ValueB);                 // 8 × 0,85 = 6,8 → 7 (en yakın tam sayı)
+        Assert.Equal(6.8m, aard.ValueB);              // 8 × 0,85 = 6,8 (eskiden 7'ye yuvarlanıyordu)
         Assert.Equal(15, aard.Fx.First(f => f.Kind == "aard").Target);
     }
 
@@ -227,17 +230,34 @@ public class MathAudit(ITestOutputHelper output)
     [Fact]
     public void Apply_pct_table()
     {
-        for (var v = 0; v <= 40; v++)
-            foreach (var p in new[] { -1.2, -1.0, -0.875, -0.7, -0.5, -0.3, -0.15, -0.1, 0.1, 0.2, 0.25, 0.3, 0.5, 0.75 })
+        // tam sayı ve ondalık değerler (önceki yüzdeden gelmiş olabilir), bütün yüzde biçimleri
+        for (var t = 0; t <= 400; t++)
+            foreach (var p in new[] { -1.2, -1.0, -0.875, -0.7, -0.5, -0.375, -0.3, -0.15, -0.1, 0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.75 })
             {
+                var v = t / 10m;
                 var r = Tuning.ApplyPct(v, p);
                 Assert.True(r >= 0);
+                Assert.Equal(r, Math.Round(r, 1));                                   // hassasiyet 0,1
                 if (v == 0) { Assert.Equal(0, r); continue; }
-                if (p < 0) Assert.True(r < v, $"{v} {p} → {r}"); else Assert.True(r > v, $"{v} {p} → {r}");
-                Assert.True(Math.Abs(r - Math.Max(0, v * (1 + p))) <= 1.0 + 1e-9, $"{v} {p} → {r}");
+                var exact = Math.Max(0, v * (1 + (decimal)Math.Max(-1, p)));
+                Assert.True(Math.Abs(r - exact) <= 0.05m, $"{v} {p} → {r} (gerçek {exact})");   // sapma en çok yarım onda bir
+                if (Math.Abs(exact - v) >= 0.1m) { if (p < 0) Assert.True(r < v, $"{v} {p} → {r}"); else Assert.True(r > v, $"{v} {p} → {r}"); }
             }
-        Assert.Equal(1, Tuning.ApplyPct(3, -0.5));       // 1,5 → 1 (düşüşte buçuk aşağı)
-        Assert.Equal(3, Tuning.ApplyPct(2, 0.25));       // 2,5 → 3 (artışta buçuk yukarı)
-        Assert.Equal(4, Tuning.ApplyPct(5, -0.1));       // 4,5 → 4 (eskiden 5'te kalıyordu)
+        Assert.Equal(1.8m, Tuning.ApplyPct(2, -0.1));    // eskiden 1: −%10, −%50 gibi işliyordu
+        Assert.Equal(1.6m, Tuning.ApplyPct(2, -0.2));
+        Assert.Equal(1.5m, Tuning.ApplyPct(3, -0.5));    // eskiden 1
+        Assert.Equal(4.5m, Tuning.ApplyPct(5, -0.1));    // eskiden 4 (en az 1 puan)
+        Assert.Equal(0.7m, Tuning.ApplyPct(1, -0.25));   // 0,75: tam orta, düşüşte aşağı
+        Assert.Equal(1.3m, Tuning.ApplyPct(1, 0.25));    // 1,25: tam orta, artışta yukarı
+        Assert.Equal(0.9m, Tuning.ApplyPct(7, -0.875));  // 7 × 0,125 = 0,875 → en yakın 0,9 (orta değil)
+    }
+
+    [Fact]
+    public void Power_text_is_compact()
+    {
+        Assert.Equal("7", Tuning.Fmt(7m));
+        Assert.Equal("7", Tuning.Fmt(7.0m));              // decimal sondaki sıfırı taşır: "7,0" yazılmaz
+        Assert.Equal("1,8", Tuning.Fmt(1.8m));
+        Assert.Equal("3", Tuning.Fmt(1.5m + 1.5m));       // 3,0
     }
 }

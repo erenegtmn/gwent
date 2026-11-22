@@ -111,7 +111,7 @@ public sealed class HanCardView : Grid
 
     /// <param name="aspect">Yükseklik / genişlik. Masada ve depoda 1.2 (kısa kart), incelemede 1.34.</param>
     /// <param name="named">Ad ve yetenek özeti de yazılsın (tezgâh, inceleme, seçim).</param>
-    public HanCardView(CardDef d, int star, double width, int? value = null, bool selected = false, string? footer = null, bool dim = false, int? price = null, bool faceDown = false, double aspect = CardAspect, bool named = false, bool plain = false)
+    public HanCardView(CardDef d, int star, double width, decimal? value = null, bool selected = false, string? footer = null, bool dim = false, int? price = null, bool faceDown = false, double aspect = CardAspect, bool named = false, bool plain = false)
     {
         var w = width;
         var h = Math.Round(width * aspect);
@@ -169,7 +169,7 @@ public sealed class HanCardView : Grid
             var holder = new Grid { Width = c * 0.44, Height = c * 0.44 };
             holder.Children.Add(new TextBlock
             {
-                Text = shownH.ToString(), FontFamily = HanUi.Font, FontWeight = FontWeights.Bold, FontSize = c * (shownH >= 10 ? 0.27 : 0.32),
+                Text = Tuning.Fmt(shownH), FontFamily = HanUi.Font, FontWeight = FontWeights.Bold, FontSize = c * (Tuning.Fmt(shownH).Length >= 4 ? 0.2 : Tuning.Fmt(shownH).Length == 3 ? 0.23 : shownH >= 10 ? 0.27 : 0.32),
                 Foreground = shownH > Tuning.Power(d, star) ? Theme.B("#b6ff9a") : shownH < Tuning.Power(d, star) ? Theme.B("#ff9a86") : Brushes.White,
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
                 Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 4, ShadowDepth = 0, Opacity = 0.9 }
@@ -193,7 +193,8 @@ public sealed class HanCardView : Grid
             });
             badge.Children.Add(new TextBlock
             {
-                Text = shown.ToString(), FontFamily = HanUi.Font, FontWeight = FontWeights.Bold, FontSize = size * (shown >= 100 ? 0.42 : shown >= 10 ? 0.54 : 0.62),
+                // ondalık güç ("6,8") rozete sığsın: yazı uzunluğuna göre küçülür
+                Text = Tuning.Fmt(shown), FontFamily = HanUi.Font, FontWeight = FontWeights.Bold, FontSize = size * (Tuning.Fmt(shown).Length >= 4 ? 0.38 : Tuning.Fmt(shown).Length == 3 ? 0.44 : shown >= 10 ? 0.54 : 0.62),
                 Foreground = shown > basePow ? Theme.B("#8ff07a") : shown < basePow ? Theme.B("#ff7a62") : d.IsHero ? Theme.B("#1a1209") : Theme.B("#fff4dc"),
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, -size * 0.04, 0, 0)
             });

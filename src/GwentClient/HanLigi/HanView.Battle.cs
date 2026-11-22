@@ -6,6 +6,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using HanLigi;
 using HT = HanLigi.Texts;
+using HTu = HanLigi.Tuning;
 
 namespace GwentClient.HanLigi;
 
@@ -158,8 +159,8 @@ public sealed partial class HanView
             var revealed = i < shownWindows || (i == resolving && _hold == 2);
             var scored = i < shownWindows;
             var o = i < b.Outcomes.Count ? b.Outcomes[i] : null;
-            var (mv, ov) = o == null ? (0, 0) : Mine == 0 ? (o.ValueA, o.ValueB) : (o.ValueB, o.ValueA);
-            int Shown(BattleSide s, BattleUnit u) => (scored || (o != null && _stepShown.Contains(u.Uid))) && o!.CardValues.TryGetValue(u.Uid, out var fv) ? fv : b.Value(s, u);
+            var (mv, ov) = o == null ? (0m, 0m) : Mine == 0 ? (o.ValueA, o.ValueB) : (o.ValueB, o.ValueA);
+            decimal Shown(BattleSide s, BattleUnit u) => (scored || (o != null && _stepShown.Contains(u.Uid))) && o!.CardValues.TryGetValue(u.Uid, out var fv) ? fv : b.Value(s, u);
 
             if (i == current)
                 foreach (var mine in new[] { false, true })
@@ -171,7 +172,7 @@ public sealed partial class HanView
             var myUnits = me.In(r).Where(u => !(i == resolving && _hold == 1 && u.Landed)).ToList();
             var myCards = myUnits.Select(u => (u.Uid, (FrameworkElement)CardEl(u.Def, u.Star, DesignW, null, null, Shown(me, u), footer: u.Token ? "hayalet" : u.Summoned ? "çağrıldı" : null))).ToList();
             PlaceRow(myCards, true, r, _pos);
-            PutU(ScoreBadge(scored ? mv.ToString() : b.Started ? b.PlainRow(Mine, r).ToString() : me.In(r).Sum(u => u.Power).ToString(), true, scored && o!.Winner == Mine), new Point(RowX + RowW - 36, RowY(true, r) + RowH / 2));
+            PutU(ScoreBadge(scored ? HTu.Fmt(mv) : b.Started ? HTu.Fmt(b.PlainRow(Mine, r)) : me.In(r).Sum(u => u.Power).ToString(), true, scored && o!.Winner == Mine), new Point(RowX + RowW - 36, RowY(true, r) + RowH / 2));
 
             // rakibin satırı
             if (revealed)
@@ -264,16 +265,16 @@ public sealed partial class HanView
         var total = mods.Sum(m => m.Pct);
         var color = total < 0 ? HanUi.Bad : total > 0 ? HanUi.Good : HanUi.Gold;
         var tb = new TextBlock { FontFamily = HanUi.Font, FontSize = HanUi.S(12), FontWeight = FontWeights.Bold, Foreground = HanUi.Br(HanUi.Parchment) };
-        tb.Inlines.Add(new System.Windows.Documents.Run($"Σ{sum}"));
+        tb.Inlines.Add(new System.Windows.Documents.Run($"Σ{HTu.Fmt(sum)}"));
         foreach (var m in mods)
             tb.Inlines.Add(new System.Windows.Documents.Run($"  {m.Source} {Pct(m.Pct)}") { Foreground = HanUi.Br(m.Pct < 0 ? HanUi.Bad : HanUi.Good) });
-        tb.Inlines.Add(new System.Windows.Documents.Run($"  = {val}"));
+        tb.Inlines.Add(new System.Windows.Documents.Run($"  = {HTu.Fmt(val)}"));
         var chip = new Border
         {
             Background = Theme.B("#e8120c07"), BorderBrush = HanUi.Br(color, 0xc0), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5),
             Padding = new Thickness(7, 1, 7, 2), Child = tb,
-            ToolTip = $"Kartların toplamı: {sum}\n" + string.Join("\n", mods.Select(m => $"{m.Source}: {Pct(m.Pct)}"))
-                      + $"\nSatır: {sum} × (1 {(total < 0 ? "−" : "+")} %{Math.Round(Math.Abs(total) * 100)}) = {val} (yuvarlanır; yüzde en az 1 puan değiştirir)"
+            ToolTip = $"Kartların toplamı: {HTu.Fmt(sum)}\n" + string.Join("\n", mods.Select(m => $"{m.Source}: {Pct(m.Pct)}"))
+                      + $"\nSatır: {HTu.Fmt(sum)} × (1 {(total < 0 ? "−" : "+")} %{HT.Pct(Math.Abs(total) * 100)}) = {HTu.Fmt(val)} (en yakın 0,1)"
         };
         chip.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var at = HanScene.ToScreen(new Point(RowX + RowW - 36, RowY(mine, r) + RowH / 2));
@@ -504,7 +505,7 @@ public sealed partial class HanView
                 var face = new Grid { Width = 84, Height = 84, Background = Brushes.Transparent };
                 face.Children.Add(new Border { CornerRadius = new CornerRadius(7), Background = on ? Theme.B("#e05a4313") : Theme.B("#c0120c07"), BorderBrush = on ? Theme.Select : Theme.B("#7a5c24"), BorderThickness = new Thickness(on ? 2.5 : 1) });
                 if (Assets.Ui(RowIcon(r)) is { } icon) face.Children.Add(new Image { Source = icon, Width = 46, Height = 46, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 6, 0, 0) });
-                face.Children.Add(new TextBlock { Text = $"{HT.Name(r)} {b.PlainRow(Mine, r)}", FontFamily = HanUi.Font, FontSize = HanUi.S(12), FontWeight = FontWeights.Bold, Foreground = on ? Theme.Select : Theme.Text, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 6) });
+                face.Children.Add(new TextBlock { Text = $"{HT.Name(r)} {HTu.Fmt(b.PlainRow(Mine, r))}", FontFamily = HanUi.Font, FontSize = HanUi.S(12), FontWeight = FontWeights.Bold, Foreground = on ? Theme.Select : Theme.Text, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 6) });
                 var bt = Bare(face, $"{tagPrefix}:{r}", () => { set(rr); Sfx.Play("han_click"); Render(); });
                 bt.Margin = new Thickness(0, 0, 6, 0);
                 line.Children.Add(bt);
@@ -664,7 +665,7 @@ public sealed partial class HanView
             rn.VerticalAlignment = VerticalAlignment.Center;
             top.Children.Add(rn);
             sp.Children.Add(top);
-            var sc = HanUi.Number($"{mv} – {ov}", 40, won ? HanUi.GoldText : HanUi.Br(HanUi.Parchment));
+            var sc = HanUi.Number($"{HTu.Fmt(mv)} – {HTu.Fmt(ov)}", 40, won ? HanUi.GoldText : HanUi.Br(HanUi.Parchment));
             sc.Margin = new Thickness(0, 2, 0, 0);
             sp.Children.Add(sc);
             sp.Children.Add(HanUi.Small(o.Winner < 0 ? "berabere" : won ? "senin" : "rakibin", 13, HanUi.Br(accent)));
@@ -776,7 +777,8 @@ public sealed partial class HanView
                 var (rc, rw) = RowS(won, row);
                 HanFx.Fountain(_engine, rc, rw * 0.9, won ? FxEngine.Ramp.Gold : FxEngine.Ramp.Blood);
             }
-            ScreenBanner(o.Winner < 0 ? $"BERABERE  {mv} – {ov}" : won ? $"SATIR SENİN  {mv} – {ov}" : $"SATIR RAKİBİN  {mv} – {ov}", c);
+            var sv = $"{HTu.Fmt(mv)} – {HTu.Fmt(ov)}";
+            ScreenBanner(o.Winner < 0 ? $"BERABERE  {sv}" : won ? $"SATIR SENİN  {sv}" : $"SATIR RAKİBİN  {sv}", c);
             foreach (var f in o.Fx.Where(f => f.Kind == "rage"))
             {
                 var at = new Point(SideX + SideW / 2, f.Side == Mine ? 800 : 130);
@@ -863,10 +865,10 @@ public sealed partial class HanView
         var steps = new List<Step>();
         var row = o.Row;
         const int Sign = 2300, Short = 1500;
-        int Val(int uid) => o.CardValues.GetValueOrDefault(uid);
-        int BaseOf(int uid) => o.BaseValues.GetValueOrDefault(uid, Val(uid));
-        string Delta(int uid) => $"{BaseOf(uid)} → {Val(uid)}";
-        int RowBaseOf(int side) => o.RowBase[side];
+        decimal Val(int uid) => o.CardValues.GetValueOrDefault(uid);
+        decimal BaseOf(int uid) => o.BaseValues.TryGetValue(uid, out var bv) ? bv : Val(uid);
+        string Delta(int uid) => $"{HTu.Fmt(BaseOf(uid))} → {HTu.Fmt(Val(uid))}";
+        decimal RowBaseOf(int side) => o.RowBase[side];
         string NameOf(int uid) => b.Sides.SelectMany(x => x.Units).FirstOrDefault(u => u.Uid == uid)?.Def.Name ?? "Bir kart";
         string Odak(int side) => $"kalan Odak: {FocusLeft(o, side)}";
 
@@ -927,7 +929,7 @@ public sealed partial class HanView
                 var pct = f.Target > 0 ? f.Target : 10;
                 var rb = RowBaseOf(foe);
                 var after = Tuning.ApplyPct(rb, -pct / 100.0);
-                steps.Add(new Step(mine, "Aard", $"{(mine ? "Rakibin" : "Senin")} satırı −%{pct}: {rb} → {after} · {Odak(side)}", HanArt.SignColor(global::HanLigi.Sign.Aard), Sign, () =>
+                steps.Add(new Step(mine, "Aard", $"{(mine ? "Rakibin" : "Senin")} satırı −%{pct}: {HTu.Fmt(rb)} → {HTu.Fmt(after)} · {Odak(side)}", HanArt.SignColor(global::HanLigi.Sign.Aard), Sign, () =>
                 {
                     Glyph(global::HanLigi.Sign.Aard, "han_glyph");
                     Fx.After(450, () =>
@@ -939,7 +941,7 @@ public sealed partial class HanView
                         {
                             Land(targets, 6);
                             var (rc, rw) = RowS(!mine, row);
-                            HanArt.FloatText(_fx, $"−%{pct}   {rb} → {after}", new Point(rc.X + rw * 0.36, rc.Y - 50), HanArt.SignColor(global::HanLigi.Sign.Aard), 30, 1800);
+                            HanArt.FloatText(_fx, $"−%{pct}   {HTu.Fmt(rb)} → {HTu.Fmt(after)}", new Point(rc.X + rw * 0.36, rc.Y - 50), HanArt.SignColor(global::HanLigi.Sign.Aard), 30, 1800);
                         });
                     });
                 }));
@@ -995,7 +997,7 @@ public sealed partial class HanView
             {
                 var thunder = f.Kind == "thunderbolt";
                 var ramp = thunder ? FxEngine.Ramp.Toxic : FxEngine.Ramp.Ice;
-                steps.Add(new Step(mine, thunder ? "Gök Gürültüsü" : "Kırlangıç", thunder ? $"Satırın +%25: {RowBaseOf(side)} → {Tuning.ApplyPct(RowBaseOf(side), 0.25)}" : "Satırdaki hava etkisi kalktı: " + string.Join(", ", own.Select(u => $"{NameOf(u)} {Val(u)}")), thunder ? Color.FromRgb(0x9f, 0xf0, 0x9a) : Color.FromRgb(0x9a, 0xd8, 0xff), Sign - 300, () =>
+                steps.Add(new Step(mine, thunder ? "Gök Gürültüsü" : "Kırlangıç", thunder ? $"Satırın +%25: {HTu.Fmt(RowBaseOf(side))} → {HTu.Fmt(Tuning.ApplyPct(RowBaseOf(side), 0.25))}" : "Satırdaki hava etkisi kalktı: " + string.Join(", ", own.Select(u => $"{NameOf(u)} {HTu.Fmt(Val(u))}")), thunder ? Color.FromRgb(0x9f, 0xf0, 0x9a) : Color.FromRgb(0x9a, 0xd8, 0xff), Sign - 300, () =>
                 {
                     Sfx.Play("han_drink");
                     Fx.After(400, () =>
@@ -1005,7 +1007,7 @@ public sealed partial class HanView
                         Fx.After(500, () =>
                         {
                             Land(own, 3);
-                            foreach (var uid in own) if (CardAt(uid) is { } c) HanArt.FloatText(_fx, thunder ? "+%25" : $"{Val(uid)}", new Point(c.C.X, c.C.Y - c.H * 0.6), thunder ? Color.FromRgb(0x9f, 0xf0, 0x9a) : Color.FromRgb(0x9a, 0xd8, 0xff), 24, 1300);
+                            foreach (var uid in own) if (CardAt(uid) is { } c) HanArt.FloatText(_fx, thunder ? "+%25" : HTu.Fmt(Val(uid)), new Point(c.C.X, c.C.Y - c.H * 0.6), thunder ? Color.FromRgb(0x9f, 0xf0, 0x9a) : Color.FromRgb(0x9a, 0xd8, 0xff), 24, 1300);
                         });
                     });
                 }));

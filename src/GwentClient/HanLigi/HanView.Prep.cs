@@ -222,7 +222,7 @@ public sealed partial class HanView
         var sel = _sel is { } su ? Me.Cards.FirstOrDefault(c => c.Uid == su) : null;
         var newCards = new List<FrameworkElement>();
         var grown = new List<FrameworkElement>();
-        HanCardView Mine(OwnedCard c, double w, int? value)
+        HanCardView Mine(OwnedCard c, double w, decimal? value)
         {
             var el = Own(c, w, value);
             if (!_seenCards.Contains(c.Uid)) newCards.Add(el);
@@ -297,7 +297,7 @@ public sealed partial class HanView
                 return (c.Uid, (FrameworkElement)Mine(c, DesignW, unit == null ? null : preview.Value(side, unit)));
             }).ToList();
             PlaceRow(list, true, r);
-            PutU(ScoreBadge(preview.PlainRow(0, r).ToString(), true), new Point(RowX + RowW - 36, RowY(true, r) + RowH / 2));
+            PutU(ScoreBadge(Tuning.Fmt(preview.PlainRow(0, r)), true), new Point(RowX + RowW - 36, RowY(true, r) + RowH / 2));
             RowLabel(true, r, HT.Name(r));
         }
         // özel kartlar: satırların sol sütununda, etkilediği satırın hizasında. Boynuz/Kalkan'ın satırını oyuncu seçer (savaşta
@@ -403,7 +403,7 @@ public sealed partial class HanView
     }
 
     /// <summary>Sol şeridin altı: simya kartları ve pusu yeri (bırakma alanı).</summary>
-    private void PotionsAndAmbush(OwnedCard? sel, Func<OwnedCard, double, int?, HanCardView> mine)
+    private void PotionsAndAmbush(OwnedCard? sel, Func<OwnedCard, double, decimal?, HanCardView> mine)
     {
         const double y0 = 646, h = 222;
         Put(Panel(SideW, h, null, 0xc8), SideX, y0);
@@ -587,7 +587,7 @@ public sealed partial class HanView
     private static void Pop(UIElement el) => el.BeginAnimation(OpacityProperty, new DoubleAnimation(0.2, 1, TimeSpan.FromMilliseconds(380)));
 
     /// <summary>Alt şeridin ortası: depo (8 yuva).</summary>
-    private void Bench(OwnedCard? sel, Func<OwnedCard, double, int?, HanCardView> mine)
+    private void Bench(OwnedCard? sel, Func<OwnedCard, double, decimal?, HanCardView> mine)
     {
         var bench = Me.Bench.ToList();
         var full = bench.Count >= Tuning.BenchSize;

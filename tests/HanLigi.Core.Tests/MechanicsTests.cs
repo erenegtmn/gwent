@@ -5,7 +5,7 @@ namespace HanLigi.Tests;
 /// <summary>
 /// Bütün savaş mekaniklerinin kartta/ipucunda yazdığı gibi çalıştığının ve birbirleriyle doğru birleştiğinin denetimi:
 /// işaretler, okullar, sınıf eşikleri, yetenekler, kahramanlar, simya kartları, özel kartlar, pusu, Odak/Öfke ve hasar.
-/// Beklenen sayılar elle hesaplanmıştır (yuvarlama: <see cref="Tuning.ApplyPct"/>: en az 1 değişir, yarımlar etkinin lehine).
+/// Beklenen sayılar elle hesaplanmıştır (güç ondalıklı: <see cref="Tuning.ApplyPct"/> en yakın 0,1, tam orta etkinin lehine).
 /// Satır sırası varsayılan Yakın → Menzilli → Kuşatma.
 /// </summary>
 public class MechanicsTests
@@ -53,7 +53,7 @@ public class MechanicsTests
         return b.Resolve()!;
     }
 
-    private static int Val(WindowOutcome o, BattleUnit u) => o.CardValues[u.Uid];
+    private static decimal Val(WindowOutcome o, BattleUnit u) => o.CardValues[u.Uid];
 
     // ================= işaretler ve okullar =================
 
@@ -72,7 +72,7 @@ public class MechanicsTests
     [Fact]
     public void Griffin_and_mage_two_amplify_aard_and_igni()
     {
-        foreach (var (school, mage, igni, aard) in new (School?, int, int, int)[] { (null, 0, 6, 18), (School.Griffin, 0, 3, 17), (null, 2, 4, 17), (School.Griffin, 2, 1, 16) })
+        foreach (var (school, mage, igni, aard) in new (School?, int, decimal, decimal)[] { (null, 0, 6, 18), (School.Griffin, 0, 3, 17), (null, 2, 4.5m, 17.5m), (School.Griffin, 2, 1.5m, 16.5m) })
         {
             var (a, b) = (Side("A", school: school, tags: (Tag.Mage, mage)), Side("B"));
             Add(a, "ghoul", power: 1);
@@ -80,13 +80,13 @@ public class MechanicsTests
             var t = Add(b, "draug", power: 12);      // 12 → Igni bunu vurur
             var bt = Start(a, b);
             var o = Play(bt, C(Sign.Igni), N);
-            // −%50 / −%75 / −%62,5 / −%87,5 → 12 → 6 / 3 / 4,5→4 / 1,5→1 (yarımlar etkinin lehine: aşağı)
+            // −%50 / −%75 / −%62,5 / −%87,5 → 12 → 6 / 3 / 4,5 / 1,5
             Assert.Equal(igni, Val(o, t));
             var (a2, b2) = (Side("A", school: school, tags: (Tag.Mage, mage)), Side("B"));
             Add(a2, "ghoul", power: 1);
             Add(b2, "fiend", power: 10); Add(b2, "draug", power: 10);
             var o2 = Play(Start(a2, b2), C(Sign.Aard), N);
-            // 20 × (1 − %10 / %15 / %12,5 / %17,5) = 18 / 17 / 17,5→17 / 16,5→16
+            // 20 × (1 − %10 / %15 / %12,5 / %17,5) = 18 / 17 / 17,5 / 16,5
             Assert.Equal(aard, o2.ValueB);
         }
     }
@@ -106,7 +106,7 @@ public class MechanicsTests
         Add(a2, "ghoul", power: 1);
         Add(b2, "geralt");
         var o2 = Play(Start(a2, b2), C(Sign.Aard), N);
-        Assert.Equal(20, o2.ValueB);                 // 22 × 0,9 = 19,8 → 20? hayır: −%10 → 19,8 → yarım değil, en yakın 20; en az 1 düşer → 20
+        Assert.Equal(19.8m, o2.ValueB);              // 22 × 0,9 = 19,8 (Aard kahramana da işler)
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public class MechanicsTests
         Assert.Equal(4, a.Focus);                    // 2 + Kurt + Ozan
         var o = Play(bt, C(Sign.Igni, Sign.Igni), N);
         Assert.Equal(4, Val(o, f));                  // 8 → 4
-        Assert.Equal(2, Val(o, g));                  // sonra en güçlü griffin 5 → 2,5 → 2
+        Assert.Equal(2.5m, Val(o, g));               // sonra en güçlü griffin 5 → 2,5
         Assert.Equal(0, a.Focus);
         Assert.False(bt.Valid(0, C(Sign.Aard, Sign.Aard)));   // savaş başına bir kez
     }
@@ -232,7 +232,7 @@ public class MechanicsTests
     [Fact]
     public void Dancing_star_hits_two_strongest_and_viper_strengthens_bombs()
     {
-        foreach (var (viper, f, g) in new[] { (false, 6, 3), (true, 5, 3) })
+        foreach (var (viper, f, g) in new[] { (false, 5.6m, 3.5m), (true, 5m, 3.1m) })
         {
             var (a, b) = (Side("A", school: viper ? School.Viper : null), Side("B"));
             Add(a, "ghoul", power: 1);
@@ -241,7 +241,7 @@ public class MechanicsTests
             var ug = Add(b, "griffin");              // 5
             var low = Add(b, "dwarven_skirmisher", Row.Close, power: 1);
             var o = Play(Start(a, b), P(Potion.DancingStar), N);
-            // −%30: 8 → 5,6 → 6; 5 → 3,5 → 3.  Engerek −%37,5: 8 → 5; 5 → 3,1 → 3
+            // −%30: 8 → 5,6; 5 → 3,5.  Engerek −%37,5: 8 → 5; 5 → 3,125 → 3,1
             Assert.Equal(f, Val(o, uf));
             Assert.Equal(g, Val(o, ug));
             Assert.Equal(1, Val(o, low));
@@ -251,7 +251,7 @@ public class MechanicsTests
     [Fact]
     public void Northern_wind_dwarf_halving_and_zoltan_immunity()
     {
-        int Hit(bool dwarfTh, bool zoltan)
+        decimal Hit(bool dwarfTh, bool zoltan)
         {
             var (a, b) = (Side("A"), Side("B", tags: (Tag.Dwarf, dwarfTh ? 2 : 0)));
             Add(a, "ghoul", power: 1);
@@ -260,8 +260,8 @@ public class MechanicsTests
             if (zoltan) Add(b, "zoltan");
             return Val(Play(Start(a, b), P(Potion.NorthernWind), N), t);
         }
-        Assert.Equal(2, Hit(false, false));          // 6 × 0,3 = 1,8 → 2
-        Assert.Equal(4, Hit(true, false));           // −%35: 3,9 → 4
+        Assert.Equal(1.8m, Hit(false, false));       // 6 × 0,3 = 1,8
+        Assert.Equal(3.9m, Hit(true, false));        // −%35: 6 × 0,65 = 3,9
         Assert.Equal(6, Hit(false, true));           // Zoltan: bombadan etkilenmez
     }
 
@@ -363,9 +363,9 @@ public class MechanicsTests
         var o1 = Play(bt, N, N);
         Assert.Equal(1, o1.Winner);
         var o2 = Play(bt, N, N);
-        Assert.Equal(11, Val(o2, rev));              // 7 × 1,5 = 10,5 → 11 (lehine)
+        Assert.Equal(10.5m, Val(o2, rev));           // 7 × 1,5 = 10,5
         var o3 = Play(bt, N, N);
-        Assert.Equal(7, Val(o3, zeal));              // önceki kazanıldı: 5 × 1,3 = 6,5 → 7
+        Assert.Equal(6.5m, Val(o3, zeal));           // önceki kazanıldı: 5 × 1,3 = 6,5
     }
 
     [Fact]
@@ -463,7 +463,7 @@ public class MechanicsTests
         Add(b, "draug");
         var bt = Start(a, b);
         var o = Play(bt, WindowChoice.With(Array.Empty<Sign>(), null, new[] { ciri.Uid }), C(Sign.Aard));
-        Assert.Equal(7 + 20, o.ValueA);              // Aard yalnız fiend'e
+        Assert.Equal(7.2m + 20, o.ValueA);           // Aard yalnız fiend'e: 8 × 0,9 = 7,2; Ciri 20 muaf
     }
 
     [Fact]
