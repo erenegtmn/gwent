@@ -21,7 +21,14 @@ public static class Meta
         new("fast", "Hızlı seviye", LevelShift: 1, ReserveHigh: 0),
         new("econ", "Faiz birikimi", LevelShift: -1, ReserveHigh: 20),
         new("hyper", "Hiper-yenileme (1-2 tier üçlü)", Hyper: true, ReserveHigh: 0),
-        new("weather", "Hava + Boynuz", SpecialBonus: 4),
+        new("horn", "Hava + Boynuz", SpecialBonus: 4),
+        // hava satırını ucuz kalabalıkla ve Askerle (eşikte havaya dayanıklı) taşır; Kalkan kendi satırını korur
+        new("weather", "Hava + Asker", Tag: Tag.Soldier, SpecialBonus: 2, Prefer: new[] { Special.Frost, Special.Fog, Special.Rain, Special.Shield }, SpecialMargin: -0.02),
+        // Cüce 2. eşik Kavurma'dan korur: rakibin en güçlü kartını yakar
+        new("scorch", "Kavurma + Cüce", Tag: Tag.Dwarf, SpecialBonus: 2, Prefer: new[] { Special.Scorch, Special.Shield }, SpecialMargin: -0.02),
+        // Yakın'a yığılan rakipleri Ayaz'la kırar, gücünü başka satırda toplar
+        new("ranged", "Menzilli hat + Ayaz", Row: Row.Ranged, Prefer: new[] { Special.Frost }, SpecialMargin: 0),
+        new("siege", "Kuşatma hattı + Ayaz", Row: Row.Siege, Prefer: new[] { Special.Frost }, SpecialMargin: 0),
         new("nospecial", "Özel kartsız", Specials: false),
     };
 
@@ -295,7 +302,7 @@ public static class Meta
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"## {title}");
         sb.AppendLine();
-        sb.AppendLine($"{r.Games} maç × 8 güçlü bot, her koltuğa rastgele bir düzen (14 düzenden 8'i), okul rastgele. Ortalama {r.AvgRounds:F1} round. ");
+        sb.AppendLine($"{r.Games} maç × 8 güçlü bot, her koltuğa rastgele bir düzen ({Builds.Length} düzenden 8'i), okul rastgele. Ortalama {r.AvgRounds:F1} round. ");
         sb.AppendLine("Ortalama sıra 4,5 = nötr; küçük daha iyi. ± = %95 güven aralığı. Kademe: S < 3,9 · A < 4,25 · B < 4,75 · C < 5,1 · D.");
         sb.AppendLine();
         void Table(string head, IEnumerable<Stat> rows, bool tier)

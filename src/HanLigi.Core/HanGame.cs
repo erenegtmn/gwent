@@ -255,7 +255,7 @@ public sealed class HanGame
         if (M.Phase != Phase.Prep) return;
         foreach (var p in M.Alive.Where(p => Bots.Contains(p.Id)).ToList())
         {
-            ExpertBot.Prep(M, p.Id, Rng(2, M.Round, p.Id));
+            ExpertBot.Prep(M, p.Id, Rng(2, M.Round, p.Id), ExpertBot.BuildFor(M.Seed, p.Id));   // her bot koltuğu kendi düzeniyle (strateji çeşitliliği)
             if (M.Phase != Phase.Prep) { AfterLock(); return; }   // son hazır olan bot kilitledi
         }
     }
@@ -305,7 +305,7 @@ public sealed class HanGame
     {
         if (M.Phase == Phase.Prep && M.Players[pid].Alive && !M.Players[pid].Ready)
         {
-            ExpertBot.Prep(M, pid, Rng(5, M.Round, pid));
+            ExpertBot.Prep(M, pid, Rng(5, M.Round, pid), ExpertBot.BuildFor(M.Seed, pid));
             if (M.Phase == Phase.Battle) AfterLock();
             return;
         }

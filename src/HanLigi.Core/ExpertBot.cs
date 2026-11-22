@@ -22,6 +22,12 @@ public static class ExpertBot
         public static int RollAt = 30, RollHp = 50;
         public static bool ExpertWindows;
         public static double Noise = 0;
+        /// <summary>Özel kart alımında kazanma şansı artışının alım puanına çevrimi.</summary>
+        public static double SpecialGain = 60;
+        /// <summary>Ölçüm: yalnız bu özel kartlar kullanılır (null = hepsi).</summary>
+        public static HashSet<Special>? Allowed;
+        /// <summary>Sahadaki özel kart başına kazanma şansı payı (ölçümle seçilir).</summary>
+        public static double SpecialMargin = 0.03;
     }
 
     /// <summary>
@@ -29,8 +35,21 @@ public static class ExpertBot
     /// oyundur. Sınıf / yetenek odağı alımda ağırlık verir; seviye kayması, faiz birikimi, hiper-yenileme (düşük seviyede kalıp 1-2
     /// tier üçlü arama) ekonomiyi değiştirir.
     /// </summary>
+    /// <param name="Row">Satır eğilimi: bu satırın kartlarına alımda ağırlık, dizilimde o satır güçlü tutulur (herkes Yakın'a yığılmasın).</param>
+    /// <param name="Prefer">Özellikle aranan özel kartlar (alımda ek değer).</param>
     public sealed record Build(string Id, string Name, Tag? Tag = null, Ability[]? Abilities = null, int LevelShift = 0, int? ReserveHigh = null,
-        bool Hyper = false, bool Specials = true, double SpecialBonus = 0);
+        bool Hyper = false, bool Specials = true, double SpecialBonus = 0, Row? Row = null, Special[]? Prefer = null, double? SpecialMargin = null);
+
+    /// <summary>
+    /// Oyundaki bot koltuğunun düzeni: maçın tohumuyla karıştırılmış düzen listesinden sırayla (aynı maçta botlar farklı stratejiler
+    /// dener). Tohum ve koltuktan türetilir; online kopyalarda aynıdır.
+    /// </summary>
+    public static Build BuildFor(int seed, int pid)
+    {
+        var rng = new Random(unchecked(seed * 92821 + 17));
+        var order = Enumerable.Range(0, Meta.Builds.Length).Where(i => Meta.Builds[i].Id != "nospecial").OrderBy(_ => rng.Next()).ToArray();
+        return Meta.Builds[order[pid % order.Length]];
+    }
 
     [ThreadStatic] private static Build? _b;
 
@@ -56,12 +75,12 @@ public static class ExpertBot
         if (p.PotionOptions.Length > 0)
             m.ChoosePotion(pid, Enumerable.Range(0, p.PotionOptions.Length).OrderByDescending(i => PotionValue(p, p.PotionOptions[i])).First());
 
-        Arrange(m, p);
+        Arrange(m, p, false);
         BuyLoop(m, p);
         // seviye eğrisi
         while (p.Level < Tuning.BotCap && p.Level < TargetLevel(m, p) && p.Gold - Tuning.XpCost >= Reserve(m, p))
             if (!m.BuyXp(pid)) break;
-        Arrange(m, p);
+        Arrange(m, p, false);
         BuyLoop(m, p);
         // yenileme: can azaldıysa ya da hedef seviyedeyken fazla altın varsa yükseltme ara
         var rolls = 0;
@@ -70,7 +89,7 @@ public static class ExpertBot
             rolls++;
             BuyLoop(m, p);
         }
-        Arrange(m, p);
+        Arrange(m, p, true);
         m.SetReady(pid);
     }
 
@@ -111,7 +130,7 @@ public static class ExpertBot
     private static Dictionary<Tag, int> TagsOwned(PlayerState p)
     {
         var d = new Dictionary<Tag, int>();
-        foreach (var c in p.Cards.Where(c => c.Def.IsUnit && !c.Def.IsHero).GroupBy(c => c.Def.Id).Select(g => g.First()))
+        foreach (var c in p.Cards.Where(c => c.Def.IsUnit).GroupBy(c => c.Def.Id).Select(g => g.First()))
             foreach (var t in c.Def.Tags) d[t] = d.GetValueOrDefault(t) + 1;
         return d;
     }
@@ -122,7 +141,7 @@ public static class ExpertBot
         var full = p.Used >= p.Slots;
         var baseline = full && fielded.Count > 0 ? fielded[0] : 0;
         var score = Worth(p, d, 1) - baseline * 0.8;
-        if (!d.IsUnit) return p.Cards.Any(c => c.Def == d) ? -5 : _b is { Specials: false } ? -10 : score - 1 + (_b?.SpecialBonus ?? 0);
+        if (!d.IsUnit) return SpecialWant(m, p, d);
         if (d.IsHero) return 60;
         if (_b != null)
         {
@@ -130,6 +149,11 @@ public static class ExpertBot
             if (on) score += 4 + d.Tier * 0.5;
             else if ((_b.Tag != null || _b.Abilities != null) && m.Round >= 6) score -= 1.5;
             if (_b.Hyper && d.Tier <= 2 && p.Cards.Any(c => c.Def == d)) score += 3;
+            if (_b.Row is { } br)
+            {
+                if (d.Row == br) score += 3 + d.Tier * 0.4;
+                else if (m.Round >= 5 && !(d.Agile && br != Row.Siege)) score -= 2;   // öteki satırlar yalnız dolgu
+            }
         }
         var same1 = p.Cards.Count(c => c.Def == d && c.Star == 1);
         var same2 = p.Cards.Count(c => c.Def == d && c.Star == 2);
@@ -190,18 +214,26 @@ public static class ExpertBot
         var s = b.Sides[0];
         var rows = Enum.GetValues<Row>().Select(r => (double)b.PlainRow(0, r)).OrderByDescending(v => v).ToArray();
         var ambush = s.Ambush.Sum(u => b.Value(s, u)) * 0.85;
-        var weather = s.Specials.Count(x => x is Special.Frost or Special.Fog or Special.Rain) * (1.5 + p.Level * 0.4);
         var weatherHurt = 0.0;
         foreach (var sp in s.Specials)
         {
             Row? wr = sp switch { Special.Frost => Row.Close, Special.Fog => Row.Ranged, Special.Rain => Row.Siege, _ => null };
             if (wr is { } r) weatherHurt += s.In(r).Where(u => !u.IsHero && !u.Protected).Sum(u => Math.Max(0, b.Value(s, u) - 1)) * 0.8;
         }
-        return rows[0] * K.Top + rows[1] * K.Second + rows[2] * K.Third + ambush + weather - weatherHurt;
+        var rowBias = _b?.Row is { } br ? (double)b.PlainRow(0, br) * 0.6 : 0;
+        return rows[0] * K.Top + rows[1] * K.Second + rows[2] * K.Third + ambush + rowBias - weatherHurt;
     }
 
     /// <summary>Yerel arama: her depo kartını boş yere, her (saha, depo) çiftini takas, çevik kartları öteki satıra, pusuyu dener; iyileşeni tutar.</summary>
-    private static void Arrange(Match m, PlayerState p)
+    private static void Arrange(Match m, PlayerState p, bool specials)
+    {
+        ArrangeUnits(m, p);
+        if (!specials) return;
+        SpecialPass(m, p);
+        ArrangeUnits(m, p);   // özel kartlar yer açtı/aldı, hava satırı değişti
+    }
+
+    private static void ArrangeUnits(Match m, PlayerState p)
     {
         var pid = p.Id;
         var best = Score(m, p);
@@ -209,7 +241,7 @@ public static class ExpertBot
         {
             var improved = false;
             // depodan sahaya (boş slot)
-            foreach (var c in p.Bench.ToList())
+            foreach (var c in p.Bench.Where(c => c.Def.IsUnit).ToList())
                 foreach (var z in Match.ZonesFor(c.Def))
                 {
                     if (!m.CanMove(pid, c.Uid, z) || m.WouldOverflow(pid, c.Uid, z)) continue;
@@ -219,11 +251,11 @@ public static class ExpertBot
                     m.Move(pid, c.Uid, Zone.Bench);
                 }
             // takas: sahadaki kart depoya, depodaki onun yerine
-            foreach (var f in p.Fielded.ToList())
+            foreach (var f in p.Fielded.Where(c => c.Def.IsUnit).ToList())
             {
                 if (!p.Cards.Contains(f) || !f.Fielded) continue;
                 var fromZone = f.Zone;
-                foreach (var c in p.Bench.ToList())
+                foreach (var c in p.Bench.Where(c => c.Def.IsUnit).ToList())
                 {
                     if (!m.CanMove(pid, f.Uid, Zone.Bench) && p.Bench.Count() >= Tuning.BenchSize) break;
                     m.Move(pid, f.Uid, Zone.Bench);
@@ -241,7 +273,7 @@ public static class ExpertBot
                 }
             }
             // çevik ve pusu: başka bölgeyi dene
-            foreach (var f in p.Fielded.ToList())
+            foreach (var f in p.Fielded.Where(c => c.Def.IsUnit).ToList())
             {
                 var zones = Match.ZonesFor(f.Def).Where(z => z != f.Zone).ToList();
                 var from = f.Zone;
@@ -256,6 +288,114 @@ public static class ExpertBot
             }
             if (!improved) break;
         }
+    }
+
+    // ---------- özel kartlar (simülasyonla) ----------
+
+    /// <summary>Özel kartın alım değeri: sahaya konunca idman sahalarına karşı kazanma şansı ne kadar artıyor.</summary>
+    private static double SpecialWant(Match m, PlayerState p, CardDef d)
+    {
+        if (_b is { Specials: false } || (K.Allowed != null && !K.Allowed.Contains(d.Special))) return -10;
+        if (p.Cards.Any(c => c.Def == d)) return -5;
+        var spars = BotSim.Spars(m, p);
+        var cur = Val(m, p, spars);
+        var tmp = new OwnedCard { Uid = int.MinValue + 7, Def = d };
+        p.Cards.Add(tmp);
+        double best;
+        try { best = Explore(m, p, tmp, spars, cur, false); }
+        finally { p.Cards.Remove(tmp); }
+        var bonus = (_b?.SpecialBonus ?? 0) + (_b?.Prefer?.Contains(d.Special) == true ? 5 : 0);
+        return (best - cur) * K.SpecialGain + bonus - 0.5;
+    }
+
+    /// <summary>
+    /// Özel kartları idman simülasyonuyla yerleştirir: her özel kart için sahaya koy (Boynuz/Kalkan: her satır; yer yoksa en
+    /// zayıf üç birimden biri depoya), kaldır ya da hedefini değiştir; kazanma şansını artıranı tutar.
+    /// </summary>
+    private static void SpecialPass(Match m, PlayerState p)
+    {
+        var specials = p.Cards.Where(c => !c.Def.IsUnit).ToList();
+        if (specials.Count == 0) return;
+        if (_b is { Specials: false })
+        {
+            foreach (var c in specials.Where(c => c.Fielded)) m.Move(p.Id, c.Uid, Zone.Bench);
+            return;
+        }
+        // aynı özel karttan ikincisi işe yaramaz (hava ve Kavurma birikmez): fazlası depoya, yalnız biri denenir
+        foreach (var g in specials.Where(c => c.Fielded).GroupBy(c => c.Def.Id))
+            foreach (var extra in g.Skip(1)) m.Move(p.Id, extra.Uid, Zone.Bench);
+        var spars = BotSim.Spars(m, p);
+        var cur = Val(m, p, spars);
+        for (var pass = 0; pass < 2; pass++)
+        {
+            var before = cur;
+            foreach (var c in specials.GroupBy(c => c.Def.Id).Select(g => g.OrderByDescending(x => x.Fielded).First()))
+                cur = Explore(m, p, c, spars, cur, true);
+            if (cur <= before + 1e-9) break;
+        }
+    }
+
+    /// <summary>
+    /// Kararın puanı: idman kazanma şansı, sahadaki her özel kart için <see cref="K.SpecialMargin"/> eksik (simülasyon işaret,
+    /// simya ve pusuyu görmez; ölçümde özel kartın faydasını gerçekte olduğundan büyük buluyordu).
+    /// </summary>
+    private static double Val(Match m, PlayerState p, List<BotSim.Spar> spars) =>
+        BotSim.WinChance(m, p, spars) - (_b?.SpecialMargin ?? K.SpecialMargin) * p.Cards.Count(c => c.Zone == Zone.Special);
+
+    /// <summary>
+    /// Bir özel kartın en iyi yerini arar; <paramref name="commit"/> ise en iyisini uygular (iyileşme yoksa durum aynen kalır).
+    /// Dönen değer en iyi kazanma şansıdır (en az <paramref name="cur"/>).
+    /// </summary>
+    private static double Explore(Match m, PlayerState p, OwnedCard sc, List<BotSim.Spar> spars, double cur, bool commit)
+    {
+        const double Eps = 0.004;
+        var pid = p.Id;
+        var bestV = cur;
+        Action? bestDo = null;
+        var aims = Match.Aimable(sc.Def) ? Enum.GetValues<Row>().Cast<Row?>().ToArray() : new Row?[] { null };
+        var (z0, a0) = (sc.Zone, sc.Aim);
+
+        void Try(Action apply, Action undo)
+        {
+            apply();
+            var v = Val(m, p, spars);
+            undo();
+            if (v > bestV + Eps) { bestV = v; bestDo = apply; }
+        }
+
+        if (sc.Fielded)
+        {
+            // kaldır: yerine depodaki en değerli birimlerden biri (yoksa boş kalır)
+            if (p.Bench.Count() < Tuning.BenchSize)
+            {
+                Try(() => m.Move(pid, sc.Uid, Zone.Bench), () => { sc.Zone = z0; sc.Aim = a0; });
+                foreach (var u in p.Bench.Where(c => c.Def.IsUnit).OrderByDescending(c => Worth(p, c.Def, c.Star)).Take(3).ToList())
+                    foreach (var z in Match.ZonesFor(u.Def).Where(z => z != Zone.Ambush))
+                        Try(() => { sc.Zone = Zone.Bench; sc.Aim = null; u.Zone = z; }, () => { u.Zone = Zone.Bench; sc.Zone = z0; sc.Aim = a0; });
+            }
+            foreach (var a in aims.Where(a => a != null && a != a0))
+                Try(() => m.Move(pid, sc.Uid, Zone.Special, a), () => { sc.Zone = z0; sc.Aim = a0; });
+        }
+        else if (p.Used < p.Slots)
+        {
+            foreach (var a in aims)
+                Try(() => m.Move(pid, sc.Uid, Zone.Special, a), () => { sc.Zone = z0; sc.Aim = a0; });
+        }
+        else
+        {
+            // yer yok: en zayıf (kahraman olmayan) birimlerden biri depoya
+            var weak = p.Cards.Where(c => c.TakesSlot && c.Def.IsUnit && !c.Def.IsHero).OrderBy(c => Worth(p, c.Def, c.Star)).Take(3).ToList();
+            if (weak.Count > 0)
+                foreach (var w in weak)
+                {
+                    var wz = w.Zone;
+                    foreach (var a in aims)
+                        Try(() => { w.Zone = Zone.Bench; sc.Zone = Zone.Special; sc.Aim = a; },
+                            () => { sc.Zone = z0; sc.Aim = a0; w.Zone = wz; });
+                }
+        }
+        if (commit && bestDo != null) bestDo();
+        return bestV;
     }
 
     // ---------- savaş ----------

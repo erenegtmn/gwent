@@ -541,7 +541,7 @@ public sealed class Match
 
     // ---------- kilit ve savaşlar ----------
 
-    private BattleSide Snapshot(PlayerState p, string? nameOverride = null)
+    internal BattleSide Snapshot(PlayerState p, string? nameOverride = null)
     {
         var s = new BattleSide { PlayerId = p.Id, Name = nameOverride ?? p.Name, Level = p.Level, School = p.School };
         // Pusu sınırı aşıldıysa (eşik kaybı) fazlası kendi satırına döner
@@ -571,6 +571,15 @@ public sealed class Match
     {
         var b = new Battle(Snapshot(Players[pid]), new BattleSide { Name = "" }, Players[pid].Order, 0);
         b.Sides[0].Act = b.DefaultActivation(0);
+        return b;
+    }
+
+    /// <summary>Botlar için: oyuncunun şu anki sahası verilen (varsayımsal) rakibe karşı; durumu değiştirmez.</summary>
+    internal Battle PreviewVs(int pid, BattleSide foe)
+    {
+        var b = new Battle(Snapshot(Players[pid]), foe, Players[pid].Order, 0);
+        b.Sides[0].Act = b.DefaultActivation(0);
+        b.Sides[1].Act = b.DefaultActivation(1);
         return b;
     }
 

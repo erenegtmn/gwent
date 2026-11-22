@@ -104,6 +104,114 @@ if (args.Length > 0 && args[0] == "runes")
     return;
 }
 
+if (args.Length > 0 && args[0] == "han-bots")
+{
+    // dotnet run --project src/GwentArena -c Release -- han-bots [maç] [--builds] [--ab A B] [--check] [--only Frost,Horn] [--margin 0.03]
+    //   botların özel kart / satır kullanımı, düzen başına sıra; --builds: oyundaki gibi koltuk başına düzen (ExpertBot.BuildFor);
+    //   --ab: çift koltuklar A, tek koltuklar B düzeni (ör. balanced nospecial: özel kart kararı işe yarıyor mu)
+    var nm = args.Length > 1 && int.TryParse(args[1], out var nmv) ? nmv : 100;
+    var byId = HanLigi.Meta.Builds.ToDictionary(b => b.Id);
+    HanLigi.ExpertBot.Build? abA = null, abB = null;
+    var abi = Array.IndexOf(args, "--ab");
+    if (abi >= 0) { abA = args[abi + 1] == "none" ? null : byId[args[abi + 1]]; abB = args[abi + 2] == "none" ? null : byId[args[abi + 2]]; }
+    var builds = args.Contains("--builds");
+    var check = args.Contains("--check");   // özel kart kararını gerçek rakibe karşı sına, idman sahasının gücünü yaz (yavaş)
+    if (Array.IndexOf(args, "--only") is var oi and >= 0) HanLigi.ExpertBot.K.Allowed = args[oi + 1].Split(',').Select(Enum.Parse<HanLigi.Special>).ToHashSet();
+    if (Array.IndexOf(args, "--margin") is var mgi and >= 0) HanLigi.ExpertBot.K.SpecialMargin = double.Parse(args[mgi + 1], System.Globalization.CultureInfo.InvariantCulture);
+    if (Array.IndexOf(args, "--gain") is var gi and >= 0) HanLigi.ExpertBot.K.SpecialGain = double.Parse(args[gi + 1], System.Globalization.CultureInfo.InvariantCulture);
+    var lk = new object();
+    var sp = new Dictionary<HanLigi.Special, int>();
+    var rowsPow = new double[3]; long seats = 0, amb = 0, heldSpecial = 0, heldTotal = 0;
+    var places = new Dictionary<string, List<int>>();
+    var str = new Dictionary<int, (double, double, int)>();
+    var chk = new Dictionary<HanLigi.Special, (double, double, int)>();
+    var per = new Dictionary<string, double[]>();
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    Parallel.For(0, nm, g =>
+    {
+        var m = new HanLigi.Match(g + 1, Enumerable.Range(0, 8).Select(i => ($"B{i}", true)).ToList());
+        var rng = new Random(g * 31 + 7);
+        foreach (var p in m.Players) m.ChooseSchool(p.Id, p.SchoolOptions[rng.Next(3)]);
+        HanLigi.ExpertBot.Build? BuildOf(int pid) => abi >= 0 ? (pid % 2 == 0 ? abA : abB) : builds ? HanLigi.ExpertBot.BuildFor(m.Seed, pid) : null;
+        for (var guard = 0; guard < 80 && m.Phase != HanLigi.Phase.Finished; guard++)
+        {
+            foreach (var p in m.Alive.ToList()) HanLigi.ExpertBot.Prep(m, p.Id, rng, BuildOf(p.Id));
+            if (m.Phase == HanLigi.Phase.Prep) m.ForceLock();
+            if (check && m.Round is 4 or 7 or 10 or 14)
+                lock (lk)
+                    foreach (var p in m.Alive)
+                    {
+                        var (mi, spr) = HanLigi.BotSimDebug.Strength(m, p.Id);
+                        var key = m.Round;
+                        if (!str.TryGetValue(key, out var v)) v = (0, 0, 0);
+                        str[key] = (v.Item1 + mi, v.Item2 + spr, v.Item3 + 1);
+                    }
+            if (m.Round >= 6)
+                lock (lk)
+                    foreach (var p in m.Alive)
+                    {
+                        seats++;
+                        foreach (var c in p.Cards.Where(c => c.Def.Special != HanLigi.Special.None))
+                        {
+                            heldTotal++;
+                            if (c.Fielded) { sp[c.Def.Special] = sp.GetValueOrDefault(c.Def.Special) + 1; heldSpecial++; }
+                        }
+                        foreach (var c in p.Cards.Where(c => c.Fielded && c.Def.IsUnit && c.Row != null)) rowsPow[(int)c.Row!.Value] += c.Power;
+                        var bk = BuildOf(p.Id)?.Id ?? "balanced(null)";
+                        if (!per.TryGetValue(bk, out var pv)) per[bk] = pv = new double[10];
+                        pv[0]++;
+                        foreach (var c in p.Cards.Where(c => c.Fielded && c.Def.IsUnit && c.Row != null)) pv[1 + (int)c.Row!.Value] += c.Power;
+                        pv[8] += p.Cards.Count(c => !c.Def.IsUnit);
+                        pv[9] += p.Cards.Count(c => c.Def.Special == HanLigi.Special.Scorch);
+                        foreach (var c in p.Cards.Where(c => c.Zone == HanLigi.Zone.Special)) pv[c.Def.Special is HanLigi.Special.Frost or HanLigi.Special.Fog or HanLigi.Special.Rain ? 4 : c.Def.Special == HanLigi.Special.Horn ? 5 : c.Def.Special == HanLigi.Special.Scorch ? 6 : 7]++;
+                        amb += p.Cards.Count(c => c.Zone == HanLigi.Zone.Ambush);
+                    }
+            foreach (var b in m.Battles.Where(b => check && !b.Pve))
+            {
+                var pa = b.Sides[0].PlayerId;
+                var pb = b.Ghost ? m.Players[pa].OppId : b.Sides[1].PlayerId;
+                foreach (var (me, foe) in new[] { (pa, pb), (pb, pa) })
+                {
+                    if (me < 0 || foe < 0 || !m.Players[me].Alive) continue;
+                    var ch = HanLigi.BotSimDebug.Check(m, me, foe);
+                    lock (lk) foreach (var (spc, ds, dr) in ch)
+                    {
+                        var v = chk.GetValueOrDefault(spc);
+                        chk[spc] = (v.Item1 + ds, v.Item2 + dr, v.Item3 + 1);
+                    }
+                }
+            }
+            foreach (var b in m.Battles)
+            {
+                b.Start();
+                while (!b.Done) { for (var s = 0; s < 2; s++) b.Submit(s, HanLigi.ExpertBot.Window(b, s, rng)); b.Resolve(); }
+                m.Settle(b);
+            }
+            m.EndRound();
+        }
+        lock (lk)
+            foreach (var p in m.Players)
+            {
+                var k = BuildOf(p.Id)?.Id ?? "balanced(null)";
+                if (!places.TryGetValue(k, out var l)) places[k] = l = new();
+                l.Add(p.Place);
+            }
+    });
+    Console.OutputEncoding = System.Text.Encoding.UTF8;
+    Console.WriteLine($"{nm} maç, {sw.Elapsed.TotalSeconds:F0} sn; koltuk-round {seats}; satır gücü Yakın/Menzilli/Kuşatma = {rowsPow[0]/seats:F1}/{rowsPow[1]/seats:F1}/{rowsPow[2]/seats:F1}; pusu {amb/(double)seats:F2}/koltuk");
+    Console.WriteLine("sahada özel kart / koltuk-round: " + string.Join(", ", sp.OrderBy(k => k.Key).Select(k => $"{k.Key} {k.Value/(double)seats:F2}")) + $" (eldeki {heldTotal/(double)seats:F2}, sahada {heldSpecial/(double)seats:F2})");
+    foreach (var (spc, v) in chk) Console.WriteLine($"  {spc}: idmana göre {v.Item1 / v.Item3 * 100:+0.0;-0.0} puan, gerçek rakibe göre {v.Item2 / v.Item3 * 100:+0.0;-0.0} puan kazanma şansı (n={v.Item3})");
+    foreach (var (r, v) in str.OrderBy(k => k.Key)) Console.WriteLine($"  round {r}: saha toplamı {v.Item1 / v.Item3:F1}, idman sahası {v.Item2 / v.Item3:F1}");
+    foreach (var (k, l) in places.OrderBy(k => k.Value.Average()))
+    {
+        var avg = l.Average();
+        var ci = 1.96 * Math.Sqrt(l.Sum(x => (x - avg) * (x - avg)) / Math.Max(1, l.Count - 1)) / Math.Sqrt(l.Count);
+        var pv = per.GetValueOrDefault(k) ?? new double[10];
+        var n0 = Math.Max(1, pv[0]);
+        Console.WriteLine($"  {k,-16} ort. sıra {avg:F2} ± {ci:F2}  (n={l.Count})  Y/M/K {pv[1]/n0:F0}/{pv[2]/n0:F0}/{pv[3]/n0:F0}  hava {pv[4]/n0:F2} boynuz {pv[5]/n0:F2} kavurma {pv[6]/n0:F2} kalkan {pv[7]/n0:F2} (elde {pv[8]/n0:F2}, Kavurma elde {pv[9]/n0:F2})");
+    }
+    return;
+}
 if (args.Length > 0 && args[0] == "han-meta")
 {
     // dotnet run --project src/GwentArena -c Release -- han-meta [maç] [tohum] [çıktı.md]
@@ -118,6 +226,7 @@ if (args.Length > 0 && args[0] == "han-meta")
     if (Array.IndexOf(args, "--focus") is var fi and >= 0) HanLigi.Tuning.StartFocus = int.Parse(args[fi + 1]);
     if (Array.IndexOf(args, "--focus-cap") is var fc and >= 0) HanLigi.Tuning.FocusCap = int.Parse(args[fc + 1]);
     if (args.Contains("--no-quen-refund")) HanLigi.Tuning.QuenRefund = false;
+    if (args.Contains("--auto-land-last")) HanLigi.Tuning.AutoLandLast = true;   // karşılaştırma: eski kural (son pencerede pusu kendiliğinden iner)
     if (args.Contains("--yrden-aard")) HanLigi.Tuning.YrdenBlocksAard = true;
     if (Array.IndexOf(args, "--yrden-mode") is var ym and >= 0) HanLigi.Tuning.YrdenMode = int.Parse(args[ym + 1]);
     if (Array.IndexOf(args, "--yrden-cost") is var yc and >= 0) HanLigi.Tuning.YrdenCost = int.Parse(args[yc + 1]);

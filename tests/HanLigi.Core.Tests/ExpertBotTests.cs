@@ -69,4 +69,70 @@ public class ExpertBotTests(ITestOutputHelper output)
         output.WriteLine($"4 güçlü + 4 klasik: güçlü {half.Average():F2}, klasik {halfClassic.Average():F2}");
         Assert.True(solo.Average() < 4.5, $"güçlü bot ortalamanın altında: {solo.Average():F2}");
     }
+
+    /// <summary>Oyundaki gibi her koltuk kendi düzeniyle: özel kartlar sahaya çıkar, satır düzenleri gerçekten o satırı kurar.</summary>
+    [Fact]
+    public void Bots_use_special_cards_and_builds_diverge()
+    {
+        var fielded = new Dictionary<Special, int>();
+        double siegeShareSiege = 0, siegeShareOthers = 0;
+        int nSiege = 0, nOthers = 0;
+        for (var seed = 1; seed <= 24; seed++)
+        {
+            var m = new Match(seed, Enumerable.Range(0, 8).Select(i => ($"B{i}", true)).ToList());
+            var rng = new Random(seed);
+            foreach (var p in m.Players) m.ChooseSchool(p.Id, p.SchoolOptions[rng.Next(3)]);
+            for (var guard = 0; guard < 80 && m.Phase != Phase.Finished; guard++)
+            {
+                foreach (var p in m.Alive.ToList()) ExpertBot.Prep(m, p.Id, rng, ExpertBot.BuildFor(m.Seed, p.Id));
+                if (m.Phase == Phase.Prep) m.ForceLock();
+                if (m.Round >= 6)
+                    foreach (var p in m.Alive)
+                    {
+                        var specials = p.Cards.Where(c => c.Zone == Zone.Special).ToList();
+                        Assert.Equal(specials.Count, specials.Select(c => c.Def.Id).Distinct().Count());   // aynı özel kart iki kez sahada değil
+                        Assert.True(p.Used <= p.Slots, "bot masa sınırını aşmaz");
+                        foreach (var c in specials) fielded[c.Def.Special] = fielded.GetValueOrDefault(c.Def.Special) + 1;
+                        var units = p.Fielded.Where(c => c.Def.IsUnit && c.Row != null).ToList();
+                        var tot = units.Sum(c => c.Power);
+                        if (tot == 0) continue;
+                        var share = units.Where(c => c.Row == Row.Siege).Sum(c => c.Power) / (double)tot;
+                        if (ExpertBot.BuildFor(m.Seed, p.Id).Id == "siege") { siegeShareSiege += share; nSiege++; }
+                        else { siegeShareOthers += share; nOthers++; }
+                    }
+                foreach (var b in m.Battles)
+                {
+                    b.Start();
+                    while (!b.Done) { for (var s = 0; s < 2; s++) b.Submit(s, ExpertBot.Window(b, s, rng)); b.Resolve(); }
+                }
+                m.EndRound();
+            }
+        }
+        output.WriteLine("sahada özel kart (koltuk-round): " + string.Join(", ", fielded.Select(k => $"{k.Key} {k.Value}")));
+        output.WriteLine($"Kuşatma payı: Kuşatma düzeni %{100 * siegeShareSiege / nSiege:F0}, ötekiler %{100 * siegeShareOthers / nOthers:F0}");
+        Assert.True(fielded.GetValueOrDefault(Special.Horn) > 0, "Boynuz kullanılmalı");
+        Assert.True(fielded.Where(k => Match.WeatherRow(k.Key) != null).Sum(k => k.Value) > 20, "hava kullanılmalı");
+        Assert.True(siegeShareSiege / nSiege > siegeShareOthers / nOthers + 0.1, "Kuşatma düzeni Kuşatma satırını kurmalı");
+    }
+
+    /// <summary>Bot kararı belirlenimci: aynı durum, aynı tohum → aynı saha (online kopyalar sunucuyla aynı kalır).</summary>
+    [Fact]
+    public void Bot_prep_is_deterministic()
+    {
+        string Run()
+        {
+            var m = new Match(77, Enumerable.Range(0, 8).Select(i => ($"B{i}", true)).ToList());
+            var rng = new Random(5);
+            foreach (var p in m.Players) m.ChooseSchool(p.Id, p.SchoolOptions[0]);
+            for (var r = 0; r < 12 && m.Phase != Phase.Finished; r++)
+            {
+                foreach (var p in m.Alive.ToList()) ExpertBot.Prep(m, p.Id, rng, ExpertBot.BuildFor(m.Seed, p.Id));
+                if (m.Phase == Phase.Prep) m.ForceLock();
+                foreach (var b in m.Battles) { b.Start(); while (!b.Done) { for (var s = 0; s < 2; s++) b.Submit(s, ExpertBot.Window(b, s, rng)); b.Resolve(); } }
+                m.EndRound();
+            }
+            return string.Join("|", m.Players.Select(p => $"{p.Hp},{p.Gold},{string.Join(",", p.Cards.Select(c => c.Def.Id + c.Star + c.Zone + c.Aim))}"));
+        }
+        Assert.Equal(Run(), Run());
+    }
 }
