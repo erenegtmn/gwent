@@ -177,7 +177,7 @@ public class BattleTests
         Play(bt, WindowChoice.None, WindowChoice.None);
         var o = Play(bt, new WindowChoice(Array.Empty<Sign>(), null, 5000), C(Sign.Yrden));
         Assert.Equal(0, o.ValueA);   // Yrden son pencerede de mutlak keser: bilerek indirilen pusu inmez
-        Assert.Equal(-1, o.Winner);
+        Assert.Equal(1, o.Winner);   // B'nin Kuşatma'daki Sweers'ı (1) pusu inmeyen A'nın 0'ını geçer
         Assert.Single(a.Ambush);
     }
 
