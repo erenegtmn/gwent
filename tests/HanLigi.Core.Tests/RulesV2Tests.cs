@@ -63,7 +63,8 @@ public class RulesV2Tests
         var m = Ready(3);
         var p = m.Players[0];
         Assert.Equal(4, p.Slots);
-        foreach (var _ in Enumerable.Range(0, 4)) Assert.True(m.Move(p.Id, Give(m, p, "ghoul").Uid, Zone.Close));
+        foreach (var _ in Enumerable.Range(0, 3)) Assert.True(m.Move(p.Id, Give(m, p, "ghoul").Uid, Zone.Close));
+        Assert.True(m.Move(p.Id, Give(m, p, "havekar_smuggler").Uid, Zone.Close));   // Haydut: pusudakiyle 2 Haydut, pusu yeri 2
         Assert.Equal(4, p.Used);
         var sk = Give(m, p, "elven_skirmisher");
         Assert.True(m.WouldOverflow(p.Id, sk.Uid, Zone.Ranged)); // masa dolu (konabilir ama sınırı aşar)
@@ -190,8 +191,8 @@ public class RulesV2Tests
             var cards = CardSet.All.Count(d => d.IsUnit && !d.IsHero && d.Has(t));
             Assert.True(Tuning.Breakpoints(t)[2] <= cards, $"{t}: son eşik {Tuning.Breakpoints(t)[2]}, kart {cards}");
         }
-        Assert.Equal(new[] { 0, 0, 1, 2, 3 }, new[] { 0, 1, 2, 3, 4 }.Select(n => Tuning.TagLevel(Tag.Bandit, n)).ToArray());
-        Assert.Equal(new[] { 0, 1, 2, 2, 3 }, new[] { 1, 2, 3, 4, 5 }.Select(n => Tuning.TagLevel(Tag.Mage, n)).ToArray());
+        Assert.Equal(new[] { 0, 1, 1, 2, 3 }, new[] { 1, 2, 3, 4, 6 }.Select(n => Tuning.TagLevel(Tag.Bandit, n)).ToArray());
+        Assert.Equal(new[] { 0, 1, 2, 2, 3 }, new[] { 1, 2, 3, 4, 5 }.Select(n => Tuning.TagLevel(Tag.Vampire, n)).ToArray());
         Assert.Equal(new[] { 1, 1, 2, 2, 3 }, new[] { 2, 3, 4, 5, 6 }.Select(n => Tuning.TagLevel(Tag.Monster, n)).ToArray());
     }
 

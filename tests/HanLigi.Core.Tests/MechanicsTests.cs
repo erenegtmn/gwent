@@ -310,15 +310,15 @@ public class MechanicsTests
     }
 
     [Fact]
-    public void Bandit_six_landing_bonus_fifty()
+    public void Bandit_six_landing_bonus()
     {
         var (a, b) = (Side("A", tags: (Tag.Bandit, 6)), Side("B"));
         var u = Hide(a, "elven_skirmisher", 2);
         Add(b, "ghoul", power: 1);
         var bt = Start(a, b);
         var o = Play(bt, WindowChoice.With(Array.Empty<Sign>(), null, new[] { u.Uid }), N);
-        Assert.Equal(3, Val(o, u));                  // Haydut 6: pusudan inen +%50: 2 → 3
-        Assert.Equal(3, bt.AmbushCap(a));
+        Assert.Equal(2.7m, Val(o, u));               // Haydut 6: pusudan inen +%35 (Denge 2): 2 → 2,7
+        Assert.Equal(Tuning.AmbushBase + 1, bt.AmbushCap(a));
     }
 
     [Fact]
@@ -499,9 +499,9 @@ public class MechanicsTests
     [Fact]
     public void Hero_tier_follows_own_class_threshold()
     {
-        var s = Side("A", 5, null, (Tag.Mage, 3), (Tag.Soldier, 2), (Tag.Noble, 6));
+        var s = Side("A", 5, null, (Tag.Mage, 4), (Tag.Soldier, 2), (Tag.Noble, 6));
         Add(s, "triss", Row.Siege); Add(s, "vesemir"); Add(s, "jaskier");
-        Assert.Equal(1, s.HeroTier(Hero.Triss));    // Büyücü 3 kart = 2. eşik
+        Assert.Equal(1, s.HeroTier(Hero.Triss));    // Büyücü 4 kart = 2. eşik
         Assert.Equal(0, s.HeroTier(Hero.Vesemir));  // Asker 2 kart = yalnız 1. eşik
         Assert.Equal(2, s.HeroTier(Hero.Jaskier));  // Soylu 6 kart = 3. eşik
         Assert.Equal(-1, s.HeroTier(Hero.Geralt));
@@ -510,7 +510,7 @@ public class MechanicsTests
     [Fact]
     public void Triss_tier3_makes_every_quen_free_tier2_two()
     {
-        foreach (var (mages, free) in new[] { (2, 1), (3, 2), (5, 99) })
+        foreach (var (mages, free) in new[] { (2, 1), (4, 2), (6, 99) })
         {
             var (a, b) = (Side("A", 5, null, (Tag.Mage, mages)), Side("B"));
             Add(a, "triss", Row.Siege); Add(a, "fiend"); Add(a, "dethmold");
@@ -571,6 +571,315 @@ public class MechanicsTests
         var bt = Start(a, b);
         for (var i = 0; i < 3; i++) Play(bt, N, N);
         Assert.Equal(4, a.Focus);
+    }
+
+    // ===== Faz 1: Denizci, Şövalye, Yağma, Dönüşüm/Mardroeme, Yakıcı, Meydan Okuma =====
+
+    [Fact]
+    public void Mardroeme_triples_berserkers_only_with_the_special()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        var be = Add(a, "berserker");
+        var yb = Add(a, "young_berserker");
+        Add(b, "ghoul", power: 1);
+        a.Specials.Add(Special.Mardroeme);
+        Start(a, b);
+        Assert.Equal(12, be.Power);
+        Assert.Equal(6, yb.Power);
+        var (c, d) = (Side("C"), Side("D"));
+        var be2 = Add(c, "berserker");
+        Add(d, "ghoul", power: 1);
+        Start(c, d);
+        Assert.Equal(4, be2.Power);
+    }
+
+    [Fact]
+    public void Row_scorch_burns_strongest_when_enemy_row_reaches_ten()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "clan_dimun_pirate");                        // Menzilli
+        var big = Add(b, "dethmold", power: 7);
+        var small = Add(b, "sabrina_glevissig", power: 3);   // toplam 10
+        var g = Add(b, "yennefer");                          // kahraman: yanmaz (ve toplamı da büyütür)
+        Start(a, b);
+        Assert.DoesNotContain(big, b.Units);
+        Assert.Contains(small, b.Units);
+        Assert.Contains(g, b.Units);
+
+        var (c, d) = (Side("C"), Side("D"));
+        Add(c, "clan_dimun_pirate");
+        var only = Add(d, "dethmold", power: 9);              // 9 < 10
+        Start(c, d);
+        Assert.Contains(only, d.Units);
+    }
+
+    [Fact]
+    public void Plunder_pays_gold_for_won_rows_capped()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "clan_brokvar_archer", Row.Close, power: 20);
+        Add(a, "war_longship", Row.Ranged, power: 20);
+        Add(a, "war_longship", Row.Siege, power: 20);
+        Add(b, "ghoul", power: 1);
+        var bt = Start(a, b);
+        for (var i = 0; i < 3; i++) Play(bt, N, N);
+        Assert.Equal(Tuning.PlunderCap, a.Plunder);          // üç satır kazanıldı ama üst sınır 2
+
+        var (c, d) = (Side("C", 5, null, (Tag.Sailor, 4)), Side("D"));
+        Add(c, "clan_brokvar_archer", Row.Close, power: 20);
+        Add(d, "ghoul", power: 1);
+        var bt2 = Start(c, d);
+        Play(bt2, N, N);
+        Assert.Equal(1, c.Plunder);                          // Faz 3: Denizci eşiği artık altın değil güç verir
+    }
+
+    [Fact]
+    public void Challenge_cuts_a_stronger_enemy_in_its_row()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "morteisen");                                 // 4, Yakın
+        var f = Add(b, "fiend");                             // 8
+        var bt = Start(a, b);
+        var o = Play(bt, N, N);
+        Assert.Equal(6, Val(o, f));                          // 8 × 0,75
+
+        var (c, d) = (Side("C"), Side("D"));
+        Add(c, "siegfried_of_denesle");                      // 8
+        var w = Add(d, "griffin");                           // 5: daha zayıf, dokunulmaz
+        var o2 = Play(Start(c, d), N, N);
+        Assert.Equal(5, Val(o2, w));
+    }
+
+    [Fact]
+    public void Sailors_gain_in_first_window_only()
+    {
+        var (a, b) = (Side("A", 5, null, (Tag.Sailor, 2)), Side("B"));
+        var s1 = Add(a, "clan_drummond_shield_maiden", Row.Close, power: 10);
+        var s2 = Add(a, "clan_an_craite_warrior", Row.Ranged, power: 10);
+        Add(b, "ghoul", power: 1);
+        var bt = Start(a, b);
+        var o1 = Play(bt, N, N);
+        Assert.Equal(13, Val(o1, s1));                       // +%30
+        var o2 = Play(bt, N, N);
+        Assert.Equal(10, Val(o2, s2));
+    }
+
+    [Fact]
+    public void Knights_halve_igni_and_ignore_it_at_third_threshold()
+    {
+        var (a, b) = (Side("A"), Side("B", 5, null, (Tag.Knight, 2)));
+        var k = Add(b, "rainfarn", power: 10);
+        var bt = Start(a, b);
+        var o = Play(bt, C(Sign.Igni), N);
+        Assert.Equal(7.5m, Val(o, k));                       // −%50 × 0,5
+
+        var (c, d) = (Side("C"), Side("D", 5, null, (Tag.Knight, 6)));
+        var k2 = Add(d, "rainfarn", power: 10);
+        var other = Add(d, "fiend", power: 6);
+        var bt2 = Start(c, d);
+        var o2 = Play(bt2, C(Sign.Igni), N);
+        Assert.Equal(3, Val(o2, other));                     // Igni şövalyeyi atlar, öteki birime gider
+        Assert.True(Val(o2, k2) >= 12);                      // 10 + 2 (2. eşik), dokunulmadı
+    }
+
+    // ===== Faz 2: Vampir, Kan Emme, Kocakarılar =====
+
+    [Fact]
+    public void Drain_takes_half_of_weakest_enemy()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        var v = Add(a, "vampire_bruxa");                     // 5
+        var weak = Add(b, "dwarven_skirmisher", power: 4);
+        var strong = Add(b, "fiend");                        // 8
+        var o = Play(Start(a, b), N, N);
+        Assert.Equal(2, Val(o, weak));                       // 4 → 2
+        Assert.Equal(8, Val(o, strong));
+        Assert.Equal(7, Val(o, v));                          // 5 + 2
+    }
+
+    [Fact]
+    public void Vampire_thresholds_raise_drain_and_take_two_targets()
+    {
+        var (a, b) = (Side("A", 5, null, (Tag.Vampire, 5)), Side("B"));
+        var v = Add(a, "vampire_katakan", power: 10);
+        var w1 = Add(b, "dwarven_skirmisher", power: 4);
+        var w2 = Add(b, "griffin", power: 6);
+        var o = Play(Start(a, b), N, N);
+        Assert.Equal(1, Val(o, w1));                         // −%75
+        Assert.Equal(1.5m, Val(o, w2));
+        Assert.Equal(17.5m, Val(o, v));                      // 10 + 3 + 4,5
+    }
+
+    [Fact]
+    public void Burned_vampire_returns_at_half_with_second_threshold()
+    {
+        var (a, b) = (Side("A", 5, null, (Tag.Vampire, 3)), Side("B"));
+        Add(a, "vampire_katakan", power: 10);
+        b.Specials.Add(Special.Scorch);
+        Add(b, "ghoul", power: 1);
+        Start(a, b);
+        var back = Assert.Single(a.Units);
+        Assert.True(back.Token);
+        Assert.Equal(5, back.Power);
+    }
+
+    [Fact]
+    public void Crones_trio_only_when_all_three_present()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        var w = Add(a, "crone_weavess");
+        Add(a, "crone_brewess");
+        Add(b, "ghoul", power: 1);
+        var o = Play(Start(a, b), N, N);
+        Assert.Equal(7, Val(o, w));
+        var (c, d) = (Side("C"), Side("D"));
+        var w2 = Add(c, "crone_weavess");
+        Add(c, "crone_brewess");
+        Add(c, "crone_whispess");
+        Add(d, "ghoul", power: 1);
+        var o2 = Play(Start(c, d), N, N);
+        Assert.Equal(11, Val(o2, w2));                       // 7 × 1,5 = 10,5 → 11
+    }
+
+    // ===== Faz 3: yeni kahramanlar, Skellige Fırtınası, Denizci gücü =====
+
+    [Fact]
+    public void Sailor_thresholds_give_flat_power()
+    {
+        foreach (var (n, plus) in new[] { (2, 0), (4, 2), (6, 3) })
+        {
+            var (a, b) = (Side("A", 5, null, (Tag.Sailor, n)), Side("B"));
+            var u = Add(a, "clan_an_craite_warrior", Row.Ranged, power: 10);   // Bağ: satırda tek, +0
+            var bt = Start(a, b);
+            Assert.Equal(10 + plus, bt.Value(a, u));
+        }
+    }
+
+    [Fact]
+    public void Storm_weathers_ranged_and_siege()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        a.Specials.Add(Special.Storm);
+        Add(b, "fiend");
+        var r = Add(b, "dethmold");
+        var g = Add(b, "trebuchet");
+        var bt = Start(a, b);
+        Assert.Contains(Row.Ranged, bt.Weather);
+        Assert.Contains(Row.Siege, bt.Weather);
+        Assert.DoesNotContain(Row.Close, bt.Weather);
+        Assert.Equal(1, bt.Value(b, r));
+        Assert.Equal(1, bt.Value(b, g));
+    }
+
+    [Fact]
+    public void Letho_cuts_strongest_enemy_for_the_whole_battle()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "letho");
+        var f = Add(b, "fiend", Row.Close, power: 10);
+        var r = Add(b, "dethmold", Row.Ranged, power: 6);
+        var bt = Start(a, b);
+        var o1 = Play(bt, N, N);
+        Assert.Equal(7, Val(o1, f));                         // −%30
+        var o2 = Play(bt, N, N);
+        Assert.Equal(6, Val(o2, r));
+    }
+
+    [Fact]
+    public void Cerys_calls_longships_by_tier()
+    {
+        foreach (var (n, ships) in new[] { (1, 1), (4, 2), (6, 3) })
+        {
+            var (a, b) = (Side("A", 5, null, (Tag.Sailor, n)), Side("B"));
+            Add(a, "cerys");
+            Add(b, "ghoul", power: 1);
+            Start(a, b);
+            Assert.Equal(ships, a.Units.Count(u => u.Token && u.Def.Id == "light_longship" && u.Power == Tuning.CerysShipPower));
+        }
+    }
+
+    [Fact]
+    public void Iorveth_boosts_landing_ambush()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "iorveth");
+        var h = Hide(a, "elven_skirmisher", power: 10);
+        Add(b, "sweers", Row.Siege);
+        var bt = Start(a, b);
+        var o = Play(bt, new WindowChoice(Array.Empty<Sign>(), null, h.Uid), N);
+        Assert.Equal(11.5m, Val(o, h));                      // +%15
+    }
+
+    [Fact]
+    public void Philippa_doubles_first_aard_only_at_tier_one()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "philippa", Row.Siege);
+        Add(b, "fiend", Row.Close, power: 10);
+        Add(b, "dethmold", Row.Ranged, power: 10);
+        var bt = Start(a, b);
+        var o1 = Play(bt, C(Sign.Aard), N);
+        Assert.Equal(8, o1.ValueB);                          // −%20
+        var o2 = Play(bt, C(Sign.Aard), N);
+        Assert.Equal(9, o2.ValueB);                          // −%10
+    }
+
+    [Fact]
+    public void Philippa_doubles_igni_too_and_shares_the_count()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "philippa", Row.Siege);
+        var f = Add(b, "fiend", Row.Close, power: 10);
+        var r = Add(b, "dethmold", Row.Ranged, power: 10);
+        var bt = Start(a, b);
+        var o1 = Play(bt, C(Sign.Igni), N);
+        Assert.Equal(0, Val(o1, f));                         // −%50 × 2
+        bt.Sides[0].Focus = 5;
+        var o2 = Play(bt, C(Sign.Igni), N);
+        Assert.Equal(5, Val(o2, r));                         // tek kullanım bitti: −%50
+    }
+
+    [Fact]
+    public void Regis_raises_drain_in_his_row()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "regis");
+        var v = Add(a, "vampire_bruxa");                     // 5
+        var w = Add(b, "dwarven_skirmisher", power: 4);
+        var o = Play(Start(a, b), N, N);
+        Assert.Equal(1, Val(o, w));                          // −%75 (%50 + Regis %25)
+        Assert.Equal(8, Val(o, v));                          // 5 + 3
+    }
+
+    [Fact]
+    public void Menno_protects_two_then_three_with_revive()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "menno");
+        var x = Add(a, "fiend"); var y = Add(a, "dethmold"); var z = Add(a, "griffin");
+        Add(b, "ghoul", power: 1);
+        Start(a, b);
+        Assert.True(x.Protected && y.Protected);
+        Assert.False(z.Protected);
+        var (c, d) = (Side("C", 5, null, (Tag.Knight, 6)), Side("D"));
+        Add(c, "menno");
+        var p = Add(c, "fiend"); var q = Add(c, "dethmold"); var r = Add(c, "griffin"); var s4 = Add(c, "nekker");
+        Add(d, "ghoul", power: 1);
+        Start(c, d);
+        Assert.True(p.Protected && q.Protected && r.Protected);
+        Assert.True(s4.Revive);
+    }
+
+    [Fact]
+    public void Subpool_keeps_only_active_classes_in_the_shop()
+    {
+        var m = new Match(7, Enumerable.Range(0, 8).Select(i => ($"P{i}", false)).ToList());
+        Assert.Equal(Math.Min(Tuning.ActiveClasses, Enum.GetValues<Tag>().Length), m.ActiveTags.Count);
+        foreach (var d in CardSet.All.Where(d => d.IsUnit && !d.IsHero && d.Tags.All(t => !m.ActiveTags.Contains(t))))
+            Assert.Equal(0, m.Pool[d.Id]);
+        foreach (var d in CardSet.All.Where(d => d.IsHero && m.Pool.GetValueOrDefault(d.Id) > 0))
+            Assert.Contains(d.Tags[0], m.ActiveTags);
+        Assert.True(m.Pool["mardroeme"] > 0);                // özel kartlar hep var
     }
 
     [Fact]

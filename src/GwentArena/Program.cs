@@ -242,6 +242,12 @@ if (args.Length > 0 && args[0] == "han-meta")
     Console.OutputEncoding = System.Text.Encoding.UTF8;
     Console.WriteLine(md);
     if (args.Length > 3 && !args[3].StartsWith("--")) File.WriteAllText(args[3], md);   // 3. konum: çıktı dosyası (bayraklar değil)
+    // --cards dosya.tsv: kart başına son sahadaki bitiş sırası (kart dengesi)
+    if (Array.IndexOf(args, "--cards") is var ci2 and >= 0)
+        File.WriteAllLines(args[ci2 + 1], new[] { "id\tname\ttier\tpower\ttags\tability\tspecial\thero\tn\tavg\tci\ttop4\twin" }.Concat(
+            HanLigi.CardSet.All.Select(d => (d, s: rep.Cards.GetValueOrDefault(d.Id))).Select(x =>
+                $"{x.d.Id}\t{x.d.Name}\t{x.d.Tier}\t{x.d.Power}\t{string.Join(',', x.d.Tags)}\t{x.d.Ability}\t{x.d.Special}\t{x.d.Hero}\t{x.s?.N ?? 0}\t" +
+                string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{x.s?.Avg ?? double.NaN:F3}\t{x.s?.Ci ?? double.NaN:F3}\t{x.s?.Top4Rate ?? 0:F3}\t{x.s?.WinRate ?? 0:F3}"))));
     return;
 }
 

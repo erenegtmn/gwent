@@ -35,7 +35,7 @@ public sealed class HanCardView : Grid
             lines.Add($"Güç {Tuning.Power(d, star)} · {row}" + (d.IsHero ? "" : $" · Tier {d.Tier}"));
             if (d.Tags.Length > 0) lines.Add("Sınıf: " + string.Join(", ", d.Tags.Select(HT.Name)));
             if (d.IsHero) { lines.Add(HT.Describe(d.Hero)); lines.Add("Hava, Kavurma ve kart hedefli etkilere bağışık."); }
-            if (d.Ability != Ability.None && !(d.IsHero && d.Ability == Ability.Ambush)) lines.Add(HT.Describe(d.Ability));
+            if (d.Ability != Ability.None && !d.IsHero) lines.Add(HT.Describe(d.Ability));   // kahramanın yeteneği kendi metninde
         }
         else
         {
@@ -50,11 +50,12 @@ public sealed class HanCardView : Grid
     {
         if (d.IsHero) return "Kahraman";
         if (!d.IsUnit)
-            return d.Special switch { Special.Frost => "Ayaz", Special.Fog => "Sis", Special.Rain => "Yağmur", Special.Scorch => "Kavurma", Special.Horn => "Boynuz", Special.Shield => "Kalkan", _ => "Özel" };
+            return d.Special switch { Special.Frost => "Ayaz", Special.Fog => "Sis", Special.Rain => "Yağmur", Special.Scorch => "Kavurma", Special.Horn => "Boynuz", Special.Shield => "Kalkan", Special.Mardroeme => "Mardroeme", Special.Storm => "Fırtına", _ => "Özel" };
         var a = d.Ability switch
         {
             Ability.Bond => "Bağ", Ability.Growth => "Büyüme", Ability.Morale => "Moral", Ability.Spy => "Casus", Ability.Bard => "Ozan", Ability.Treasure => "Hazine",
-            Ability.Ambush => "Pusu", Ability.Revenge => "İntikam", Ability.Zeal => "Coşku", Ability.Summon => "Çağrı", Ability.Medic => "Şifacı", Ability.DeathEcho => "Yankı", Ability.Mirror => "Yansıma", _ => ""
+            Ability.Ambush => "Pusu", Ability.Revenge => "İntikam", Ability.Zeal => "Coşku", Ability.Summon => "Çağrı", Ability.Medic => "Şifacı", Ability.DeathEcho => "Yankı", Ability.Mirror => "Yansıma",
+            Ability.Plunder => "Yağma", Ability.Berserk => "Dönüşüm", Ability.RowScorch => "Yakıcı", Ability.Challenge => "Meydan", Ability.Drain => "Kan Emme", Ability.Trio => "Üçlü", _ => ""
         };
         return a.Length == 0 && d.Agile ? "Çevik" : a;
     }
@@ -67,21 +68,24 @@ public sealed class HanCardView : Grid
             return d.Special switch
             {
                 Special.Frost => "Yakın satırlar 1 olur", Special.Fog => "Menzilli satırlar 1 olur", Special.Rain => "Kuşatma satırları 1 olur", Special.Scorch => "En güçlü birimi yakar",
-                Special.Horn => "Bir satıra +%50", Special.Shield => "Satırı havadan korur", _ => ""
+                Special.Horn => "Bir satıra +%50", Special.Shield => "Satırı havadan korur", Special.Mardroeme => "Berserker'ları dönüştürür (×3)", Special.Storm => "Menzilli ve Kuşatma 1 olur", _ => ""
             };
         return d.Ability switch
         {
             Ability.Bond => "Aynı sınıftan dost başına +1", Ability.Growth => "Satırdaki her dosta +1", Ability.Morale => "Bir satıra +★ güç", Ability.Spy => "Rakibin kartlarını gösterir",
             Ability.Bard => "Savaşa +1 Odakla başla", Ability.Treasure => "Her round +1 altın", Ability.Ambush => "Savaşta istediğin satıra iner", Ability.Revenge => "Önceki satır kaybedildiyse +%50",
             Ability.Zeal => "Önceki satır kazanıldıysa +%30", Ability.Summon => "Depodaki eşini sahaya çeker (2★: 1, 3★: 2)", Ability.Medic => "En güçlünü etkilerden korur", Ability.DeathEcho => "Ölünce hayalet bırakır",
-            Ability.Mirror => "En güçlü dostun yarısı kadar", _ => d.Agile ? "Yakın ya da Menzilli" : ""
+            Ability.Mirror => "En güçlü dostun yarısı kadar", Ability.Plunder => "Kazandığı satıra +1 altın", Ability.Berserk => "Mardroeme ile gücü ×3",
+            Ability.RowScorch => $"Rakip satır {Tuning.RowScorchMin}+ ise en güçlü birimi yakar", Ability.Challenge => "Kendinden güçlü rakibe −%25",
+            Ability.Drain => "En zayıf rakipten güç çalar", Ability.Trio => "Üç Kocakarı birlikteyse ×1,5", _ => d.Agile ? "Yakın ya da Menzilli" : ""
         };
     }
 
     public static Color TagColor(global::HanLigi.Tag t) => t switch
     {
         global::HanLigi.Tag.Monster => Color.FromRgb(0xe0, 0x6a, 0x58), global::HanLigi.Tag.Soldier => Color.FromRgb(0x7a, 0xaa, 0xe8), global::HanLigi.Tag.Mage => Color.FromRgb(0xc0, 0x8a, 0xff),
-        global::HanLigi.Tag.Bandit => Color.FromRgb(0x7a, 0xd0, 0x6a), global::HanLigi.Tag.Noble => Color.FromRgb(0xf0, 0xc8, 0x5a), _ => Color.FromRgb(0xd8, 0xa2, 0x6a)
+        global::HanLigi.Tag.Bandit => Color.FromRgb(0x7a, 0xd0, 0x6a), global::HanLigi.Tag.Noble => Color.FromRgb(0xf0, 0xc8, 0x5a),
+        global::HanLigi.Tag.Sailor => Color.FromRgb(0x4e, 0xc3, 0xc9), global::HanLigi.Tag.Knight => Color.FromRgb(0xc8, 0xcc, 0xd6), global::HanLigi.Tag.Vampire => Color.FromRgb(0xd0, 0x40, 0x70), _ => Color.FromRgb(0xd8, 0xa2, 0x6a)
     };
 
     /// <param name="aspect">Yükseklik / genişlik. Masada ve depoda 1.2 (kısa kart), incelemede 1.34.</param>
@@ -313,17 +317,24 @@ public sealed class HanCardView : Grid
         if (key.Length > 0)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal };
-            if (footer == null && HanIcons.Medal(d, Math.Max(13, w * 0.17)) is { } ic)
+            var avail = w - sp.Margin.Left - sp.Margin.Right;
+            var icSize = Math.Max(13, w * 0.17);
+            if (footer == null && HanIcons.Medal(d, icSize) is { } ic)
             {
                 ic.Margin = new Thickness(0, 0, w * 0.03, 0);
                 ic.VerticalAlignment = VerticalAlignment.Center;
                 row.Children.Add(ic);
+                avail -= icSize + w * 0.03;
             }
-            row.Children.Add(new TextBlock
+            var kt = new TextBlock
             {
                 Text = HanUi.Tracked(HanUi.Upper(key)), FontFamily = HanUi.Font, FontSize = HanUi.S(w * 0.108), FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center,
                 Foreground = footer != null ? Theme.B("#ffd76a") : d.IsHero ? Theme.B("#ffd76a") : !d.IsUnit ? Theme.B("#9fd8ff") : Theme.B("#ffe2a0"), TextTrimming = TextTrimming.CharacterEllipsis
-            });
+            };
+            // uzun yetenek adı (Mardroeme, Meydan) kesilmesin: sığmazsa yazı küçülür
+            kt.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            if (avail > 0 && kt.DesiredSize.Width > avail) kt.FontSize = Math.Max(kt.FontSize * 0.6, kt.FontSize * avail / kt.DesiredSize.Width);
+            row.Children.Add(kt);
             sp.Children.Add(row);
             lines++;
         }

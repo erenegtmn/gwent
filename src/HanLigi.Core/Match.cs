@@ -96,6 +96,10 @@ public sealed class Match
 {
     public List<PlayerState> Players { get; } = new();
     public Dictionary<string, int> Pool { get; } = new();
+    /// <summary>Bu maçta açık sınıflar (<see cref="Tuning.ActiveClasses"/>); tohumdan türer, online kopyalarda aynıdır.</summary>
+    public IReadOnlySet<Tag> ActiveTags { get; } = new HashSet<Tag>();
+    /// <summary>Kart bu maçın havuzunda mı: özel kart ya da sınıflarından biri açık.</summary>
+    public bool IsActive(CardDef d) => !d.IsUnit || d.Tags.Length == 0 || d.Tags.Any(ActiveTags.Contains);
     public int Round { get; private set; }
     public Phase Phase { get; private set; } = Phase.School;
     public List<Battle> Battles { get; } = new();
@@ -116,10 +120,14 @@ public sealed class Match
         _misc = new Random(seed ^ 0x1234567);
         for (var i = 0; i < players.Count; i++) Players.Add(new PlayerState { Id = i, Name = players[i].Name, IsBot = players[i].Bot });
         var n = players.Count;
+        // Alt havuz: her maçta sınıfların bir kısmı açık; kapalı sınıfın birimleri ve kahramanları markete gelmez (özel kartlar hep var)
+        var tags = Enum.GetValues<Tag>();
+        var crng = new Random(seed ^ 0x2c1b3c6d);
+        ActiveTags = tags.OrderBy(_ => crng.Next()).Take(Math.Min(tags.Length, Math.Max(1, Tuning.ActiveClasses))).ToHashSet();
         foreach (var d in CardSet.All.Where(d => !d.IsHero))
-            Pool[d.Id] = (int)Math.Ceiling(Tuning.Copies[d.Tier - 1] * n / 8.0);
+            Pool[d.Id] = IsActive(d) ? (int)Math.Ceiling(Tuning.Copies[d.Tier - 1] * n / 8.0) : 0;
         // Kahraman sayısı = oyuncu sayısı (küçük lobide yoğunluk artmasın)
-        foreach (var h in CardSet.All.Where(d => d.IsHero).OrderBy(_ => _misc.Next()).Take(n)) Pool[h.Id] = 1;
+        foreach (var h in CardSet.All.Where(d => d.IsHero).OrderBy(_ => _misc.Next()).ToList().Where(IsActive).Take(n)) Pool[h.Id] = 1;
         var schools = Enum.GetValues<School>();
         foreach (var p in Players) p.SchoolOptions = schools.OrderBy(_ => _misc.Next()).Take(3).ToArray();
     }
@@ -418,7 +426,10 @@ public sealed class Match
     public static bool Aimable(CardDef d) => d.Special is Special.Horn or Special.Shield;
 
     /// <summary>Hava kartının etkilediği satır (Ayaz yakın, Sis menzilli, Yağmur kuşatma); yoksa null.</summary>
-    public static Row? WeatherRow(Special s) => s switch { Special.Frost => HanLigi.Row.Close, Special.Fog => HanLigi.Row.Ranged, Special.Rain => HanLigi.Row.Siege, _ => null };
+    /// <summary>Hava kartının (masada gösterildiği) satırı; Fırtına Menzilli'de durur.</summary>
+    public static Row? WeatherRow(Special s) => s switch { Special.Frost => HanLigi.Row.Close, Special.Fog => HanLigi.Row.Ranged, Special.Rain => HanLigi.Row.Siege, Special.Storm => HanLigi.Row.Ranged, _ => null };
+    /// <summary>Hava kartının etkilediği bütün satırlar (Fırtına: Menzilli ve Kuşatma).</summary>
+    public static Row[] WeatherRows(Special s) => s == Special.Storm ? new[] { HanLigi.Row.Ranged, HanLigi.Row.Siege } : WeatherRow(s) is { } r ? new[] { r } : Array.Empty<Row>();
 
     /// <summary>
     /// Kart taşınabilir mi. Masa sınırı (<see cref="PlayerState.Slots"/>) satırları ve özel kartları sayar; <b>pusu sayılmaz</b>
@@ -718,6 +729,7 @@ public sealed class Match
             // kullanılan simya kartları harcanır
             p.Potions.Clear();
             p.Potions.AddRange(side.Potions);
+            p.Gold += side.Plunder;
             if (w == i) { p.Gold += Tuning.WinGold + (p.School == School.Cat && !b.Pve ? Tuning.CatWinGold : 0); p.Wins++; }
             else if (w == 1 - i) { p.Hp -= dmg; p.Losses++; }
             if (!b.Pve) p.Streak = w == i ? Math.Max(0, p.Streak) + 1 : w == 1 - i ? Math.Min(0, p.Streak) - 1 : 0;

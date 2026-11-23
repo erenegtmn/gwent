@@ -133,6 +133,37 @@ public static class HanIcons
             R(11.2, 16.2, 1.6, 1.4), R(10.8, 17.2, 2.4, 4.6, 1), C(12, 22, 1.5));
         // Çevik: iki yöne ok
         m["Çevik"] = U(R(2.6, 6.6, 14, 2.6, 1.3), P("M15,3.2 L21.6,7.9 L15,12.6 Z"), R(7.4, 15.4, 14, 2.6, 1.3), P("M9,11.4 L2.4,16.7 L9,22 Z"));
+        // Yağma: ağzı bağlı ganimet kesesi, yanında sikke yığını
+        {
+            var coins = U(E(18.4, 21.2, 4, 1.7), E(18.4, 18.4, 4, 1.7), R(14.4, 18.4, 8, 2.8));
+            var coinCut = X(coins, S("M14.6,19.8 C16.4,20.9 20.4,20.9 22.2,19.8", 0.7));
+            var bag = U(
+                P("M7.4,8.6 C6.2,7.2 5.6,5.2 6.2,3.4 C7.8,4.4 9.2,4.6 10.8,3.2 C12.4,4.6 13.8,4.4 15.4,3.4 C16,5.2 15.4,7.2 14.2,8.6 Z"),
+                R(7, 8.1, 7.6, 2, 1),
+                P("M8,10.6 L13.6,10.6 C17.2,12.4 19.2,15.2 19.2,18.2 C19.2,21.2 16.6,22.6 10.8,22.6 C5,22.6 2.4,21.2 2.4,18.2 C2.4,15.2 4.4,12.4 8,10.6 Z"));
+            m["Yağma"] = U(X(bag, coins.GetWidenedPathGeometry(new Pen(Brushes.Black, 2.2)), coins), coinCut);
+        }
+        // Dönüşüm: ayı pençesi izi (Berserker ayıya döner)
+        m["Dönüşüm"] = U(
+            P("M12,11.6 C15.8,11.6 18.8,14.6 18.8,17.8 C18.8,20.8 16.4,22 14.4,21.4 C13.4,21.1 12.8,20.8 12,20.8 C11.2,20.8 10.6,21.1 9.6,21.4 C7.6,22 5.2,20.8 5.2,17.8 C5.2,14.6 8.2,11.6 12,11.6 Z"),
+            E(4.4, 10.4, 2.1, 2.8, -28), E(8.7, 5.6, 2.2, 3.0, -10), E(15.3, 5.6, 2.2, 3.0, 10), E(19.6, 10.4, 2.1, 2.8, 28));
+        // Yakıcı: bir satırın (üç kart) üstünde alev
+        m["Yakıcı"] = U(Sc(Flame(), 0.7, 12, 1.2), R(2.8, 18.2, 5.6, 4, 1.1), R(9.2, 18.2, 5.6, 4, 1.1), R(15.6, 18.2, 5.6, 4, 1.1));
+        // Meydan Okuma: çaprazlanmış iki kılıç (öndeki, arkadakinden ince bir boşlukla ayrılır)
+        {
+            var sword = U(P("M12,0.8 L13.6,3.2 L13.6,14.6 L10.4,14.6 L10.4,3.2 Z"), R(7.4, 14.6, 9.2, 2.2, 1.1), R(11.1, 16.8, 1.8, 3.8), C(12, 21.6, 1.6));
+            var front = T(sword, 45);
+            var back = T(sword, -45);
+            m["Meydan"] = U(X(back, U(front, front.GetWidenedPathGeometry(new Pen(Brushes.Black, 1.8)))), front);
+        }
+        // Kan Emme: iki uzun diş ve damla
+        m["Kan Emme"] = U(
+            P("M1.8,4.4 C5,2.8 8.4,4.2 12,4.2 C15.6,4.2 19,2.8 22.2,4.4 C20.8,8.8 16.8,10.6 12,10.6 C7.2,10.6 3.2,8.8 1.8,4.4 Z"),
+            P("M4.8,7.6 C6.4,8.8 8.2,9.6 10.2,9.9 C9.8,13 8.8,16 7.4,18.4 C6.4,15 5.4,11.4 4.8,7.6 Z"),
+            P("M19.2,7.6 C17.6,8.8 15.8,9.6 13.8,9.9 C14.2,13 15.2,16 16.6,18.4 C17.6,15 18.6,11.4 19.2,7.6 Z"),
+            P("M7.4,19.4 C8.3,20.7 9,21.4 9,22.3 C9,23.2 8.3,23.7 7.4,23.7 C6.5,23.7 5.8,23.2 5.8,22.3 C5.8,21.4 6.5,20.7 7.4,19.4 Z"));
+        // Üçlü: birbirine geçmiş üç halka (üç Kocakarı)
+        m["Üçlü"] = U(X(C(12, 8, 5.6), C(12, 8, 3.7)), X(C(7.4, 15.6, 5.6), C(7.4, 15.6, 3.7)), X(C(16.6, 15.6, 5.6), C(16.6, 15.6, 3.7)));
 
         // ---- özel kartlar ----
         // Ayaz: kar tanesi
@@ -151,8 +182,7 @@ public static class HanIcons
         m["Yağmur"] = U(C(7.8, 10, 3.6), C(12.6, 7.6, 4.6), C(17.2, 10.4, 3.4), R(4.2, 9.6, 16.4, 4.6, 2.3),
             S("M7.6,17 L6.2,20.8", 1.9), S("M12.4,17 L11,21.6", 1.9), S("M17.2,17 L15.8,20.8", 1.9));
         // Kavurma: alev (içte açık dil)
-        m["Kavurma"] = X(P("M12,1.2 C13.2,6 18.8,8.2 18.8,14.4 C18.8,18.8 15.6,22.4 12,22.4 C8.4,22.4 5.2,18.8 5.2,14.6 C5.2,11 7.4,9.2 8.4,7.4 C9,10 10,11 11,11.6 C10.4,8 11,4.4 12,1.2 Z"),
-            P("M12,12.2 C13,14.2 15.2,15.4 15.2,17.8 C15.2,19.8 13.7,20.9 12,20.9 C10.3,20.9 8.8,19.8 8.8,17.9 C8.8,16.2 9.8,15.2 10.5,14.1 C10.9,15.2 11.4,15.6 12,15.8 C11.8,14.6 11.7,13.4 12,12.2 Z"));
+        m["Kavurma"] = Flame();
         // Boynuz: savaş borusu (ağızlıktan geniş çana doğru açılan kavisli koni, iki bilezik)
         m["Boynuz"] = Horn();
         // Kalkan: kenarlı arma kalkanı, içinde haç
@@ -160,6 +190,17 @@ public static class HanIcons
             var outer = P("M12,1.6 L20.8,4.4 L20.8,11 C20.8,16.2 17.2,19.8 12,22.4 C6.8,19.8 3.2,16.2 3.2,11 L3.2,4.4 Z");
             var inner = P("M12,3.8 L18.7,5.9 L18.7,11 C18.7,15.1 15.8,18.1 12,20.1 C8.2,18.1 5.3,15.1 5.3,11 L5.3,5.9 Z");
             m["Kalkan"] = U(X(outer, inner), I(U(R(10.8, 3, 2.4, 18), R(4, 9.4, 16, 2.4)), inner));
+        }
+        // Mardroeme: benekli mantar
+        m["Mardroeme"] = U(
+            X(P("M2.4,12.6 C2.4,6.2 6.8,2.2 12,2.2 C17.2,2.2 21.6,6.2 21.6,12.6 C21.6,13.4 20.8,13.6 12,13.6 C3.2,13.6 2.4,13.4 2.4,12.6 Z"),
+                C(7.4, 8.6, 1.8), C(13.2, 5.4, 1.5), C(16.8, 9.8, 1.6), C(11.4, 10.8, 1.0)),
+            P("M9.2,14.6 L14.8,14.6 C15.2,17.4 16,19.4 16,20.8 C16,22 14.6,22.6 12,22.6 C9.4,22.6 8,22 8,20.8 C8,19.4 8.8,17.4 9.2,14.6 Z"));
+        // Fırtına: bulut ve kalın şimşek (Yağmur'un damlalarından ayrılsın)
+        {
+            var bolt = P("M13.8,10.4 L8.2,17.2 L11.8,17.2 L9.4,23.4 L16.8,15 L13,15 L15.8,10.4 Z");
+            var cloud = U(C(7.4, 8.4, 3.4), C(12.2, 6.2, 4.4), C(16.8, 8.6, 3.2), R(4, 8, 16.2, 4.4, 2.2));
+            m["Fırtına"] = U(X(cloud, bolt.GetWidenedPathGeometry(new Pen(Brushes.Black, 2.4))), bolt);
         }
         foreach (var g in m.Values) g.Freeze();
         return m;
@@ -209,6 +250,13 @@ public static class HanIcons
         return X(U(g, bell, C(M.X, M.Y, 1.1)), Band(0.42), Band(0.72));
     }
 
+    /// <summary>Alev (içte açık dil): Kavurma, küçültülmüş hâli Yakıcı.</summary>
+    private static Geometry Flame() => X(P("M12,1.2 C13.2,6 18.8,8.2 18.8,14.4 C18.8,18.8 15.6,22.4 12,22.4 C8.4,22.4 5.2,18.8 5.2,14.6 C5.2,11 7.4,9.2 8.4,7.4 C9,10 10,11 11,11.6 C10.4,8 11,4.4 12,1.2 Z"),
+        P("M12,12.2 C13,14.2 15.2,15.4 15.2,17.8 C15.2,19.8 13.7,20.9 12,20.9 C10.3,20.9 8.8,19.8 8.8,17.9 C8.8,16.2 9.8,15.2 10.5,14.1 C10.9,15.2 11.4,15.6 12,15.8 C11.8,14.6 11.7,13.4 12,12.2 Z"));
+
+    /// <summary>(<paramref name="cx"/>, <paramref name="cy"/>) çevresinde ölçekler.</summary>
+    private static Geometry Sc(Geometry g, double s, double cx, double cy) => new GeometryGroup { Children = { g }, Transform = new ScaleTransform(s, s, cx, cy) };
+
     private static string F(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>Galeri (görsel denetim) için bütün simgeler, adlarıyla.</summary>
@@ -219,7 +267,8 @@ public static class HanIcons
         Ability.Bond => Set.Value["Bağ"], Ability.Growth => Set.Value["Büyüme"], Ability.Morale => Set.Value["Moral"], Ability.Spy => Set.Value["Casus"],
         Ability.Bard => Set.Value["Ozan"], Ability.Treasure => Set.Value["Hazine"], Ability.Ambush => Set.Value["Pusu"], Ability.Revenge => Set.Value["İntikam"],
         Ability.Zeal => Set.Value["Coşku"], Ability.Summon => Set.Value["Çağrı"], Ability.Medic => Set.Value["Şifacı"], Ability.DeathEcho => Set.Value["Yankı"],
-        Ability.Mirror => Set.Value["Yansıma"], _ => null
+        Ability.Mirror => Set.Value["Yansıma"], Ability.Plunder => Set.Value["Yağma"], Ability.Berserk => Set.Value["Dönüşüm"], Ability.RowScorch => Set.Value["Yakıcı"],
+        Ability.Challenge => Set.Value["Meydan"], Ability.Drain => Set.Value["Kan Emme"], Ability.Trio => Set.Value["Üçlü"], _ => null
     };
 
     /// <summary>Kartın simgesi: yetenek, özel kart etkisi ya da Çevik; kahramanda yok.</summary>
@@ -230,7 +279,7 @@ public static class HanIcons
             return d.Special switch
             {
                 Special.Frost => Set.Value["Ayaz"], Special.Fog => Set.Value["Sis"], Special.Rain => Set.Value["Yağmur"], Special.Scorch => Set.Value["Kavurma"],
-                Special.Horn => Set.Value["Boynuz"], Special.Shield => Set.Value["Kalkan"], _ => null
+                Special.Horn => Set.Value["Boynuz"], Special.Shield => Set.Value["Kalkan"], Special.Mardroeme => Set.Value["Mardroeme"], Special.Storm => Set.Value["Fırtına"], _ => null
             };
         return For(d.Ability) ?? (d.Agile ? Set.Value["Çevik"] : null);
     }

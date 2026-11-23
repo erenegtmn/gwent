@@ -314,7 +314,7 @@ public sealed partial class HanView
         {
             var def = CardSet.All.First(d => d.Special == sp);
             Row? r = Match.WeatherRow(sp);
-            string? footer = sp == Special.Scorch ? "savaş başında" : null;
+            string? footer = sp is Special.Scorch or Special.Mardroeme ? "savaş başında" : null;
             if (sp is Special.Horn or Special.Shield)
             {
                 var list = sp == Special.Horn ? act.Horns : act.Shields;
@@ -805,6 +805,13 @@ public sealed partial class HanView
                 var at = new Point(SideX + SideW / 2, f.Side == Mine ? 800 : 130);
                 HanArt.FloatText(_fx, $"ÖFKE  +{f.Target} ODAK", at, Color.FromRgb(0x8f, 0xd8, 0xff), 24, 1800, 400);
                 Fx.After(400, () => HanFx.Aura(_engine, new Point(at.X, at.Y + 20), 180, FxEngine.Ramp.Aard, 0.9));
+            }
+            // Yağma: kazanılan satırdan altın
+            foreach (var f in o.Fx.Where(f => f.Kind == "plunder"))
+            {
+                var (pc, _) = RowS(f.Side == Mine, row);
+                HanArt.FloatText(_fx, $"YAĞMA  +{f.Target} ALTIN", new Point(pc.X, pc.Y - 70), Color.FromRgb(0xff, 0xd7, 0x6a), 26, 1800, 500);
+                Fx.After(500, () => Sfx.Play("han_sell"));
             }
         }));
         t += tally + VerdictMs;

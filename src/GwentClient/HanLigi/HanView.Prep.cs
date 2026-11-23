@@ -829,7 +829,8 @@ public sealed partial class HanView
         Put(Caption("SİNERJİLER"), SideX + 4, 134);
         var y = 154.0;
         var any = false;
-        foreach (var t in Enum.GetValues<HTag>().OrderByDescending(t => counts.GetValueOrDefault(t)).ThenBy(t => t))
+        // alt havuz: yalnız bu maçta açık sınıflar (ya da elinde kartı olan)
+        foreach (var t in Enum.GetValues<HTag>().Where(t => M.ActiveTags.Contains(t) || counts.GetValueOrDefault(t) > 0).OrderByDescending(t => counts.GetValueOrDefault(t)).ThenBy(t => t))
         {
             var n = counts.GetValueOrDefault(t);
             any |= n > 0;
@@ -864,7 +865,7 @@ public sealed partial class HanView
             Put(g, SideX, y);
             y += 44;
         }
-        if (!any) Put(new TextBlock { Text = "Aynı sınıftan farklı kartlar bonus açar (çoğu sınıfta 2, 4, 6; Haydut 2, 3, 4; Büyücü ve Cüce 2, 3, 5). Sınıflar kartın altında yazar.", FontFamily = HanUi.Font, FontSize = HanUi.S(13), Foreground = Theme.B("#88e8dcc4"), TextWrapping = TextWrapping.Wrap, Width = SideW - 8 }, SideX + 4, y);
+        if (!any) Put(new TextBlock { Text = "Aynı sınıftan farklı kartlar bonus açar (çoğu sınıfta 2, 4, 6; Cüce ve Vampir 2, 3, 5). Sınıflar kartın altında yazar.", FontFamily = HanUi.Font, FontSize = HanUi.S(13), Foreground = Theme.B("#88e8dcc4"), TextWrapping = TextWrapping.Wrap, Width = SideW - 8 }, SideX + 4, y);
     }
 
     /// <summary>Tezgâh yalnız bir satın almayla mı değişti (yenileme değil)?</summary>
