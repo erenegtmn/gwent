@@ -12,11 +12,75 @@ namespace GwentClient;
 public static partial class UiSelfTest
 {
     /// <summary>
+    /// Han açılışı (HAN_TAVERN=1 ya da kare klasörü): okul seçiminde canlı han görüntüsü ve okul seçilince kameranın masaya inişi.
+    /// Kare hızı yazılır; değer bir klasörse iniş kare kare oraya kaydedilir (kayıt yavaştır, o koşuda kare hızına bakılmaz).
+    /// </summary>
+    private static int RunTavernPerf(string arg)
+    {
+        var dir = arg is "1" or "" ? null : arg;
+        if (dir != null) System.IO.Directory.CreateDirectory(dir);
+        var s = new HanSession(424242, "Ölçüm") { Timed = false };
+        var view = new HanView(s, () => { }, () => { }, animate: true);
+        var win = new Window { Width = 1600, Height = 900, Content = view, WindowStartupLocation = WindowStartupLocation.CenterScreen, Title = "Han Ligi açılış", Topmost = true };
+        win.Show();
+        void Wait(int ms)
+        {
+            var frame = new DispatcherFrame();
+            var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ms) };
+            t.Tick += (_, _) => { t.Stop(); frame.Continue = false; };
+            t.Start();
+            Dispatcher.PushFrame(frame);
+        }
+        var origin = view.PointToScreen(new Point(0, 0));
+        var dpi = PresentationSource.FromVisual(view)?.CompositionTarget?.TransformToDevice.M11 ?? 1;
+        var area = new Int32Rect((int)origin.X, (int)origin.Y, (int)(view.ActualWidth * dpi), (int)(view.ActualHeight * dpi));
+        (double Fps, double Worst, int Saved) Run(int ms, string? tag, int every)
+        {
+            var frames = 0;
+            var sw = Stopwatch.StartNew();
+            var last = 0.0;
+            var worst = 0.0;
+            var shots = new List<(double Ms, System.Windows.Media.Imaging.BitmapSource Img)>();
+            void OnFrame(object? o, EventArgs e)
+            {
+                frames++;
+                var now = sw.Elapsed.TotalMilliseconds;
+                worst = Math.Max(worst, now - last);
+                last = now;
+                if (tag != null && frames % every == 0 && shots.Count < 120) shots.Add((now, ScreenGrab(area)));
+            }
+            CompositionTarget.Rendering += OnFrame;
+            Wait(ms);
+            CompositionTarget.Rendering -= OnFrame;
+            for (var i = 0; i < shots.Count; i++)
+            {
+                var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(shots[i].Img));
+                using var f = System.IO.File.Create(System.IO.Path.Combine(dir!, $"{tag}_{i:000}_{shots[i].Ms:00000}.png"));
+                enc.Save(f);
+            }
+            return (frames * 1000.0 / sw.Elapsed.TotalMilliseconds, worst, shots.Count);
+        }
+        Wait(1500);
+        var school = Run(dir != null ? 1200 : 3000, dir != null ? "okul" : null, 20);
+        Console.WriteLine($"Okul seçimi (canlı han): {school.Fps:F0} kare/sn, en uzun kare {school.Worst:F0} ms");
+        if (FindAll<Button>(view, b => (b.Tag as string)?.StartsWith("han-school:") == true && b.IsEnabled).FirstOrDefault() is { } pick)
+            Raise(pick, ButtonBase.ClickEvent);
+        var fly = Run(3300, dir != null ? "inis" : null, 2);
+        Console.WriteLine($"Masaya iniş: {fly.Fps:F0} kare/sn, en uzun kare {fly.Worst:F0} ms{(dir != null ? $", {fly.Saved} kare -> {dir}" : "")}");
+        var prep = Run(2000, dir != null ? "hazirlik" : null, 30);
+        Console.WriteLine($"Ardından hazırlık: {prep.Fps:F0} kare/sn, en uzun kare {prep.Worst:F0} ms");
+        win.Close();
+        return 0;
+    }
+
+    /// <summary>
     /// Han Ligi kare hızı ölçümü: gerçek bir pencerede hazırlık (süre akarken) ve savaş (efektler oynarken) sırasında saniyedeki
     /// kare sayısını ve UI iş parçacığındaki en uzun kareyi yazar. Hedef: ikisinde de ~60 kare/sn.
     /// </summary>
     public static int RunHanPerf()
     {
+        if (Environment.GetEnvironmentVariable("HAN_TAVERN") is { } tav) return RunTavernPerf(tav);
         var rng = new Random(9);
         var s = new HanSession(424242, "Ölçüm") { Timed = false };
         s.ChooseSchool(s.Player.SchoolOptions[0]);

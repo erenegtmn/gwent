@@ -32,6 +32,7 @@ public sealed partial class HanView
 
     private void EnterPrep()
     {
+        var fromSchool = _screen == Screen.School;
         _gen++;
         _busy = false;
         _fx.Children.Clear();
@@ -46,6 +47,7 @@ public sealed partial class HanView
         _shopOpen = true;
         StartTimer(HanTimes.Prep, OnReady);
         Render();
+        if (fromSchool) FlyToTable(); else DropTavern();
         if (_live && M.Round > 1) RoundBanner($"ROUND {M.Round}", M.IsPve ? (M.Round <= 2 ? "Canavar Sürüsü" : "Vahşi Av saldırıyor") : "Hazırlık");
     }
 

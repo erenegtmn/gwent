@@ -221,6 +221,16 @@ public partial class App : Application
             Shutdown();
             return;
         }
+        var it = Array.IndexOf(e.Args, "--shot-tavern");
+        if (it >= 0 && it + 1 < e.Args.Length)
+        {
+            // Han Ligi'nin han odası (3B sahne) üç kamerayla
+            Sfx.Enabled = false;
+            System.IO.Directory.CreateDirectory(e.Args[it + 1]);
+            HanShots.Tavern((el, name) => Ui.RenderToPng(el, 1920, 1080, System.IO.Path.Combine(e.Args[it + 1], name)));
+            Shutdown();
+            return;
+        }
         var i3 = Array.IndexOf(e.Args, "--shot-three");
         if (i3 >= 0 && i3 + 1 < e.Args.Length)
         {

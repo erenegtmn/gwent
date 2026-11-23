@@ -18,12 +18,50 @@ public static class HanShots
         UiSelfTest.Layout(v);
     }
 
+    /// <summary>Han odası: aynı sahne üç kamerayla (oyundaki masa görüşü, ara, geniş açılış çekimi).</summary>
+    public static void Tavern(Action<FrameworkElement, string> save)
+    {
+        var board = HanScene.BoardTexture();
+        FrameworkElement Img(System.Windows.Media.Imaging.BitmapSource b) => new System.Windows.Controls.Image { Source = b, Width = 1920, Height = 1080 };
+        save(Img(HanTavern.Render(HanTavern.GameCamera(-28, 1.3, 18.65, 55, -0.595), 1920, 1080, board)), "han_sahne_1_oyun.png");
+        save(Img(HanTavern.Render(HanTavern.Camera(new(-6, -30, 12), new(1, 6, -2), 56), 1920, 1080, board, 4)), "han_sahne_2_orta.png");
+        save(Img(HanTavern.Render(HanTavern.Camera(new(-12, -42, 9), new(3, 16, -2), 58), 1920, 1080, board, 5)), "han_sahne_3_genis.png");
+    }
+
+    /// <summary>Yetenek simgeleri galerisi: her simge büyük ve kartlardaki boyutlarda (masadaki kartta ~15 px).</summary>
+    private static FrameworkElement IconGallery()
+    {
+        var root = new Grid { Width = 1920, Height = 1080, Background = new SolidColorBrush(Color.FromRgb(0x1a, 0x13, 0x0c)) };
+        var wrap = new WrapPanel { Margin = new Thickness(40, 40, 40, 40) };
+        foreach (var (name, g) in HanIcons.All)
+        {
+            var tile = new StackPanel { Width = 220, Margin = new Thickness(0, 0, 14, 26) };
+            var line = new StackPanel { Orientation = Orientation.Horizontal };
+            line.Children.Add(HanIcons.Medal(g, 110));
+            var smalls = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 0, 0, 4) };
+            foreach (var s in new[] { 36.0, 22, 15 })
+            {
+                var m = HanIcons.Medal(g, s);
+                m.Margin = new Thickness(0, 0, 8, 0);
+                m.VerticalAlignment = VerticalAlignment.Bottom;
+                smalls.Children.Add(m);
+            }
+            line.Children.Add(smalls);
+            tile.Children.Add(line);
+            tile.Children.Add(new TextBlock { Text = name, FontFamily = HanUi.Font, FontSize = 22, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(0xf0, 0xdc, 0xaa)), Margin = new Thickness(2, 6, 0, 0) });
+            wrap.Children.Add(tile);
+        }
+        root.Children.Add(wrap);
+        return root;
+    }
+
     public static void Run(Action<FrameworkElement, string> save)
     {
         var rng = new Random(5);
         var s = new HanSession(20261113, "Eren") { Timed = false };
         var v = new HanView(s, () => { }, () => { }, animate: false);
         save(v, "han_1_okul.png");
+        save(IconGallery(), "han_ikonlar.png");
         s.ChooseSchool(s.Player.SchoolOptions[0]);
         save(new HanView(s, () => { }, () => { }, animate: false), "han_2a_tezgah.png");
         // online hazırlık: Hazır düğmesi yok, yerinde ortak süre notu (eylemler sunucuya gitmez, kopya doğrudan ilerletilir)

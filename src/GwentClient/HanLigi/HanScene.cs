@@ -26,26 +26,21 @@ public sealed class HanScene : Grid
         Width = 1920;
         Height = 1080;
         IsHitTestVisible = true;
-        // zemin: han içi
-        Children.Add(new Rectangle { Fill = new RadialGradientBrush(Color.FromRgb(0x2a, 0x1a, 0x0c), Color.FromRgb(0x05, 0x03, 0x02)) { Center = new Point(0.5, 0.3), GradientOrigin = new Point(0.5, 0.3), RadiusX = 0.8, RadiusY = 0.8 } });
+        // zemin: han odasının karanlığı
+        Children.Add(new Rectangle { Fill = new SolidColorBrush(Color.FromRgb(0x04, 0x03, 0x02)) });
 
+        // han odası, masa ve tahta (HanTavern: masa yerel koordinatları) tahtanın dünyadaki yerine konur; açılıştaki kamera
+        // yolculuğunun son karesi bu görüntüyle birebir aynıdır
         var rot = new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0, 0), Tilt));
         var place = new Transform3DGroup { Children = { rot, new TranslateTransform3D(ShiftX, Lift, 0) } };
-        var tableBrush = HanArt.Src("table") is { } wood
-            ? new ImageBrush(wood) { TileMode = TileMode.Tile, Viewport = new Rect(0, 0, 0.2, 0.25), ViewportUnits = BrushMappingMode.RelativeToBoundingBox, Stretch = Stretch.Fill }
-            : (Brush)new SolidColorBrush(Color.FromRgb(0x3a, 0x24, 0x12));
         var view = new Viewport3D { ClipToBounds = true, IsHitTestVisible = false };
-        view.Camera = new PerspectiveCamera(new Point3D(0, 0, CamZ), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), Fov);
-        view.Children.Add(new ModelVisual3D { Content = new AmbientLight(Colors.White) });
-        view.Children.Add(new ModelVisual3D { Content = new GeometryModel3D(Quad(52, 34, -0.02), new DiffuseMaterial(tableBrush)), Transform = place });
-        view.Children.Add(new ModelVisual3D
-        {
-            Content = new GeometryModel3D(Quad(18.4, 12.4, -0.01), new DiffuseMaterial(new RadialGradientBrush(Color.FromArgb(0xd0, 0, 0, 0), Color.FromArgb(0, 0, 0, 0)) { RadiusX = 0.5, RadiusY = 0.5 })),
-            Transform = place
-        });
-        var tex = new ImageBrush(BoardTexture()) { Stretch = Stretch.Fill };
-        RenderOptions.SetBitmapScalingMode(tex, BitmapScalingMode.HighQuality);
-        view.Children.Add(new ModelVisual3D { Content = new GeometryModel3D(Quad(16, 10, 0), new DiffuseMaterial(tex)), Transform = place });
+        view.Camera = GameCameraWorld();
+        var world = new Model3DGroup { Transform = place };
+        world.Children.Add(HanTavern.Room());
+        world.Children.Add(HanTavern.Table());
+        world.Children.Add(HanTavern.Board(BoardTexture()));
+        world.Children.Add(HanTavern.Lights());
+        view.Children.Add(new ModelVisual3D { Content = world });
         Children.Add(view);
 
         // masanın uzak kenarı karanlığa karışır, ortada sıcak ışık, kenarlarda vinyet (hepsi durağan)
@@ -62,7 +57,10 @@ public sealed class HanScene : Grid
     }
 
     /// <summary>Tahta dokusu: Gwent masasının satır bölgesi (yoksa çizim), altın çerçeve, iki taraf arasındaki çizgi. Bir kez üretilir.</summary>
-    private static ImageSource BoardTexture()
+    /// <summary>Tahta dokusunun dolu kısmı (çerçeve dahil); dışı saydam.</summary>
+    internal static readonly Rect BoardTexRect = new(296 - 8, 20 - 8, 1127 + 16, 960 + 16);
+
+    internal static ImageSource BoardTexture()
     {
         if (_boardTex != null && _boardTexAssets == Assets.Available) return _boardTex;
         const double bx = 296, by = 20, bw = 1127, bh = 960;
@@ -90,12 +88,10 @@ public sealed class HanScene : Grid
         return _boardTex = rtb;
     }
 
-    private static MeshGeometry3D Quad(double w, double h, double z) => new()
-    {
-        Positions = new Point3DCollection { new(-w / 2, h / 2, z), new(w / 2, h / 2, z), new(w / 2, -h / 2, z), new(-w / 2, -h / 2, z) },
-        TextureCoordinates = new PointCollection { new(0, 0), new(1, 0), new(1, 1), new(0, 1) },
-        TriangleIndices = new Int32Collection { 0, 3, 2, 0, 2, 1 }
-    };
+    private static PerspectiveCamera GameCameraWorld() => new(new Point3D(0, 0, CamZ), new Vector3D(0, 0, -1), new Vector3D(0, 1, 0), Fov);
+
+    /// <summary>Oyundaki masa kamerası, masa yerel koordinatlarında (HanTavern): açılış yolculuğu burada biter.</summary>
+    public static PerspectiveCamera GameCamera() => HanTavern.GameCamera(Tilt, Lift, CamZ, Fov, ShiftX);
 
     /// <summary>Tahta üzerindeki bir noktanın ekrandaki (1920×1080) karşılığı.</summary>
     public static Point ToScreen(Point boardPoint)

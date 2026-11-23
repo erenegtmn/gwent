@@ -84,31 +84,6 @@ public sealed class HanCardView : Grid
         global::HanLigi.Tag.Bandit => Color.FromRgb(0x7a, 0xd0, 0x6a), global::HanLigi.Tag.Noble => Color.FromRgb(0xf0, 0xc8, 0x5a), _ => Color.FromRgb(0xd8, 0xa2, 0x6a)
     };
 
-    /// <summary>Yeteneğin Gwent simgesi (ab_*.png; görselin sol yarısı).</summary>
-    internal static ImageSource? AbilityIcon(CardDef d)
-    {
-        var name = d.Ability switch
-        {
-            Ability.Bond => "ab_bond", Ability.Morale => "ab_morale", Ability.Spy => "ab_spy", Ability.Medic => "ab_medic", Ability.Summon => "ab_muster",
-            Ability.Bard => "ab_horn", Ability.DeathEcho => "ab_avenger", Ability.Mirror => "ab_berserker", Ability.Growth => "ab_mardroeme", Ability.Ambush => "ab_decoy",
-            Ability.Revenge => "ab_scorch", Ability.Zeal => "ab_storm", _ => d.Agile ? "ab_agile" : null
-        };
-        if (d.Special != Special.None) name = d.Special switch { Special.Frost => "ab_frost", Special.Fog => "ab_fog", Special.Rain => "ab_rain", Special.Scorch => "ab_scorch", Special.Horn => "ab_horn", _ => "ab_decoy" };
-        if (d.IsHero) name = null;
-        if (name == null || Assets.Ui(name) is not BitmapSource src) return null;
-        lock (IconCache)
-        {
-            if (IconCache.TryGetValue(name, out var c)) return c;
-            ImageSource s;
-            try { s = src.PixelWidth >= src.PixelHeight * 2 ? new CroppedBitmap(src, new Int32Rect(0, 0, src.PixelWidth / 2, src.PixelHeight)) : src; }
-            catch { s = src; }
-            s.Freeze();
-            return IconCache[name] = s;
-        }
-    }
-
-    private static readonly Dictionary<string, ImageSource> IconCache = new();
-
     /// <param name="aspect">Yükseklik / genişlik. Masada ve depoda 1.2 (kısa kart), incelemede 1.34.</param>
     /// <param name="named">Ad ve yetenek özeti de yazılsın (tezgâh, inceleme, seçim).</param>
     public HanCardView(CardDef d, int star, double width, decimal? value = null, bool selected = false, string? footer = null, bool dim = false, int? price = null, bool faceDown = false, double aspect = CardAspect, bool named = false, bool plain = false)
@@ -241,6 +216,14 @@ public sealed class HanCardView : Grid
             }
             Children.Add(strip);
         }
+        // plakasız kart (tezgâh): yetenek simgesi sol altta, satır simgesiyle aynı boyda (yazısı kartın altındaki bantta)
+        if (plain && HanIcons.Medal(d, Math.Max(15, w * 0.2)) is { } abil)
+        {
+            abil.HorizontalAlignment = HorizontalAlignment.Left;
+            abil.VerticalAlignment = VerticalAlignment.Bottom;
+            abil.Margin = new Thickness(w * 0.035, 0, 0, w * 0.035);
+            Children.Add(abil);
+        }
         // yıldızlar
         if (star > 1)
             Children.Add(new Border
@@ -330,8 +313,12 @@ public sealed class HanCardView : Grid
         if (key.Length > 0)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal };
-            if (footer == null && AbilityIcon(d) is { } ic)
-                row.Children.Add(new Image { Source = ic, Width = w * 0.15, Height = w * 0.15, Margin = new Thickness(0, 0, w * 0.025, 0), VerticalAlignment = VerticalAlignment.Center });
+            if (footer == null && HanIcons.Medal(d, Math.Max(13, w * 0.17)) is { } ic)
+            {
+                ic.Margin = new Thickness(0, 0, w * 0.03, 0);
+                ic.VerticalAlignment = VerticalAlignment.Center;
+                row.Children.Add(ic);
+            }
             row.Children.Add(new TextBlock
             {
                 Text = HanUi.Tracked(HanUi.Upper(key)), FontFamily = HanUi.Font, FontSize = HanUi.S(w * 0.108), FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center,

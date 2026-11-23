@@ -118,7 +118,7 @@ public sealed partial class HanView : Grid
         _live = animate;
         Background = Brushes.Black;
         _scene = new HanScene(animate);
-        foreach (var layer in new UIElement[] { _scene, _rows, _anim, _units, _c, _counters, _shop, _fx, _engine, _clockLayer, _toasts, _banner, _hover }) _stage.Children.Add(layer);
+        foreach (var layer in new UIElement[] { _scene, _tavernHost, _rows, _anim, _units, _c, _counters, _shop, _fx, _engine, _clockLayer, _toasts, _banner, _hover }) _stage.Children.Add(layer);
         // durağan katmanlar GPU dokusu olarak önbelleğe alınır (ölçek pencere boyuna göre ayarlanır: yazılar net kalır)
         _cachedLayers = new UIElement[] { _scene, _rows, _units, _c };
         foreach (var layer in _cachedLayers)
@@ -134,7 +134,7 @@ public sealed partial class HanView : Grid
         ToolTipService.SetBetweenShowDelay(this, 0);
         ToolTipService.SetShowDuration(this, 60000);
         Children.Add(new Viewbox { Stretch = Stretch.Uniform, Child = _stage });
-        Unloaded += (_, _) => { StopTimer(); EndRoll(); _gen++; StopDragGhost(); CompositionTarget.Rendering -= Tick; _ticking = false; };
+        Unloaded += (_, _) => { StopTimer(); EndRoll(); _gen++; StopDragGhost(); CompositionTarget.Rendering -= Tick; _ticking = false; DropTavern(); };
         _stage.MouseMove += OnDragMove;
         // başka bir kartımın üstüne bırakılan kart onunla yer değiştirir (bırakma alanlarından önce: önizleme olayı tepeden iner)
         _stage.PreviewMouseLeftButtonUp += (_, e) =>
@@ -492,7 +492,7 @@ public sealed partial class HanView : Grid
         }
 
         // yetenek / kahraman gücü / özel kart etkisi
-        void Section(string head, string body, ImageSource? icon, Brush headFg)
+        void Section(string head, string body, Geometry? icon, Brush headFg)
         {
             var box = new Border
             {
@@ -501,7 +501,13 @@ public sealed partial class HanView : Grid
             };
             var sp = new StackPanel();
             var hl = new StackPanel { Orientation = Orientation.Horizontal };
-            if (icon != null) hl.Children.Add(new Image { Source = icon, Width = 22, Height = 22, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });
+            if (icon != null)
+            {
+                var md = HanIcons.Medal(icon, 28);
+                md.Margin = new Thickness(0, 0, 9, 0);
+                md.VerticalAlignment = VerticalAlignment.Center;
+                hl.Children.Add(md);
+            }
             var ht = HanUi.T(HanUi.Tracked(HanUi.Upper(head), 1), 14, headFg, FontWeights.Bold);
             ht.VerticalAlignment = VerticalAlignment.Center;
             hl.Children.Add(ht);
@@ -525,16 +531,16 @@ public sealed partial class HanView : Grid
                     + $"\n{(tierNow == 2 ? "▶ " : "")}III · {HT.Name(htag)} {bp[2]} kart: {tiers[1]}";
                 Section(d.Name.Split(' ').Last() + "'in gücü", body, null, HanUi.GoldText);
             }
-            if (d.Ability == Ability.Ambush) Section("Pusu", HT.Describe(Ability.Ambush), HanCardView.AbilityIcon(CardSet.All.First(x => x.Ability == Ability.Ambush && !x.IsHero)), HanUi.Br(Color.FromRgb(0xff, 0xe2, 0xa0)));
+            if (d.Ability == Ability.Ambush) Section("Pusu", HT.Describe(Ability.Ambush), HanIcons.For(Ability.Ambush), HanUi.Br(Color.FromRgb(0xff, 0xe2, 0xa0)));
             var imm = HanUi.T("Kahraman: hava, Kavurma ve karta hedefli etkiler işlemez.", 13, HanUi.Br(HanUi.Muted), FontWeights.Normal);
             imm.FontStyle = FontStyles.Italic;
             imm.TextWrapping = TextWrapping.Wrap;
             imm.Margin = new Thickness(0, 8, 0, 0);
             info.Children.Add(imm);
         }
-        else if (!d.IsUnit) Section(HanCardView.Keyword(d), HT.Describe(d.Special), HanCardView.AbilityIcon(d), HanUi.Br(Color.FromRgb(0x9f, 0xd8, 0xff)));
-        else if (d.Ability != Ability.None) Section(HanCardView.Keyword(d), HT.Describe(d.Ability), HanCardView.AbilityIcon(d), HanUi.Br(Color.FromRgb(0xff, 0xe2, 0xa0)));
-        else if (d.Agile) Section("Çevik", "Yakın ya da Menzilli satıra konabilir.", HanCardView.AbilityIcon(d), HanUi.Br(Color.FromRgb(0xff, 0xe2, 0xa0)));
+        else if (!d.IsUnit) Section(HanCardView.Keyword(d), HT.Describe(d.Special), HanIcons.For(d), HanUi.Br(Color.FromRgb(0x9f, 0xd8, 0xff)));
+        else if (d.Ability != Ability.None) Section(HanCardView.Keyword(d), HT.Describe(d.Ability), HanIcons.For(d), HanUi.Br(Color.FromRgb(0xff, 0xe2, 0xa0)));
+        else if (d.Agile) Section("Çevik", "Yakın ya da Menzilli satıra konabilir.", HanIcons.For(d), HanUi.Br(Color.FromRgb(0xff, 0xe2, 0xa0)));
 
         // bu an geçerli yüzdeler (İntikam, Coşku, Eredin, Haydut)
         {
@@ -1217,6 +1223,7 @@ public sealed partial class HanView : Grid
         _cardW.Clear();
         _hover.Children.Clear();
         _scene.Visibility = Visibility.Visible;   // masa her ekranda arkada kalır; ara ekranlar onun üstünde saydam durur
+        if (_screen == Screen.School) ShowTavern();
         switch (_screen)
         {
             case Screen.School: DrawSchool(); break;
@@ -1282,9 +1289,51 @@ public sealed partial class HanView : Grid
         Put(sp, 0, y);
     }
 
+    // ---------- han: okul seçiminde canlı oda, seçince kamera masaya iner ----------
+
+    /// <summary>Canlı han görüntüsü (okul seçimi); yalnız canlı kipte. Masa katmanının hemen üstünde, arayüzün altında durur.</summary>
+    private readonly Grid _tavernHost = new() { Width = 1920, Height = 1080 };
+    private HanTavernView? _tavern;
+
+    private void ShowTavern()
+    {
+        if (!_live || _tavern != null) return;
+        _tavern = new HanTavernView(HanScene.BoardTexture());
+        _tavernHost.Children.Add(_tavern);
+    }
+
+    /// <summary>
+    /// Okul seçildi, hazırlık başlıyor: han görüntüsü her şeyin üstüne çıkar, kamera oyundaki masa görüşüne iner (son kare
+    /// arkadaki masayla aynı), sonra görüntü sönerek altında hazır bekleyen hazırlık ekranını açar.
+    /// </summary>
+    private void FlyToTable()
+    {
+        if (_tavern is not { } tv) return;
+        System.Windows.Controls.Panel.SetZIndex(_tavernHost, 1000);
+        Sfx.Play("han_whoosh");
+        tv.FlyTo(HanScene.GameCamera(), TavernFlyMs, () =>
+        {
+            var fade = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(420));
+            fade.Completed += (_, _) => DropTavern();
+            _tavernHost.BeginAnimation(OpacityProperty, fade);
+        });
+    }
+
+    private const double TavernFlyMs = 2600;
+
+    private void DropTavern()
+    {
+        if (_tavern == null) return;
+        _tavernHost.BeginAnimation(OpacityProperty, null);
+        _tavernHost.Opacity = 1;
+        _tavernHost.Children.Clear();
+        System.Windows.Controls.Panel.SetZIndex(_tavernHost, 0);
+        _tavern = null;
+    }
+
     private void DrawSchool()
     {
-        Backdrop(0.45);
+        Backdrop(_tavern != null ? 0.18 : 0.45);
         TopButtons();
         PageHeader("Han Ligi", "Okulunu seç", "Sekiz oyuncu, yüz can; son ayakta kalan kazanır. Okulun, maç boyunca taşıyacağın pasif yetenektir.", 70);
         const double cw = 380, ch = 540, gap = 40;
