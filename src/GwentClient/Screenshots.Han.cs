@@ -30,6 +30,20 @@ public static class HanShots
         var os = new HanSession(new GwentNet.HanSetup(20261113, new() { "Eren", "Lambert", "Eskel", "Keira" }, new() { false, true, true, true }, new() { null, null, null, null }, 0), _ => { });
         os.G.Apply(new HanAction(HanActKind.School, 0, (int)os.Player.SchoolOptions[0]));
         save(new HanView(os, () => { }, () => { }, animate: false), "han_2c_online_hazirlik.png");
+        // tezgâhta birleşme uyarısı: elde iki kopya ("★ Birleşir") ve bir kopya ("sende 1") olan kartlar; yazı kart resminde okunmalı
+        var ms = new HanSession(20261113, "Eren") { Timed = false };
+        ms.ChooseSchool(ms.Player.SchoolOptions[0]);
+        var shop = ms.Player.Shop;
+        if (shop.Where(d => d is { IsUnit: true, IsHero: false }).Select(d => d!).Distinct().Take(2).ToList() is [var two, var one])
+        {
+            ms.Player.Gold = 50;
+            shop[0] = two; shop[1] = two; shop[2] = one;
+            ms.Act(HanActKind.Buy, 0);
+            ms.Act(HanActKind.Buy, 1);
+            ms.Act(HanActKind.Buy, 2);
+            shop[0] = two; shop[1] = one; shop[2] = two;
+            save(new HanView(ms, () => { }, () => { }, animate: false), "han_2d_birlesir.png");
+        }
         // erken hazırlık: marketten alınabilenleri al, sahaya sür
         for (var i = 0; i < Tuning.ShopSize; i++) s.Act(HanActKind.Buy, i);
         foreach (var c in s.Player.Cards.ToList()) s.Act(HanActKind.Move, c.Uid, (int)Match.ZonesFor(c.Def).First());

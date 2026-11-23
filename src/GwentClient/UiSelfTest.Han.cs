@@ -29,6 +29,19 @@ public static partial class UiSelfTest
         var swaps = 0;
         var battleShops = 0;
         var overfull = 0;
+        // HAN_SELFTEST_LIVE=n: canlı kip (gerçek pencere, animasyonlar ve savaş sinematiği oynar; çözüm sürerken beklenir), her maç
+        // n round sonra kesilir. Sinematiğin uç durumları (boş satır, beraberlik, pusu, canavar round'u) böyle denenir.
+        var live = int.TryParse(Environment.GetEnvironmentVariable("HAN_SELFTEST_LIVE"), out var liveRounds) && liveRounds > 0;
+        // bir maçın penceresi kapanınca uygulama kapanmaya başlamasın (son pencere kapanınca dağıtıcı durur, sonraki maçta zamanlayıcılar işlemez)
+        if (live && Application.Current is { } app) app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        void Pump(int ms)
+        {
+            var frame = new System.Windows.Threading.DispatcherFrame();
+            var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ms) };
+            t.Tick += (_, _) => { t.Stop(); frame.Continue = false; };
+            t.Start();
+            System.Windows.Threading.Dispatcher.PushFrame(frame);
+        }
         for (var g = 0; g < games; g++)
         {
             try
@@ -37,7 +50,14 @@ public static partial class UiSelfTest
                 var s = new HanSession(500 + g, "Sınama") { Timed = false };
                 var back = false;
                 var again = false;
-                var view = new HanView(s, () => back = true, () => again = true, animate: false);
+                var view = new HanView(s, () => back = true, () => again = true, animate: live);
+                Window? win = null;
+                if (live)
+                {
+                    // tam 1920×1080 ve çerçevesiz: tıklamaların hesaplandığı tasarım boyutuyla aynı (ölçeklenirse isabet denetimi şaşar)
+                    win = new Window { Width = 1920, Height = 1080, Left = 0, Top = 0, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, Content = view, Title = "Han Ligi sınama (canlı)", ShowActivated = false };
+                    win.Show();
+                }
                 Layout(view);
                 // yardım açılır ve kapanır
                 Raise(FindAll<Button>(view, b => (b.Tag as string) == "han-help").First(), ButtonBase.ClickEvent); Layout(view);
@@ -48,6 +68,13 @@ public static partial class UiSelfTest
                 var steps = 0;
                 for (; steps < 20000 && !s.Over; steps++)
                 {
+                    if (live)
+                    {
+                        Pump(25);
+                        for (var w = 0; view.Busy && w < 600; w++) Pump(40);
+                        Check(!view.Busy, "canlı: çözüm 24 sn'de bitmedi (" + view.DebugState + ")");
+                        if (s.M.Round > liveRounds) break;
+                    }
                     Layout(view);
                     string T(FrameworkElement f) => f.Tag as string ?? "";
                     if (steps == 60)
@@ -144,7 +171,7 @@ public static partial class UiSelfTest
                     }
                     // Her şey ekran katmanında: kartlarda gerçek isabet denetimi yapılır (görünmeyen öğeye tıklama doğrudan gönderilir).
                     if (pick is Button btn) Raise(btn, ButtonBase.ClickEvent);
-                    else if (IsOnScreen(view, pick)) ClickAt(view, pick);
+                    else if (!live && IsOnScreen(view, pick)) ClickAt(view, pick);   // canlı kipte öğeler hareket ediyor olabilir: isabet denetimi canlı olmayan sınamada
                     else Raise(pick, UIElement.MouseLeftButtonUpEvent);
                     // boş yere tıklamak seçimi bırakır (masaya tıklama: olay kimse tarafından tüketilmez)
                     if (view.Selected != null && rng.Next(6) == 0)
@@ -165,6 +192,12 @@ public static partial class UiSelfTest
                     if (s.MyBattle is { } b) Check(b.Sides[s.MySide].Focus >= 0, "Odak eksiye düştü");
                 }
                 Layout(view);
+                if (live)
+                {
+                    totalRounds += s.M.Round - 1;
+                    win?.Close();
+                    continue;
+                }
                 Check(s.Over, $"maç bitmedi ({steps} adım, round {s.M.Round})");
                 Check(s.M.Players.Count(p => p.Place == 1) == 1, "tek kazanan yok");
                 totalRounds += s.M.Round;
@@ -181,6 +214,11 @@ public static partial class UiSelfTest
                 failures++;
                 Console.WriteLine("[HATA] han: " + ex);
             }
+        }
+        if (live)
+        {
+            Console.WriteLine($"Han Ligi (canlı): {games} maç, {totalRounds} round, {failures} hata.");
+            return failures;
         }
         Check(deselects > 0, "boş yere tıklama hiç denenmedi");
         Check(swaps > 0, "sürükle-bırak takası hiç olmadı");

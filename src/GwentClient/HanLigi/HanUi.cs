@@ -100,6 +100,20 @@ public static class HanUi
 
     public static TextBlock Small(string text, double size = 12, Brush? fg = null) => T(text, size, fg ?? Br(Muted), FontWeights.Normal);
 
+    /// <summary>Yazı genişliğe sığmazsa küçülür (en az <paramref name="min"/> boyuna kadar); yine sığmazsa üç noktayla kısalır.</summary>
+    public static TextBlock Fit(TextBlock t, double maxWidth, double min)
+    {
+        var floor = min * K;
+        for (var i = 0; i < 40; i++)
+        {
+            t.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            if (t.DesiredSize.Width <= maxWidth || t.FontSize <= floor) break;
+            t.FontSize = Math.Max(floor, t.FontSize - 0.5);
+        }
+        t.MaxWidth = maxWidth;
+        return t;
+    }
+
     /// <summary>Sayı: kalın, altın degrade (altın, can, güç).</summary>
     public static TextBlock Number(string text, double size, Brush? fg = null)
     {
@@ -271,7 +285,9 @@ public sealed class HanButton : Button
         if (kind == HanButtonKind.Primary) t.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 4, ShadowDepth = 1, Opacity = 0.9 };
         line.Children.Add(t);
         // başlık düğmeye sığmazsa küçülür (hiçbir zaman taşmaz)
-        stack.Children.Add(new Viewbox { Child = line, StretchDirection = StretchDirection.DownOnly, MaxWidth = w - 22, HorizontalAlignment = HorizontalAlignment.Center });
+        // birincil düğmenin iki yanında süs elmasları var: yazı onlara değmesin (küçük ikon düğmelerinde eski pay)
+        var pad = kind == HanButtonKind.Primary && w >= 120 ? 44 : 22;
+        stack.Children.Add(new Viewbox { Child = line, StretchDirection = StretchDirection.DownOnly, MaxWidth = Math.Max(4, w - pad), HorizontalAlignment = HorizontalAlignment.Center });
         if (sub is { Length: > 0 })
         {
             var s = HanUi.T(sub, Math.Min(12.5, h * 0.2), HanUi.Br(kind == HanButtonKind.Danger ? Color.FromRgb(0xf0, 0xb0, 0xa0) : HanUi.Muted), FontWeights.SemiBold, TextAlignment.Center);

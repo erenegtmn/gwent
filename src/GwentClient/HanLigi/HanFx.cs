@@ -687,4 +687,76 @@ public static class HanFx
     /// <summary>Kart üstünde yükselen ışık (iksir, iyileşme): kart genişliğinde.</summary>
     public static void CardAura(FxEngine e, Point card, double cardW, double cardH, Ramp ramp, double seconds = 1.1)
         => Aura(e, new Point(card.X, card.Y + cardH * 0.3), cardW * 0.9, ramp, seconds);
+
+    // ---------- satır puanlama ve hasar (savaş sinematiği) ----------
+
+    /// <summary>Rozete dokunan küçük çakma: puan rozete eklendi.</summary>
+    public static void Tick(FxEngine e, Point at, Ramp ramp, double power = 1)
+    {
+        var p = (float)power;
+        e.Light(at, 90 * p, ramp, 0.7f * p, 0.18f, 0.9f);
+        for (var i = 0; i < (int)(10 * p); i++) e.Spark(at, e.R(0, 360), e.R(90, 280) * p, e.R(0.18f, 0.4f), 3, 2, ramp, 1.2f, 300, 1.2f, true);
+    }
+
+    /// <summary>İki satır rozeti çarpışır: göz alan çakma, şok halkası, iki yana saçılan kıvılcımlar.</summary>
+    public static void Clash(FxEngine e, Point at, Ramp ramp)
+    {
+        e.Light(at, 220, Ramp.White, 1.7f, 0.14f, 0.85f);
+        e.Light(at, 520, ramp, 0.7f, 0.7f, 0.6f);
+        Ring(e, at, 170, ramp.At(0.25f), 0.45, 1.3f, 14);
+        for (var i = 0; i < 90; i++)
+        {
+            var side = e.Rng.Next(2) == 0 ? 180 : 0;
+            e.Spark(at, side + e.R(-35, 35), e.R(320, 980), e.R(0.25f, 0.65f), 3, 2, ramp, 1.4f, 700, 1.3f, true);
+        }
+        for (var i = 0; i < 16; i++) e.Spark(at, e.R(0, 360), e.R(20, 120), e.R(0.25f, 0.45f), e.R(30, 46), e.R(70, 110), Ramp.HotCore, 0.5f, -40, 2.5f);
+    }
+
+    /// <summary>Kıvılcım mermisi (hasar): parlayan küçük çekirdek, kısa iz; hızlanarak hedefe iner, değince çakar.</summary>
+    public static void Ember(FxEngine e, Point from, Point to, int ms, Ramp ramp, double lift, Action land)
+    {
+        var dur = ms / 1000.0;
+        Point At(double t)
+        {
+            var k = t * t;
+            var p = from + (to - from) * k;
+            return new Point(p.X, p.Y - Math.Sin(t * Math.PI) * lift);
+        }
+        var head = ramp.At(0.15f);
+        e.Add(new FxEngine.Painter
+        {
+            Duration = dur,
+            Draw = (en, t, _) =>
+            {
+                var p = At(t);
+                en.Glow(p, 46, head, 0.55f);
+                en.Glow(p, 13, White, 1.4f);
+            }
+        });
+        e.Add(new FxEngine.Emitter
+        {
+            Pos = At, Duration = dur, Rate = 280,
+            Spawn = (en, p, _) =>
+            {
+                en.Spark(p, en.R(0, 360), en.R(10, 60), en.R(0.15f, 0.32f), en.R(8, 14), 2, ramp, 0.9f, 0, 1, false, 100);
+                if (en.Rng.Next(3) == 0) en.Spark(p, en.R(0, 360), en.R(60, 200), en.R(0.2f, 0.4f), 3, 2, ramp, 1.2f, 400, 1, true);
+            }
+        });
+        Fx.After(ms, () => { Tick(e, to, ramp, 1.1); land(); });
+    }
+
+    /// <summary>Pusudan inen kart masaya çakılır: zeminde toz halkası, yere yayılan toz bulutu, kısa çakma.</summary>
+    public static void DustSlam(FxEngine e, Point foot, double cardW)
+    {
+        var w = (float)cardW;
+        e.Light(new Point(foot.X, foot.Y - w * 0.6f), w * 2.4f, Ramp.Gold, 0.9f, 0.3f, 0.5f);
+        Ring(e, foot, cardW * 1.5, new Rgb(0.75f, 0.62f, 0.45f), 0.55, 1.0f, 16);
+        for (var i = 0; i < 26; i++)
+        {
+            var a = e.R(0, 360);
+            var q = new Point(foot.X + Math.Cos(a * Math.PI / 180) * w * 0.3, foot.Y + Math.Sin(a * Math.PI / 180) * w * 0.3 * Floor);
+            e.Puff(q, a, e.R(120, 320), e.R(0.6f, 1.1f), 24, e.R(80, 130), 0.22f, -10, 50);
+        }
+        for (var i = 0; i < 24; i++) e.Spark(foot, e.R(195, 345), e.R(160, 480), e.R(0.3f, 0.6f), 3, 2, Ramp.Dust, 1.0f, 900, 1, true);
+    }
 }

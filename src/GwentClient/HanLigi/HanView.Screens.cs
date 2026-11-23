@@ -250,7 +250,7 @@ public sealed partial class HanView
         var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 20, 0, 0) };
         if (!Session.Online)
         {
-            var again = Btn("Yeniden oyna", "han-again", () => { StopTimer(); _gen++; _again(); }, true, width: 220, height: 50);
+            var again = Btn("Yeniden oyna", "han-again", () => { StopTimer(); _gen++; _again(); }, true, width: 244, height: 50);
             again.Margin = new Thickness(0, 0, 12, 0);
             btns.Children.Add(again);
         }

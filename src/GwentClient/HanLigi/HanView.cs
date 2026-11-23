@@ -39,6 +39,8 @@ public sealed partial class HanView : Grid
     private readonly Canvas _units = new() { Width = 1920, Height = 1080 };
     /// <summary>Arayüz (HUD).</summary>
     private readonly Canvas _c = new() { Width = 1920, Height = 1080 };
+    /// <summary>Yuvarlanarak değişen sayılar (altın, can, satır gücü): önbelleksiz, yalnız sayı yazıları.</summary>
+    private readonly Canvas _counters = new() { Width = 1920, Height = 1080, IsHitTestVisible = false };
     private readonly Canvas _fx = new() { Width = 1920, Height = 1080, IsHitTestVisible = false };
     private readonly Grid _banner = new() { Width = 1920, Height = 1080, IsHitTestVisible = false };
     private readonly Canvas _hover = new() { Width = 1920, Height = 1080, IsHitTestVisible = false };
@@ -59,6 +61,8 @@ public sealed partial class HanView : Grid
     private int? _sel;
     internal int? Selected => _sel;
     /// <summary>Sınama teşhisi: ekran ve bekleme durumları.</summary>
+    /// <summary>Sınama: bir çözüm (pencere, savaş sonu) oynuyor.</summary>
+    internal bool Busy => _busy;
     internal string DebugState => $"{_screen} waitReady={_waitReady} waitAct={_waitAct} waitWindow={_waitWindow} waitRound={_waitRound} busy={_busy} shown={_resultShown} battle={(Session.MyBattle is { } b ? $"w{b.Window} done={b.Done} sub={b.Submitted(Session.MySide)} out={b.Outcomes.Count}" : "-")}";
     private bool _help;
     private Activation _act = new();
@@ -114,7 +118,7 @@ public sealed partial class HanView : Grid
         _live = animate;
         Background = Brushes.Black;
         _scene = new HanScene(animate);
-        foreach (var layer in new UIElement[] { _scene, _rows, _anim, _units, _c, _shop, _fx, _engine, _clockLayer, _toasts, _banner, _hover }) _stage.Children.Add(layer);
+        foreach (var layer in new UIElement[] { _scene, _rows, _anim, _units, _c, _counters, _shop, _fx, _engine, _clockLayer, _toasts, _banner, _hover }) _stage.Children.Add(layer);
         // durağan katmanlar GPU dokusu olarak önbelleğe alınır (ölçek pencere boyuna göre ayarlanır: yazılar net kalır)
         _cachedLayers = new UIElement[] { _scene, _rows, _units, _c };
         foreach (var layer in _cachedLayers)
@@ -130,7 +134,7 @@ public sealed partial class HanView : Grid
         ToolTipService.SetBetweenShowDelay(this, 0);
         ToolTipService.SetShowDuration(this, 60000);
         Children.Add(new Viewbox { Stretch = Stretch.Uniform, Child = _stage });
-        Unloaded += (_, _) => { StopTimer(); EndRoll(); _gen++; };
+        Unloaded += (_, _) => { StopTimer(); EndRoll(); _gen++; StopDragGhost(); CompositionTarget.Rendering -= Tick; _ticking = false; };
         _stage.MouseMove += OnDragMove;
         // başka bir kartımın üstüne bırakılan kart onunla yer değiştirir (bırakma alanlarından önce: önizleme olayı tepeden iner)
         _stage.PreviewMouseLeftButtonUp += (_, e) =>
@@ -161,6 +165,9 @@ public sealed partial class HanView : Grid
     /// Oturumda bir eylem uygulandı (yerelde hemen, online'da sunucudan gelince). Beklenen adım geldiyse ona geçilir; yoksa ekran
     /// yeniden çizilir (öteki oyuncuların hamleleri oyuncu listesini ve havuzu değiştirir).
     /// </summary>
+    /// <summary>Kendi eylemim uygulanıyor (<c>Do</c>): ekranı o kurar, bildirim ayrıca çizmez.</summary>
+    private bool _acting;
+
     private void OnSessionChanged()
     {
         Announce();
@@ -171,7 +178,7 @@ public sealed partial class HanView : Grid
                 break;
             case Screen.Prep:
                 if (M.Phase == Phase.Battle && Session.MyBattle != null) EnterActivation();
-                else if (!_dragging && _pressUid == null) Render();
+                else if (!_dragging && _pressUid == null && !_acting) Render();
                 break;
             case Screen.Activation:
                 if (Session.MyBattle is { Started: true }) BeginBattle();   // iki taraf da seçti (ya da süre doldu, sunucu benim yerime seçti)
@@ -584,6 +591,8 @@ public sealed partial class HanView : Grid
         var g = new StackPanel { Orientation = Orientation.Horizontal };
         var info = CardInfo(d, star, value);
         info.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        // yalnız masadaki kart hafifçe kalkar (depo, pusu, ödül/seçim penceresi ve alt şerit kartları kıpırdamaz; tezgâh kartları kendileri yükselir)
+        if (_units.IsAncestorOf(anchor)) HoverLift(anchor, r);
         g.Children.Add(HanUi.Frame(CardInfoW, info.DesiredSize.Height + 4, info, 0xf8, HanCardView.TierColor(d), 12));
         const double gw = CardInfoW;
         g.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -717,6 +726,9 @@ public sealed partial class HanView : Grid
         chip.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var left = 14 + chip.DesiredSize.Width + 12;
         var h = HanUi.T(hint, hint.Length > 72 ? 16 : 18, hintColor ?? HanUi.Br(HanUi.Parchment), FontWeights.SemiBold, TextAlignment.Center);
+        // uzun cümle şeride sığana kadar küçülür (kesilip "depoy…" diye bitiyordu)
+        HanUi.Fit(h, TopW - left - 64 - 4, 13);
+        h.MaxWidth = double.PositiveInfinity;
         h.VerticalAlignment = VerticalAlignment.Center;
         h.Margin = new Thickness(left, 0, 64, 2);
         g.Children.Add(h);
@@ -797,20 +809,43 @@ public sealed partial class HanView : Grid
             var frac = Math.Clamp(hpNow, 0, 100) / 100.0;
             var hpc = hpNow > 50 ? Color.FromRgb(0x8f, 0xd0, 0x62) : hpNow > 25 ? Color.FromRgb(0xe8, 0xc0, 0x50) : Color.FromRgb(0xe0, 0x5a, 0x48);
             g.Children.Add(new Border { Width = 132 * frac, Height = 2, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(48, 0, 0, 4), Background = new SolidColorBrush(hpc) });
-            var hp = HanUi.Number(alive ? hpNow.ToString() : "✝", 21, new LinearGradientBrush(Color.Add(hpc, Color.FromRgb(0x50, 0x50, 0x50)), hpc, 90));
-            hp.HorizontalAlignment = HorizontalAlignment.Right;
-            hp.VerticalAlignment = VerticalAlignment.Center;
-            hp.Margin = new Thickness(0, 0, 10, 2);
-            hp.Tag = "hp:" + p.Id;
-            g.Children.Add(hp);
             g.ToolTip = $"{p.Name} · Seviye {p.Level} · {SchoolName(p.School)} okulu · {p.Wins} galibiyet, {p.Losses} yenilgi";
             Put(g, ListX, y);
+            // can düşünce sayı yuvarlanarak iner (sayarken sayaç katmanında, dururken satırın içinde)
+            var hp = HanUi.Number(alive ? hpNow.ToString() : "✝", 21, new LinearGradientBrush(Color.Add(hpc, Color.FromRgb(0x50, 0x50, 0x50)), hpc, 90));
+            hp.Tag = "hp:" + p.Id;
+            if (alive && Count("hp:" + p.Id, hp, hpNow, Whole, 700))
+            {
+                hp.Width = ListW - 10;
+                hp.TextAlignment = TextAlignment.Right;
+                hp.Opacity = g.Opacity;
+                hp.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                Canvas.SetLeft(hp, ListX);
+                Canvas.SetTop(hp, y + 22 - hp.DesiredSize.Height / 2 - 1);
+                _counters.Children.Add(hp);
+            }
+            else
+            {
+                if (!alive) _shownNum.Remove("hp:" + p.Id);
+                hp.HorizontalAlignment = HorizontalAlignment.Right;
+                hp.VerticalAlignment = VerticalAlignment.Center;
+                hp.Margin = new Thickness(0, 0, 10, 2);
+                g.Children.Add(hp);
+            }
             _hpAt[p.Id] = new Point(ListX + ListW - 24, y + 22);
-            // can o an düştüyse (öteki masada savaş bitti): sayı parlar, yanında kayıp yazar
+            // can o an düştüyse (öteki masada savaş bitti): sayı parlar, yanında kayıp yazar, can çubuğunda kaybedilen parça
+            // önce açık renkte kalıp erir
             if (_hpShownLast.TryGetValue(p.Id, out var before) && hpNow < before && _live)
             {
                 Pop(hp);
                 HanArt.FloatText(_fx, "−" + (before - hpNow), new Point(ListX - 26, y + 22), Color.FromRgb(0xff, 0x5a, 0x48), 24, 1500);
+                var lost = new Border { Width = 132 * (Math.Clamp(before, 0, 100) / 100.0 - frac), Height = 2, Background = HanUi.Br(Color.FromRgb(0xff, 0xe0, 0xc0)), RenderTransformOrigin = new Point(0, 0.5) };
+                Canvas.SetLeft(lost, ListX + 48 + 132 * frac);
+                Canvas.SetTop(lost, y + 44 - 4 - 2);
+                _counters.Children.Add(lost);
+                var melt = new ScaleTransform(1, 1);
+                lost.RenderTransform = melt;
+                melt.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(650)) { BeginTime = TimeSpan.FromMilliseconds(350), EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } });
             }
             _hpShownLast[p.Id] = hpNow;
             y += 48;
@@ -968,6 +1003,7 @@ public sealed partial class HanView : Grid
             Sfx.Play("han_click");
             Render();
         }, value, _sel == c.Uid);
+        _ownVals[uid] = value;
         el.MouseLeftButtonDown += (_, e) =>
         {
             if (_busy || _screen != Screen.Prep) return;
@@ -1010,8 +1046,9 @@ public sealed partial class HanView : Grid
     /// <summary>Sürüklenen kart başka bir kartımın üstüne bırakıldı: yer değiştirirler (olamıyorsa ret sesi).</summary>
     private void DropOnCard(int uid, int target)
     {
-        EndDrag();
+        // önce takas (sürükleme sürerken: kart, hayaletin bırakıldığı yerden yerine uçar), sonra sürükleme biter
         Do(() => Session.Act(HanActKind.SwapCards, uid, target), "han_place");
+        EndDrag();
     }
 
     /// <summary>Sınama: kartı gerçek sürükle-bırak yolundan başka bir kartın merkezine bırakır (isabet denetimi dahil).</summary>
@@ -1056,17 +1093,19 @@ public sealed partial class HanView : Grid
             // depo/pusu bırakma alanları, o alandaki kartların üstüne çıkar (yalnız sürüklerken: seçiliyken kartlara tıklanabilsin)
             foreach (var z in _screenZones) System.Windows.Controls.Panel.SetZIndex(z, 1000);
             _hover.Children.Clear();
-            _ghost = new HanCardView(card.Def, card.Star, 110) { Opacity = 0.92, IsHitTestVisible = false, RenderTransform = new RotateTransform(-4), RenderTransformOrigin = new Point(0.5, 0.5) };
-            _fx.Children.Add(_ghost);
+            StartDragGhost(card, p);
         }
         if (_ghost == null) return;
-        Canvas.SetLeft(_ghost, p.X - 55);
-        Canvas.SetTop(_ghost, p.Y - 80);
+        _dragCursor = p;
+        if (!_live) DragSnap();
         MarkSwapTarget(p, uid);
     }
 
     private void EndDrag()
     {
+        // boşa bırakılan kart, hayaletin son yerinden yerine döner (Motion)
+        if (_dragging && _pressUid is { } du && DragRect() is { } dr) _dropFrom = (du, dr);
+        StopDragGhost();
         if (_ghost != null) _fx.Children.Remove(_ghost);
         _ghost = null;
         if (_swapMark != null) _fx.Children.Remove(_swapMark);
@@ -1130,26 +1169,44 @@ public sealed partial class HanView : Grid
 
     /// <summary>Ölçüm: ekranı baştan kurmanın en uzun süresi (ms).</summary>
     internal static double RenderMaxMs;
+    /// <summary>Ölçüm: son çizimin süresi (ms; tıklama gecikmesi ölçümü).</summary>
+    internal static double RenderLastMs;
 
     private void Render()
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         try { RenderCore(); }
-        finally { RenderMaxMs = Math.Max(RenderMaxMs, sw.Elapsed.TotalMilliseconds); }
+        finally { RenderLastMs = sw.Elapsed.TotalMilliseconds; RenderMaxMs = Math.Max(RenderMaxMs, RenderLastMs); }
     }
 
     private void RenderCore()
     {
+        // kartların çizimden önceki yerleri: yeri değişen kart eski yerinden süzülür (HanView.Motion.cs)
+        var motion = BeginMotion();
+        _arrival = motion?.From != null;
+        // yarıda kalan sayaçlar: bu çizimde yeniden kurulmayanlar son değerlerine oturur
+        var unfinished = _tickers.ToList();
+        _tickers.Clear();
         // Önbellekli katmanlar baştan kurulurken önbellek bırakılır: süren animasyonlu kartlar kaldırılınca eski dokudan
         // kart kırıntıları kalıyordu (kart birleşince satırın uçlarında hayalet kenarlar). Sonda yeniden bağlanır.
         for (var i = 0; i < _cachedLayers.Length; i++) _cachedLayers[i].CacheMode = null;
         try { RenderBody(); }
         finally { for (var i = 0; i < _cachedLayers.Length; i++) _cachedLayers[i].CacheMode = _caches[i]; }
+        foreach (var u in unfinished) if (_tickers.All(t => t.Key != u.Key)) _shownNum[u.Key] = u.To;
+        // sayaç katmanı önbelleksizdir ama öğeleri tek tek önbellekte: efekt oynarken (bütün ekran her karede yeniden
+        // birleşirken) gölgeli sayılar her karede yeniden çizilmesin; yalnız sayısı değişen kendi dokusunu yeniler
+        foreach (UIElement el in _counters.Children) el.CacheMode ??= new BitmapCache(CacheScale) { SnapsToDevicePixels = true };
+        EndMotion(motion);
     }
+
+    /// <summary>Bu çizimde tezgâhtan (ya da ödülden) uçarak gelen bir kart var: yeni kart düşerek belirmez.</summary>
+    private bool _arrival;
 
     private void RenderBody()
     {
         _screenZones.Clear();
+        _counters.Children.Clear();
+        _ownVals.Clear();
         _rows.Children.Clear();
         _anim.Children.Clear();
         _shop.Children.Clear();

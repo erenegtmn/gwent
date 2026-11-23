@@ -56,14 +56,107 @@ public static class Sfx
         {
             var path = Pick(name);
             if (path == null) return;
-            if (Pool.Count < 12) Pool.Add(new MediaPlayer());
-            var p = Pool[_next++ % Pool.Count];
-            p.Volume = Settings.SfxVolume / 100.0;
-            p.Stop();
-            p.Open(new Uri(path));
-            p.Play();
+            PlayFile(path);
         }
         catch { /* ses cihazı yoksa sessiz */ }
+    }
+
+    private static void PlayFile(string path)
+    {
+        if (Pool.Count < 12) Pool.Add(new MediaPlayer());
+        var p = Pool[_next++ % Pool.Count];
+        p.Volume = Settings.SfxVolume / 100.0;
+        p.Stop();
+        p.Open(new Uri(path));
+        p.Play();
+    }
+
+    // ---------- Perde ----------
+
+    private static readonly Dictionary<string, string?> Pitched = new();
+
+    /// <summary>
+    /// Sesin perdesi kaydırılmış kopyasını çalar (<paramref name="semitones"/> yarım ton; ör. satır puanı sayılırken her tık bir
+    /// öncekinden ince). Kopya ilk istekte bir kez üretilir (16 bit PCM WAV; değilse ses olduğu gibi çalar).
+    /// </summary>
+    public static void PlayPitch(string name, double semitones)
+    {
+        if (!Enabled) return;
+        try
+        {
+            var src = Pick(name);
+            if (src == null) return;
+            var key = src + "|" + Math.Round(semitones, 2).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            string? file;
+            lock (Pitched)
+                if (!Pitched.TryGetValue(key, out file))
+                    Pitched[key] = file = Repitch(src, Math.Pow(2, semitones / 12.0), Path.GetFileNameWithoutExtension(src) + "_p" + Math.Round(semitones * 100));
+            PlayFile(file ?? src);
+        }
+        catch { /* ses cihazı yoksa sessiz */ }
+    }
+
+    /// <summary>16 bit PCM WAV'ı <paramref name="factor"/> kat hızlı (ince) yeniden örnekler, geçici klasöre yazar; okunamazsa null.</summary>
+    private static string? Repitch(string src, double factor, string stem)
+    {
+        if (!src.EndsWith(".wav", StringComparison.OrdinalIgnoreCase)) return null;
+        var bytes = File.ReadAllBytes(src);
+        if (bytes.Length < 44 || System.Text.Encoding.ASCII.GetString(bytes, 0, 4) != "RIFF" || System.Text.Encoding.ASCII.GetString(bytes, 8, 4) != "WAVE") return null;
+        int ch = 0, rate = 0, bits = 0, at = -1, len = 0;
+        for (var p = 12; p + 8 <= bytes.Length;)
+        {
+            var id = System.Text.Encoding.ASCII.GetString(bytes, p, 4);
+            var n = BitConverter.ToInt32(bytes, p + 4);
+            if (id == "fmt ")
+            {
+                if (BitConverter.ToInt16(bytes, p + 8) != 1) return null;   // yalnız PCM
+                ch = BitConverter.ToInt16(bytes, p + 10);
+                rate = BitConverter.ToInt32(bytes, p + 12);
+                bits = BitConverter.ToInt16(bytes, p + 22);
+            }
+            else if (id == "data") { at = p + 8; len = Math.Min(n, bytes.Length - at); break; }
+            if (n < 0) return null;
+            p += 8 + n + (n & 1);
+        }
+        if (bits != 16 || ch < 1 || rate <= 0 || at < 0) return null;
+        var frames = len / (2 * ch);
+        var outFrames = (int)(frames / factor);
+        if (frames < 2 || outFrames < 2) return null;
+        var pcm = new byte[outFrames * 2 * ch];
+        for (var i = 0; i < outFrames; i++)
+        {
+            var x = i * factor;
+            var i0 = Math.Min(frames - 1, (int)x);
+            var i1 = Math.Min(frames - 1, i0 + 1);
+            var f = x - i0;
+            for (var c = 0; c < ch; c++)
+            {
+                var a = BitConverter.ToInt16(bytes, at + (i0 * ch + c) * 2);
+                var b = BitConverter.ToInt16(bytes, at + (i1 * ch + c) * 2);
+                BitConverter.TryWriteBytes(pcm.AsSpan((i * ch + c) * 2), (short)Math.Round(a + (b - a) * f));
+            }
+        }
+        _tmpDir ??= Path.Combine(Path.GetTempPath(), "gwent-sfx");
+        Directory.CreateDirectory(_tmpDir);
+        var file = Path.Combine(_tmpDir, stem + ".wav");
+        using (var w = new BinaryWriter(File.Create(file)))
+        {
+            w.Write("RIFF"u8);
+            w.Write(36 + pcm.Length);
+            w.Write("WAVE"u8);
+            w.Write("fmt "u8);
+            w.Write(16);
+            w.Write((short)1);
+            w.Write((short)ch);
+            w.Write(rate);
+            w.Write(rate * ch * 2);
+            w.Write((short)(ch * 2));
+            w.Write((short)16);
+            w.Write("data"u8);
+            w.Write(pcm.Length);
+            w.Write(pcm);
+        }
+        return file;
     }
 
     /// <summary>Orijinal dosya varyantları (name.wav, name_1.wav, name_2.wav ...) içinden rastgele biri; yoksa yer tutucu.</summary>

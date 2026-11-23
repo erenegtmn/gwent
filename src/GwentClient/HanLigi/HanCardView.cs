@@ -149,13 +149,32 @@ public sealed class HanCardView : Grid
         body.Child = art;
         Children.Add(body);
         if (!faceDown && !plain) Children.Add(Plate(d, star, w, h, radius, tier, footer, named));
-        // çerçeve: tier renginde metal
+        // çerçeve: tier renginde kalın metal (üstte açık, altta koyu), içte resimden ayıran koyu ince çizgi
+        var frameTh = FrameThickness(w, selected);
         Children.Add(new Border
         {
-            CornerRadius = new CornerRadius(radius), IsHitTestVisible = false, BorderThickness = new Thickness(selected ? Math.Max(3, w * 0.035) : Math.Max(1.6, w * 0.022)),
-            BorderBrush = selected ? Theme.Select : faceDown ? Theme.B("#6a4a26") : new LinearGradientBrush(Color.Add(tier, Color.FromRgb(0x38, 0x38, 0x30)), Color.Multiply(tier, 0.55f), 90)
+            CornerRadius = new CornerRadius(radius), IsHitTestVisible = false, BorderThickness = new Thickness(frameTh),
+            BorderBrush = selected ? Theme.Select : faceDown ? Theme.B("#6a4a26") : new LinearGradientBrush(new GradientStopCollection
+            {
+                new(Shade(tier, 0x58), 0), new(tier, 0.45), new(Color.Multiply(tier, 0.55f), 1)
+            }, 90)
         });
+        if (!faceDown && !selected)
+            Children.Add(new Border
+            {
+                CornerRadius = new CornerRadius(Math.Max(1, radius - frameTh)), IsHitTestVisible = false, Margin = new Thickness(frameTh),
+                BorderThickness = new Thickness(Math.Max(0.8, w * 0.006)), BorderBrush = Theme.B("#b40a0704")
+            });
         if (faceDown) return;
+        // tier taşı: çerçevenin tepesine oturur, yarısı kartın dışında (kahramanda yok: güneş köşesi ve altın çerçeve yeter)
+        if (!d.IsHero)
+        {
+            var gr = GemRadius(w);
+            var gem = Gem(tier, gr);
+            Canvas.SetLeft(gem, w / 2);
+            Canvas.SetTop(gem, frameTh / 2);
+            Children.Add(new Canvas { IsHitTestVisible = false, Children = { gem } });
+        }
 
         // kahraman: orijinal Gwent'in süslü güneş köşesi (güç sayısı güneşin ortasında); görsel yoksa altın rozet
         if (d.IsHero && Assets.Ui("corner_sun") is { } sun)
@@ -242,6 +261,59 @@ public sealed class HanCardView : Grid
                 Background = Theme.B("#e6120c07"), BorderBrush = Theme.B("#c9a24b"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(w * 0.1), Child = chip, IsHitTestVisible = false
             });
         }
+    }
+
+    /// <summary>
+    /// Kart kendi kutusuna kırpılmaz: tier taşı üst kenardan dışarı taşar. (Yükseklik yuvarlandığından kart yuvasından ~0,2 px
+    /// büyük kalınca WPF kartı yuvasına kırpıyor, taşın üst yarısı kayboluyordu.) Resim kendi yuvarlak kırpmasıyla çizilir.
+    /// </summary>
+    protected override Geometry? GetLayoutClip(Size layoutSlotSize) => ClipToBounds ? base.GetLayoutClip(layoutSlotSize) : null;
+
+    private static double FrameThickness(double w, bool selected) => selected ? Math.Max(3, w * 0.036) : Math.Max(2.4, w * 0.034);
+
+    private static double GemRadius(double w) => Math.Max(4.5, w * 0.062);
+
+    /// <summary>Tier taşının kartın üstünden dışarı taştığı yükseklik (kart genişliği <paramref name="w"/> için).</summary>
+    public static double GemOverhang(double w) => GemRadius(w) * 1.32 - FrameThickness(w, false) / 2;
+
+    /// <summary>Tier taşının kartın içinde indiği en alt nokta (üst kenardan): köşe çipleri bunun altına konur.</summary>
+    public static double GemBottom(double w) => FrameThickness(w, false) / 2 + GemRadius(w) * 1.32;
+
+    private static Color Shade(Color c, int d) => Color.FromRgb((byte)Math.Clamp(c.R + d, 0, 255), (byte)Math.Clamp(c.G + d, 0, 255), (byte)Math.Clamp(c.B + d, 0, 255));
+
+    /// <summary>
+    /// Tier taşı: altın yuvada dört yüzlü eşkenar dörtgen (yüzler tier renginin açık/koyu tonları, sol üstte parıltı). Merkez (0, 0);
+    /// yarıçap <paramref name="r"/> (yatayda ~r, dikeyde ~1.32r).
+    /// </summary>
+    private static Canvas Gem(Color tier, double r)
+    {
+        static Path Poly(Brush fill, params Point[] p)
+        {
+            var g = new StreamGeometry();
+            using (var c = g.Open())
+            {
+                c.BeginFigure(p[0], true, true);
+                c.PolyLineTo(p[1..], false, false);
+            }
+            g.Freeze();
+            return new Path { Data = g, Fill = fill };
+        }
+        static Point[] Diamond(double rx, double ry) => new[] { new Point(0, -ry), new Point(rx, 0), new Point(0, ry), new Point(-rx, 0) };
+        var cv = new Canvas { IsHitTestVisible = false };
+        cv.Children.Add(Poly(Theme.B("#ff2a1c0a"), Diamond(r * 1.08, r * 1.32)));
+        cv.Children.Add(Poly(new LinearGradientBrush(Color.FromRgb(0xff, 0xe6, 0x9a), Color.FromRgb(0x9a, 0x6c, 0x22), 90), Diamond(r * 0.96, r * 1.2)));
+        var rr = r * 0.8;
+        Point top = new(0, -rr * 1.2), right = new(rr * 0.96, 0), bottom = new(0, rr * 1.2), left = new(-rr * 0.96, 0), mid = new(0, 0);
+        cv.Children.Add(Poly(new SolidColorBrush(Shade(tier, 40)), top, right, mid));
+        cv.Children.Add(Poly(new SolidColorBrush(Shade(tier, 85)), top, left, mid));
+        cv.Children.Add(Poly(new SolidColorBrush(Shade(tier, -60)), bottom, right, mid));
+        cv.Children.Add(Poly(new SolidColorBrush(tier), bottom, left, mid));
+        var hs = r * 0.26;
+        var hl = new Ellipse { Width = hs, Height = hs, Fill = Theme.B("#e6ffffff") };
+        Canvas.SetLeft(hl, -rr * 0.45 - hs / 2);
+        Canvas.SetTop(hl, -rr * 0.62 - hs / 2);
+        cv.Children.Add(hl);
+        return cv;
     }
 
     /// <summary>Alt bilgi plakası: (ad) · yetenek simgesi + adı · sınıflar · (özet).</summary>

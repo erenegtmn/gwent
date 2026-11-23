@@ -27,6 +27,8 @@ public static partial class UiSelfTest
         var view = new HanView(s, () => { }, () => { }, animate: true);
         var win = new Window { Width = 1600, Height = 900, Content = view, WindowStartupLocation = WindowStartupLocation.CenterScreen, Title = "Han Ligi ölçüm", Topmost = true };
         win.Show();
+        // imleç pencerenin dışında: ölçüm, farenin o an hangi kartın üstünde durduğuna bağlı olmasın
+        if (Environment.GetEnvironmentVariable("HAN_PERF_NOMOUSE") != "1") SetCursorPos(0, 0);
         Console.WriteLine($"Görüntü katmanı (RenderCapability.Tier): {RenderCapability.Tier >> 16}");
 
         void Wait(int ms)
@@ -63,6 +65,165 @@ public static partial class UiSelfTest
         if (card != null) { Raise(card, UIElement.MouseLeftButtonUpEvent); }
         var sel = Measure(1500);
         Console.WriteLine($"Hazırlık (kart seçili): {sel.Fps:F0} kare/sn, en uzun kare {sel.Worst:F0} ms");
+        if (card != null) Raise(card, UIElement.MouseLeftButtonUpEvent);   // seçimi bırak
+        Wait(300);
+        Console.WriteLine($"Ekranı baştan kurma, hazırlığa kadar (en uzun): {HanView.RenderMaxMs:F0} ms");
+        HanView.RenderMaxMs = 0;
+        // HAN_PERF_CLICK=n: tıklama gecikmesi (alım, seçim, satış n kez): çizim (UI iş parçacığı), ilk kare, değişikliğin göründüğü
+        // kare (ikinci kare: önbellekli katmanlar o arada yeniden dokuya çizilir). Yalnız bu ölçülür, sonra çıkılır.
+        if (int.TryParse(Environment.GetEnvironmentVariable("HAN_PERF_CLICK"), out var clicks) && clicks > 0)
+        {
+            var lat = new Dictionary<string, List<(double Ui, double Act, double F1, double F2)>>();
+            void Lat(string name, Action act)
+            {
+                var sw = Stopwatch.StartNew();
+                var stamps = new List<double>();
+                void OnFrame(object? o, EventArgs e) => stamps.Add(sw.Elapsed.TotalMilliseconds);
+                CompositionTarget.Rendering += OnFrame;
+                HanView.RenderLastMs = 0;
+                act();
+                var ui = HanView.RenderLastMs;
+                var actMs = sw.Elapsed.TotalMilliseconds;
+                Wait(250);
+                CompositionTarget.Rendering -= OnFrame;
+                if (!lat.TryGetValue(name, out var l)) lat[name] = l = new();
+                l.Add((ui, actMs, stamps.ElementAtOrDefault(0), stamps.ElementAtOrDefault(1)));
+                Wait(500);   // uçuş bitsin
+            }
+            HanCardView? Vis(Func<string, bool> pred) => FindAll<HanCardView>(view, c => c.Tag is string t && pred(t) && c.IsVisible).FirstOrDefault();
+            var sfxMs = new List<double>();
+            for (var i = 0; i < 8; i++)
+            {
+                var t0 = Stopwatch.StartNew();
+                Sfx.Play(i % 2 == 0 ? "han_buy" : "han_sell");
+                sfxMs.Add(t0.Elapsed.TotalMilliseconds);
+                Wait(200);
+            }
+            Console.WriteLine($"Ses çalma çağrısı (UI iş parçacığı): {string.Join(", ", sfxMs.Select(x => x.ToString("F1")))} ms");
+            for (var i = 0; i < clicks; i++)
+            {
+                s.Player.Gold = 50;
+                if (Vis(t => t.StartsWith("han-shop:")) == null)
+                {
+                    if (FindAll<Button>(view, x => (x.Tag as string) == "han-shop-toggle").FirstOrDefault() is { } tg) Raise(tg, ButtonBase.ClickEvent);
+                    Wait(400);
+                }
+                if (Vis(t => t.StartsWith("han-shop:")) == null) { Click("han-reroll"); Wait(400); }
+                if (Vis(t => t.StartsWith("han-shop:")) is { } buy) Lat("alım", () => Raise(buy, UIElement.MouseLeftButtonUpEvent));
+                if (Vis(t => t.StartsWith("han-card:")) is { } sc)
+                {
+                    Lat("seçim", () => Raise(sc, UIElement.MouseLeftButtonUpEvent));
+                    if (FindAll<Button>(view, x => (x.Tag as string) == "han-sell").FirstOrDefault() is { } sell) Lat("satış", () => Raise(sell, ButtonBase.ClickEvent));
+                }
+            }
+            foreach (var (name, l) in lat)
+            {
+                double Med(Func<(double Ui, double Act, double F1, double F2), double> f) { var v = l.Select(f).OrderBy(x => x).ToList(); return v[v.Count / 2]; }
+                Console.WriteLine($"Tıklama ({name}, {l.Count} kez): çizim {Med(x => x.Ui):F0} ms (en çok {l.Max(x => x.Ui):F0}), tıklama işi {Med(x => x.Act):F0} ms, ilk kare {Med(x => x.F1):F0} ms, görünür {Med(x => x.F2):F0} ms (en çok {l.Max(x => x.F2):F0})");
+            }
+            win.Close();
+            return 0;
+        }
+        // kart uçuşları (alım, masaya taşıma, satış): kare hızı ve isteğe bağlı kare kare görüntü (HAN_FLY_FRAMES=klasör).
+        // Bakılacak: ilk karede kart hedefinde belirmemeli (önce kaynakta kopya), varışta tek karelik boşluk ya da çift kart olmamalı.
+        // HAN_PERF_NOFLY=1: bu bölüm atlanır (savaş ölçümü eski sürümle aynı masada karşılaştırılsın).
+        if (Environment.GetEnvironmentVariable("HAN_PERF_NOFLY") != "1")
+        {
+            var flyDir = Environment.GetEnvironmentVariable("HAN_FLY_FRAMES");
+            if (flyDir is { Length: > 0 }) System.IO.Directory.CreateDirectory(flyDir);
+            var origin = view.PointToScreen(new Point(0, 0));
+            var dpi = PresentationSource.FromVisual(view)?.CompositionTarget?.TransformToDevice.M11 ?? 1;
+            var area = new Int32Rect((int)origin.X, (int)origin.Y, (int)(view.ActualWidth * dpi), (int)(view.ActualHeight * dpi));
+            void Capture(string name, Action act)
+            {
+                var shots = new List<System.Windows.Media.Imaging.BitmapSource>();
+                var frames = 0;
+                var sw = Stopwatch.StartNew();
+                var last = 0.0;
+                var worst = 0.0;
+                void OnFrame(object? o, EventArgs e)
+                {
+                    frames++;
+                    var now = sw.Elapsed.TotalMilliseconds;
+                    worst = Math.Max(worst, now - last);
+                    last = now;
+                    if (flyDir is { Length: > 0 } && shots.Count < 72) shots.Add(ScreenGrab(area));
+                }
+                if (flyDir is { Length: > 0 }) shots.Add(ScreenGrab(area));
+                CompositionTarget.Rendering += OnFrame;
+                sw.Restart();
+                act();
+                Wait(900);
+                CompositionTarget.Rendering -= OnFrame;
+                Console.WriteLine($"Uçuş ({name}): {frames * 1000.0 / sw.Elapsed.TotalMilliseconds:F0} kare/sn, en uzun kare {worst:F0} ms{(flyDir is { Length: > 0 } ? $", {shots.Count} kare -> {flyDir}" : "")}");
+                for (var i = 0; i < shots.Count; i++)
+                {
+                    var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(shots[i]));
+                    using var f = System.IO.File.Create(System.IO.Path.Combine(flyDir!, $"ucus_{name}_{i:00}.png"));
+                    enc.Save(f);
+                }
+                Wait(300);
+            }
+            // önce (hazırlık süresi dolmadan; kare kaydı yavaştır) gerçek fareyle: masadaki bir kartın üstüne gelme (kart kalkar) ve depodaki bir kartı satıra sürükleme (kopya yaylı
+            // izler, yana yatar; bırakınca yerine süzülür)
+            // HAN_PERF_NOMOUSE=1: gerçek fare kullanılmaz (üstüne gelme ve sürükleme atlanır; masada başka bir pencere açıkken)
+            var noMouse = Environment.GetEnvironmentVariable("HAN_PERF_NOMOUSE") == "1";
+            Point Center(FrameworkElement el) => el.PointToScreen(new Point(el.ActualWidth / 2, el.ActualHeight / 2));
+            var boardCard = noMouse ? null : FindAll<HanCardView>(view, c => (c.Tag as string)?.StartsWith("han-card:") == true && c.TransformToAncestor(view).Transform(new Point(0, 0)).Y < view.ActualHeight * 0.75).FirstOrDefault();
+            if (boardCard != null)
+            {
+                var c = Center(boardCard);
+                Capture("ustune", () => SetCursorPos((int)c.X, (int)c.Y));
+                SetCursorPos(0, 0);
+                Wait(300);
+            }
+            var dragCard = noMouse ? null : FindAll<HanCardView>(view, c => (c.Tag as string)?.StartsWith("han-card:") == true && c.TransformToAncestor(view).Transform(new Point(0, 0)).Y > view.ActualHeight * 0.8).FirstOrDefault();
+            if (dragCard != null)
+            {
+                var a = Center(dragCard);
+                SetCursorPos((int)a.X, (int)a.Y);
+                Wait(200);
+                Capture("surukle", () =>
+                {
+                    mouse_event(0x0002, 0, 0, 0, IntPtr.Zero);
+                    Wait(60);
+                    // hedef: masanın ortası (orta satır), 8 adımda; sonra bırak
+                    var b = view.PointToScreen(new Point(view.ActualWidth * 0.52, view.ActualHeight * 0.55));
+                    for (var i = 1; i <= 8; i++)
+                    {
+                        SetCursorPos((int)(a.X + (b.X - a.X) * i / 8), (int)(a.Y + (b.Y - a.Y) * i / 8));
+                        Wait(18);
+                    }
+                    Wait(60);
+                    mouse_event(0x0004, 0, 0, 0, IntPtr.Zero);
+                });
+                SetCursorPos(0, 0);
+            }
+            else if (!noMouse) Console.WriteLine("Sürükleme denenmedi: depoda kart yok (" + string.Join(", ", FindAll<HanCardView>(view, c => (c.Tag as string)?.StartsWith("han-card:") == true).Select(c => $"{c.Tag}@{c.TransformToAncestor(view).Transform(new Point(0, 0)).Y:F0}")) + $" / {view.ActualHeight:F0})");
+            HanCardView? Tagged(Func<string, bool> pred) => FindAll<HanCardView>(view, c => c.Tag is string t && pred(t) && c.IsVisible).FirstOrDefault();
+            // alım: tezgâhı aç, alınabilir ilk kart
+            if (FindAll<Button>(view, x => (x.Tag as string) == "han-shop-toggle").FirstOrDefault() is { } tg && Tagged(t => t.StartsWith("han-shop:")) == null) { Raise(tg, ButtonBase.ClickEvent); Wait(400); }
+            if (Tagged(t => t.StartsWith("han-shop:")) is { } buy) Capture("alim", () => Raise(buy, UIElement.MouseLeftButtonUpEvent));
+            // taşıma: depodaki bir kartı seç, parlayan satıra koy
+            var benchCard = FindAll<HanCardView>(view, c => (c.Tag as string)?.StartsWith("han-card:") == true && c.TransformToAncestor(view).Transform(new Point(0, 0)).Y > view.ActualHeight * 0.8).FirstOrDefault();
+            if (benchCard != null)
+            {
+                Raise(benchCard, UIElement.MouseLeftButtonUpEvent);
+                Wait(300);
+                var zone = FindAll<Button>(view, x => (x.Tag as string)?.StartsWith("han-move:") == true && x.IsEnabled && (x.Tag as string) != "han-move:Bench" && (x.Tag as string) != "han-move:Ambush").FirstOrDefault();
+                if (zone != null) Capture("tasima", () => Raise(zone, ButtonBase.ClickEvent));
+            }
+            // satış: bir kart seç, Sat
+            if (FindAll<HanCardView>(view, c => (c.Tag as string)?.StartsWith("han-card:") == true).FirstOrDefault() is { } sc)
+            {
+                Raise(sc, UIElement.MouseLeftButtonUpEvent);
+                Wait(300);
+                if (FindAll<Button>(view, x => (x.Tag as string) == "han-sell").FirstOrDefault() is { } sell) Capture("satis", () => Raise(sell, ButtonBase.ClickEvent));
+            }
+            Console.WriteLine($"Ekranı baştan kurma, hazırlıkta (en uzun): {HanView.RenderMaxMs:F0} ms");
+            HanView.RenderMaxMs = 0;
+        }
         Click("han-ready");
         Wait(2600);
         // savaşta tezgâh: alt şeridin zar dönüşü gerçek ekrandan kare kare yakalanır (HAN_ROLL_FRAMES=klasör). İlk karelerde
@@ -111,6 +272,51 @@ public static partial class UiSelfTest
                 Wait(600);
             }
         }
+        // HAN_CINE_FRAMES=klasör: savaşın bütün pencereleri (seçimler, açılış, müdahaleler, puanlama, çarpışma, sonuç) ve hasar
+        // anı gerçek ekrandan kare kare kaydedilir (her 3. kare; arka planda PNG'ye yazılır), sonra çıkılır.
+        if (Environment.GetEnvironmentVariable("HAN_CINE_FRAMES") is { Length: > 0 } cdir)
+        {
+            System.IO.Directory.CreateDirectory(cdir);
+            var o2 = view.PointToScreen(new Point(0, 0));
+            var dpi2 = PresentationSource.FromVisual(view)?.CompositionTarget?.TransformToDevice.M11 ?? 1;
+            var area2 = new Int32Rect((int)o2.X, (int)o2.Y, (int)(view.ActualWidth * dpi2), (int)(view.ActualHeight * dpi2));
+            var saving = new List<System.Threading.Tasks.Task>();
+            var clock = Stopwatch.StartNew();
+            var frame = 0;
+            var saved = 0;
+            // HAN_CINE_FROM=ms: bundan önceki kareler kaydedilmez (ör. yalnız savaş sonu ve hasar)
+            var from = int.TryParse(Environment.GetEnvironmentVariable("HAN_CINE_FROM"), out var cf) ? cf : 0;
+            void Grab(object? o, EventArgs e)
+            {
+                if (frame++ % 3 != 0 || saved >= 900 || clock.Elapsed.TotalMilliseconds < from) return;
+                var shot = ScreenGrab(area2);
+                shot.Freeze();
+                var name = System.IO.Path.Combine(cdir, $"cine_{saved++:000}_{clock.Elapsed.TotalMilliseconds:00000}.png");
+                saving.Add(System.Threading.Tasks.Task.Run(() =>
+                {
+                    var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(shot));
+                    using var f = System.IO.File.Create(name);
+                    enc.Save(f);
+                }));
+            }
+            Click("han-act-go");
+            Wait(2500);
+            CompositionTarget.Rendering += Grab;
+            for (var w = 0; w < 3 && s.MyBattle is { Done: false }; w++)
+            {
+                Console.WriteLine($"pencere {w + 1}: {clock.Elapsed.TotalMilliseconds:F0} ms");
+                Click(w == 0 ? "han-sign:Igni" : "han-sign:Aard");
+                Click("han-go");
+                Wait(10600);
+            }
+            Wait(4200);
+            CompositionTarget.Rendering -= Grab;
+            System.Threading.Tasks.Task.WaitAll(saving.ToArray());
+            Console.WriteLine($"Savaş sinematiği: {saved} kare -> {cdir}");
+            win.Close();
+            return 0;
+        }
         Click("han-act-go");
         Wait(2500);
         Click("han-sign:Igni");
@@ -118,7 +324,12 @@ public static partial class UiSelfTest
         FxEngine.StatFrames = 0; FxEngine.StatMs = 0; FxEngine.StatMaxMs = 0;
         var battle = Measure(3000);
         Console.WriteLine($"Savaş (işaret efektleri): {battle.Fps:F0} kare/sn, en uzun kare {battle.Worst:F0} ms; motor kare başı {FxEngine.StatMs / Math.Max(1, FxEngine.StatFrames):F1} ms (en çok {FxEngine.StatMaxMs:F1})");
-        Wait(1500);
+        // pencerenin geri kalanı: puanlama (sayı jetonları, yüzdeler, çarpışma) ve sonuç
+        FxEngine.StatFrames = 0; FxEngine.StatMs = 0; FxEngine.StatMaxMs = 0;
+        var scoring = Measure(5500);
+        Console.WriteLine($"Savaş (puanlama ve sonuç): {scoring.Fps:F0} kare/sn, en uzun kare {scoring.Worst:F0} ms; motor kare başı {FxEngine.StatMs / Math.Max(1, FxEngine.StatFrames):F1} ms (en çok {FxEngine.StatMaxMs:F1})");
+        for (var i = 0; view.Busy && i < 100; i++) Wait(100);   // pencere bitsin: sonraki seçim ancak o zaman yapılır
+        Wait(300);
         Click("han-sign:Aard");
         Click("han-go");
         FxEngine.StatFrames = 0; FxEngine.StatMs = 0; FxEngine.StatMaxMs = 0;

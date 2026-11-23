@@ -99,6 +99,7 @@ public sealed partial class HanView
         var (me, op) = (b.Sides[Mine], b.Sides[1 - Mine]);
         var activation = _screen == Screen.Activation;
         _pos.Clear();
+        _markAt.Clear();
         var shownWindows = b.Window - (_hold > 0 ? 1 : 0);
         var resolving = _hold > 0 ? b.Window - 1 : -1;
         var current = activation || (b.Done && !_busy) ? -1 : _busy ? Math.Max(0, b.Window - 1) : b.Window;
@@ -149,18 +150,19 @@ public sealed partial class HanView
         }
 
         // açılmış satırlar (rakibin Boynuz/Kalkan'ı ancak satırı açılınca görünür)
-        bool Open(Row row) { var i = Array.IndexOf(b.Order, row); return i < shownWindows || (i == resolving && _hold == 2); }
+        bool Open(Row row) { var i = Array.IndexOf(b.Order, row); return i < shownWindows || (i == resolving && _hold >= 2); }
         var specials = new[] { VisibleSpecials(b, 1 - Mine, false, Open), VisibleSpecials(b, Mine, true, Open) };   // [0] rakip, [1] ben
 
         // ---- satırlar ----
         for (var i = 0; i < 3; i++)
         {
             var r = b.Order[i];
-            var revealed = i < shownWindows || (i == resolving && _hold == 2);
+            var revealed = i < shownWindows || (i == resolving && _hold >= 2);
             var scored = i < shownWindows;
+            var tally = i == resolving && _hold == 3;   // puanlanıyor: kartlar son değerinde, rozetler sinematikte (HanView.Cinema.cs)
             var o = i < b.Outcomes.Count ? b.Outcomes[i] : null;
             var (mv, ov) = o == null ? (0m, 0m) : Mine == 0 ? (o.ValueA, o.ValueB) : (o.ValueB, o.ValueA);
-            decimal Shown(BattleSide s, BattleUnit u) => (scored || (o != null && _stepShown.Contains(u.Uid))) && o!.CardValues.TryGetValue(u.Uid, out var fv) ? fv : b.Value(s, u);
+            decimal Shown(BattleSide s, BattleUnit u) => (scored || tally || (o != null && _stepShown.Contains(u.Uid))) && o!.CardValues.TryGetValue(u.Uid, out var fv) ? fv : b.Value(s, u);
 
             if (i == current)
                 foreach (var mine in new[] { false, true })
@@ -169,27 +171,29 @@ public sealed partial class HanView
                 Trap(RowRect(o.Winner == Mine, r), new SolidColorBrush(o.Winner == Mine ? Color.FromArgb(0x34, 0x8f, 0xd0, 0x62) : Color.FromArgb(0x34, 0xe0, 0x5a, 0x48)));
 
             // benim satırım
-            var myUnits = me.In(r).Where(u => !(i == resolving && _hold == 1 && u.Landed)).ToList();
+            // pusudan inecek kart, inişi oynayana kadar masada yok (AmbushSlam)
+            var myUnits = me.In(r).Where(u => !_ambushHidden.Contains(u.Uid) && !(i == resolving && _hold == 1 && u.Landed)).ToList();
             var myCards = myUnits.Select(u => (u.Uid, (FrameworkElement)CardEl(u.Def, u.Star, DesignW, null, null, Shown(me, u), footer: u.Token ? "hayalet" : u.Summoned ? "çağrıldı" : null))).ToList();
             PlaceRow(myCards, true, r, _pos);
-            PutU(ScoreBadge(scored ? HTu.Fmt(mv) : b.Started ? HTu.Fmt(b.PlainRow(Mine, r)) : me.In(r).Sum(u => u.Power).ToString(), true, scored && o!.Winner == Mine), new Point(RowX + RowW - 36, RowY(true, r) + RowH / 2));
+            if (!tally) PutU(ScoreBadge(scored ? HTu.Fmt(mv) : b.Started ? HTu.Fmt(b.PlainRow(Mine, r)) : me.In(r).Sum(u => u.Power).ToString(), true, scored && o!.Winner == Mine), new Point(RowX + RowW - 36, RowY(true, r) + RowH / 2));
 
             // rakibin satırı
             if (revealed)
             {
-                var opCards = op.In(r).Select(u => (u.Uid, (FrameworkElement)CardEl(u.Def, u.Star, DesignW, null, null, Shown(op, u), footer: u.Token ? "hayalet" : u.Summoned ? "çağrıldı" : null))).ToList();
+                var opCards = op.In(r).Where(u => !_ambushHidden.Contains(u.Uid)).Select(u => (u.Uid, (FrameworkElement)CardEl(u.Def, u.Star, DesignW, null, null, Shown(op, u), footer: u.Token ? "hayalet" : u.Summoned ? "çağrıldı" : null))).ToList();
                 PlaceRow(opCards, false, r, _pos);
-                if (i == resolving && _hold == 2)
+                // satır açıldı: kartlar bir kez iner (adımların yeniden çizimlerinde yeniden inmez)
+                if (i == resolving && _hold == 2 && _revealFresh)
                 {
                     var k = 0;
                     foreach (var (_, el) in opCards) DropIn(el, 70 * k++, -36);
                     foreach (var (uid, el) in myCards) if (me.In(r).First(u => u.Uid == uid).Landed) DropIn(el, 0, -60);
                 }
-                PutU(ScoreBadge(scored ? ov.ToString() : "…", false, scored && o!.Winner == 1 - Mine), new Point(RowX + RowW - 36, RowY(false, r) + RowH / 2));
+                if (!tally) PutU(ScoreBadge(scored ? HTu.Fmt(ov) : "…", false, scored && o!.Winner == 1 - Mine), new Point(RowX + RowW - 36, RowY(false, r) + RowH / 2));
             }
             else
             {
-                BoardFog(RowRect(false, r), 1);
+                LiveFog(RowRect(false, r));
                 var seen = b.Revealed[Mine].Where(x => x.Zone == HT.Name(r)).Select((x, k) => (k, (FrameworkElement)CardEl(x.Def, x.Star, DesignW, null, null, footer: "casus görüyor"))).ToList();
                 foreach (var (_, el) in seen) el.Opacity = 0.8;
                 PlaceRow(seen, false, r);
@@ -204,16 +208,24 @@ public sealed partial class HanView
                 RowModChip(o!, 1 - Mine, false, r);
             }
 
-            // sıra numarası: satırın sol sütununda
+            // sıra numarası: satırın sol sütununda; çözülmüş satırda yerine işaret (kazanana flama, kaybedene kırık mühür)
             foreach (var mine in new[] { false, true })
             {
+                var at = new Point(ColX + ColW * (specials[mine ? 1 : 0].Any(x => x.Row == r) ? 0.24 : 0.5), RowY(mine, r) + RowH / 2 + 8);   // özel kart varsa sütunun solunda
+                if (scored && o!.Winner >= 0)
+                {
+                    _markAt[(i, mine)] = HanScene.ToScreen(at);
+                    PutU(RowMark((o.Winner == Mine) == mine, mine, i + 1, mine ? 1.45 : 1.15), at, -4, _rows);
+                    RowLabel(mine, r, HT.Name(r), null);
+                    continue;
+                }
                 var num = new TextBlock
                 {
                     Text = (i + 1).ToString(), FontFamily = HanUi.Font, FontSize = HanUi.S(mine ? 58 : 46), FontWeight = FontWeights.Bold, IsHitTestVisible = false,
                     Foreground = i == current ? Theme.B("#ffe9a3") : scored ? Theme.B("#30e8dcc4") : Theme.B("#70e0b85a"),
                     Effect = i == current ? new DropShadowEffect { Color = Color.FromRgb(0xff, 0xd8, 0x70), BlurRadius = 18, ShadowDepth = 0 } : null
                 };
-                PutU(num, new Point(ColX + ColW * (specials[mine ? 1 : 0].Any(x => x.Row == r) ? 0.24 : 0.5), RowY(mine, r) + RowH / 2 + 8), 0, _rows);   // özel kart varsa sütunun solunda
+                PutU(num, at, 0, _rows);
                 RowLabel(mine, r, HT.Name(r), i == current ? Theme.B("#c0ffe9a3") : null);
             }
 
@@ -541,6 +553,7 @@ public sealed partial class HanView
         _signs.Clear();
         _potion = null;
         _ambush.Clear();
+        _ambushHidden.Clear();   // yarıda kalan bir pencereden kalmasın
         _screen = Screen.Battle;
         _hold = 0;
         var b = B;
@@ -606,7 +619,8 @@ public sealed partial class HanView
             Put(Bare(tok, "han-use:" + p, () => { _potion = _potion == pp ? null : pp; Sfx.Play("han_click"); Render(); }, true, HT.Name(p) + "\n" + HT.Describe(p, me.School, foe.Th(global::HanLigi.Tag.Dwarf) >= 1, foe.In(b.CurrentRow).Any(u => u.Def.Hero == Hero.Zoltan))), x, BarY + 36);
             var n = me.Potions.Count(v => v == p);
             if (n > 1) Put(Txt("×" + n, 18, Theme.B("#ffd76a"), true), x + 76, BarY + 120);
-            Put(new TextBlock { Text = HT.Name(p), FontFamily = HanUi.Font, FontSize = HanUi.S(12), Foreground = Theme.TextDim, Width = 96, TextAlignment = TextAlignment.Center }, x, BarY + 140);
+            // ad iki satıra kırılabilir ("Dans Eden Yıldız" tek satıra sığmıyordu)
+            Put(new TextBlock { Text = HT.Name(p), FontFamily = HanUi.Font, FontSize = HanUi.S(12), Foreground = Theme.TextDim, Width = 106, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, LineHeight = HanUi.S(13) }, x - 5, BarY + 138);
             x += 110;
         }
         if (me.Potions.Count == 0) { Put(new TextBlock { Text = "simya kartın yok", FontFamily = HanUi.Font, FontSize = HanUi.S(14), Foreground = Theme.TextDim }, x, BarY + 84); x += 130; }
@@ -692,11 +706,7 @@ public sealed partial class HanView
     private readonly HashSet<int> _stepShown = new();
 
     /// <summary>Bir çözüm adımı: kim (SEN/RAKİP), ne (işaret/simya adı), ayrıntı (hedef, sonuç, kalan Odak), süre, oynatma.</summary>
-    /// <param name="Passive">Kalıcı satır bonusu (Yennefer, Boynuz, Cüce): ayrı adım değil, satır sonucuyla aynı anda oynar (süre eklemez).</param>
-    private sealed record Step(bool Mine, string What, string Detail, Color Color, int Ms, Action Play, bool Passive = false);
-
-    /// <summary>Bir satırın adım adım çözümüne ayrılan en uzun süre (müdahaleler çoksa adımlar hızlanır; HanTimes.WindowShow ile uyumlu).</summary>
-    private const int StepBudgetMs = 6000;
+    private sealed record Step(bool Mine, string What, string Detail, Color Color, int Ms, Action Play);
 
     /// <summary>
     /// Satırı aç: seçimler kilitlenir ve pencere <b>adım adım</b> çözülür (oyuncunun izleyebileceği hızda):
@@ -726,7 +736,11 @@ public sealed partial class HanView
         ResolveWindow(o);
     }
 
-    /// <summary>Pencere çözüldü: adım adım gösterim, sonra sıradaki pencere ya da savaş sonu.</summary>
+    /// <summary>
+    /// Pencere çözüldü: seçimler → satır açılır (sis savrulur, kartlar iner) → müdahaleler adım adım → satırın puanlanması
+    /// (HanView.Cinema.cs) → sonuç, sonra sıradaki pencere ya da savaş sonu. Bütün gösterim HanTimes.WindowShow içinde kalır:
+    /// müdahale çoksa önce puanlama (en çok %35), sonra adımlar hızlanır.
+    /// </summary>
     private void ResolveWindow(WindowOutcome o)
     {
         _waitWindow = null;
@@ -737,37 +751,44 @@ public sealed partial class HanView
         var gen = ++_gen;
         var row = o.Row;
         _stepShown.Clear();
+        _ambushHidden.Clear();
+        foreach (var f in o.Fx.Where(f => f.Kind == "ambush" && f.Target != 0)) _ambushHidden.Add(f.Target);
         _hold = 1;
         Render();
         var (mc, tc) = Mine == 0 ? (o.ChoiceA, o.ChoiceB) : (o.ChoiceB, o.ChoiceA);
-        Caption(new Step(true, "Seçimler açıldı", $"Sen: {ChoiceText(mc)}   ·   Rakip: {ChoiceText(tc)}", HanUi.Gold, 1100, () => { }));
+        Caption(new Step(true, "Seçimler açıldı", $"Sen: {ChoiceText(mc)}   ·   Rakip: {ChoiceText(tc)}", HanUi.Gold, OpenMs, () => { }));
         Sfx.Play("han_open");
-        var t = 1100;
+        var t = OpenMs;
         After(t, gen, () =>
         {
+            FogPart(RowRect(false, row));
             _hold = 2;
+            _revealFresh = true;
             Sfx.Play("draw_card");
-            Render();
-            Caption(new Step(false, $"{HT.Name(row)} satırı açıldı", "Rakibin kartları masada", HanUi.Parchment, 1000, () => { }));
+            try { Render(); }
+            finally { _revealFresh = false; }
+            Caption(new Step(false, $"{HT.Name(row)} satırı açıldı", "Rakibin kartları masada", HanUi.Parchment, RevealMs, () => { }));
         });
-        t += 1100;
-        // müdahaleler sırayla; çoksa hızlanır (bir satır ~10 sn'yi geçmesin: online'da süreler buna göre)
-        var all = Steps(o, b);
-        var active = all.Where(s => !s.Passive).ToList();
-        var passive = all.Where(s => s.Passive).ToList();
+        t += RevealMs;
+        // müdahaleler sırayla; süre sınırı aşılacaksa önce puanlama, sonra adımlar kısalır
+        var active = Steps(o, b);
         var total = active.Sum(s => s.Ms);
-        var speed = total > StepBudgetMs ? StepBudgetMs / (double)total : 1.0;
+        var room = ShowBudgetMs - OpenMs - RevealMs - VerdictMs;
+        var tallyFull = TallyMs(o, b);
+        var cs = Math.Clamp((room - total) / tallyFull, 0.65, 1.0);
+        var tally = (int)Math.Ceiling(tallyFull * cs);
+        var speed = Math.Min(1.0, (room - tally) / (double)Math.Max(1, total));
         foreach (var st in active)
         {
             var step = st with { Ms = (int)(st.Ms * speed) };
             After(t, gen, () => { Caption(step); step.Play(); });
             t += step.Ms;
         }
-        After(t, gen, () =>
+        After(t, gen, () => ScoreRow(o, b, gen, cs, () =>
         {
             _hold = 0;
             Render();
-            foreach (var p in passive) p.Play();   // Yennefer / Boynuz / Cüce: sonuçla aynı anda, satırın üstünde
+            MarkPop(Array.IndexOf(b.Order, row), o.Winner);
             var won = o.Winner == Mine;
             var (mv, ov) = Mine == 0 ? (o.ValueA, o.ValueB) : (o.ValueB, o.ValueA);
             Sfx.Play(o.Winner < 0 ? "battle_draw" : won ? "battle_won" : "battle_lost");
@@ -785,8 +806,8 @@ public sealed partial class HanView
                 HanArt.FloatText(_fx, $"ÖFKE  +{f.Target} ODAK", at, Color.FromRgb(0x8f, 0xd8, 0xff), 24, 1800, 400);
                 Fx.After(400, () => HanFx.Aura(_engine, new Point(at.X, at.Y + 20), 180, FxEngine.Ramp.Aard, 0.9));
             }
-        });
-        t += 1800;
+        }));
+        t += tally + VerdictMs;
         After(t, gen, () =>
         {
             _busy = false;
@@ -898,16 +919,7 @@ public sealed partial class HanView
         {
             var mine = f.Side == Mine;
             var uid = f.Target;
-            steps.Add(new Step(mine, "Pusu", $"{NameOf(uid)} pusudan {HT.Name(row)} satırına indi", Color.FromRgb(0xff, 0xe9, 0xa3), Short, () =>
-            {
-                if (CardAt(uid) is { } c)
-                {
-                    for (var i = 0; i < 12; i++) _engine.Puff(new Point(c.C.X + _engine.R(-(float)c.W / 2, (float)c.W / 2), c.C.Y + c.H * 0.4), _engine.R(-170, -10), _engine.R(60, 200), _engine.R(0.6f, 1.1f), 26, 90, 0.18f, -20, 60);
-                    _engine.Light(c.C, (float)c.W * 2.2f, FxEngine.Ramp.Gold, 0.9f, 0.4f, 0);
-                    Hit(uid, 5);
-                }
-                Sfx.Play("han_place");
-            }));
+            steps.Add(new Step(mine, "Pusu", $"{NameOf(uid)} pusudan {HT.Name(row)} satırına indi", Color.FromRgb(0xff, 0xe9, 0xa3), Short, () => AmbushSlam(uid)));
         }
 
         foreach (var side in new[] { Mine, 1 - Mine })
@@ -1040,32 +1052,7 @@ public sealed partial class HanView
             }
         }
 
-        // kalıcı satır bonusları (Yennefer, Boynuz, Cüce sinerjisi): işaret ve simyalarla aynı toplama girer, ayrıca duyurulur
-        foreach (var side in new[] { Mine, 1 - Mine })
-        {
-            var mine = side == Mine;
-            var k = 0;
-            foreach (var (_, src, pct) in o.RowMods.Where(m => m.Side == side && m.Source is "Yennefer" or "Cüce sinerjisi" || (m.Side == side && m.Source.StartsWith("Boynuz"))))
-            {
-                var why = src switch
-                {
-                    "Yennefer" => "Yennefer önceki satırı kazandı",
-                    "Cüce sinerjisi" => "satırda Cüce var (Cüce sinerjisi)",
-                    _ => "Boynuz bu satıra çalıyor"
-                };
-                var units = b.Sides[side].In(row).Select(u => u.Uid).ToList();
-                var color = src == "Yennefer" ? Color.FromRgb(0xc8, 0x9a, 0xff) : src.StartsWith("Boynuz") ? Color.FromRgb(0xff, 0xd7, 0x6a) : Color.FromRgb(0xe8, 0xb0, 0x70);
-                var kk = k;   // kapanış için kopya (döngü sayacı değişir)
-                steps.Add(new Step(mine, src, $"{why}: {(mine ? "satırın" : "rakibin satırı")} +%{Math.Round(pct * 100)} · işaret ve simya yüzdeleriyle toplanır", color, Short, () =>
-                {
-                    Sfx.Play(src.StartsWith("Boynuz") ? "horn" : "han_potion");
-                    foreach (var uid in units) if (CardAt(uid) is { } c) HanFx.CardAura(_engine, c.C, c.W, c.H, src == "Yennefer" ? FxEngine.Ramp.Aard : FxEngine.Ramp.Gold, 1.0);
-                    var (rc, rw) = RowS(mine, row);
-                    HanArt.FloatText(_fx, $"{src}  +%{Math.Round(pct * 100)}", new Point(rc.X - rw * 0.3, rc.Y - 46 - 34 * kk), color, 26, 1900);
-                }, Passive: true));
-                k++;
-            }
-        }
+        // kalıcı satır bonusları (Yennefer, Boynuz, Cüce, Geralt) ayrı adım değil: puanlamada rozete vuruş olarak iner (ScoreRow)
         return steps;
     }
 
@@ -1150,14 +1137,10 @@ public sealed partial class HanView
         rise.KeyFrames.Add(new EasingDoubleKeyFrame(-36, KeyTime.FromPercent(1), new SineEase { EasingMode = EasingMode.EaseIn }));
         lift.BeginAnimation(TranslateTransform.YProperty, rise);
 
-        // hasar: kaybedenin can sayısına uçar, can o anda düşer
+        // hasar: kazananın kartlarından kaybedenin portresine kıvılcımlar; sonuncusu değince can düşer (HanView.Cinema.cs)
         var loser = w < 0 ? -1 : b.Sides[1 - w].PlayerId;
         var hits = w >= 0 && b.Damage > 0 && loser >= 0 && !(b.Ghost && 1 - w == 1) && _hpAt.ContainsKey(loser);
-        if (hits)
-        {
-            var from = RowS(won, Row.Ranged).Center;
-            After(1500, gen, () => Projectile(from, _hpAt[loser], b.Damage, loser == Session.Me, () => { _resultShown = true; Render(); }));
-        }
+        if (hits) After(1300, gen, () => DamageStrike(b, gen, () => { _resultShown = true; Render(); }));
         else After(1500, gen, () => { _resultShown = true; Render(); });
         After(total - 200, gen, AfterBattle);
     }
@@ -1171,16 +1154,6 @@ public sealed partial class HanView
         Session.FinishRound();
         if (Session.RoundClosed) ShowResult();
         else { _waitRound = true; Render(); }
-    }
-
-    private void Projectile(Point from, Point to, int dmg, bool me, Action? landed = null)
-    {
-        Sfx.Play("han_whoosh");
-        HanFx.Fireball(_engine, from, to, 700, () =>
-        {
-            Sfx.Play(me ? "han_damage" : "han_explosion");
-            landed?.Invoke();
-        });
     }
 
     private void OnBattleContinue()
