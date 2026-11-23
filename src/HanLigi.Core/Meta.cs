@@ -73,10 +73,17 @@ public static class Meta
     /// </summary>
     public sealed record Fun(double Comeback, double Close, Dictionary<string, double> WinnerTags, double Diversity, double HeroWins);
 
-    public sealed record Report(int Games, double Seconds, List<Stat> Builds, List<Stat> Schools, List<Stat> Traits, List<Stat> Heroes, double AvgRounds, Fun Fun);
+    public sealed record Report(int Games, double Seconds, List<Stat> Builds, List<Stat> Schools, List<Stat> Traits, List<Stat> Heroes, double AvgRounds, Fun Fun)
+    {
+        /// <summary>Kart başına: oyuncunun son sahasında (elendiği ya da bitirdiği an) bulunan kartların bitiş sırası. Anahtar kart kimliği.</summary>
+        public Dictionary<string, Stat> Cards { get; init; } = new();
+    }
 
     private sealed record Game((int[] Build, School[] School, int[] Place, HashSet<(Tag, int)>[] Traits, HashSet<string>[] Heroes, int Rounds) Core,
-        bool? Comeback, int Pvp, int TwoOne, string WinnerTag, bool WinnerHero);
+        bool? Comeback, int Pvp, int TwoOne, string WinnerTag, bool WinnerHero)
+    {
+        public HashSet<string>[] Last = Array.Empty<HashSet<string>>();
+    }
 
     /// <summary><paramref name="games"/> maç oynatır (paralel, belirlenimci: aynı tohum aynı sonuç).</summary>
     public static Report Run(int games, int seed = 1, Action<int>? progress = null)
@@ -112,10 +119,18 @@ public static class Meta
                     st.Add(r.Place[i]);
                 }
             }
-        foreach (var s in builds.Concat(schools).Concat(traits.Values).Concat(heroes.Values)) s.Finish();
+        var cards = new Dictionary<string, Stat>();
+        foreach (var g in games2)
+            for (var i = 0; i < 8; i++)
+                foreach (var id in g.Last[i])
+                {
+                    if (!cards.TryGetValue(id, out var st)) cards[id] = st = New(CardSet.Get(id).Name);
+                    st.Add(g.Core.Place[i]);
+                }
+        foreach (var s in builds.Concat(schools).Concat(traits.Values).Concat(heroes.Values).Concat(cards.Values)) s.Finish();
         return new Report(games, sw.Elapsed.TotalSeconds, builds.OrderBy(s => s.Avg).ToList(), schools.OrderBy(s => s.Avg).ToList(),
             traits.OrderBy(k => k.Key.Item1).ThenBy(k => k.Key.Item2).Select(k => k.Value).ToList(), heroes.Values.OrderBy(s => s.Avg).ToList(),
-            results.Average(r => r.Rounds), FunOf(games2));
+            results.Average(r => r.Rounds), FunOf(games2)) { Cards = cards };
     }
 
     private static Fun FunOf(Game[] gs)
@@ -141,10 +156,12 @@ public static class Meta
         foreach (var p in m.Players) m.ChooseSchool(p.Id, p.SchoolOptions[rng.Next(p.SchoolOptions.Length)]);
         var traits = Enumerable.Range(0, 8).Select(_ => new HashSet<(Tag, int)>()).ToArray();
         var heroes = Enumerable.Range(0, 8).Select(_ => new HashSet<string>()).ToArray();
+        var last = Enumerable.Range(0, 8).Select(_ => new HashSet<string>()).ToArray();
         for (var guard = 0; guard < 80 && m.Phase != Phase.Finished; guard++)
         {
             foreach (var p in m.Alive.ToList()) ExpertBot.Prep(m, p.Id, rng, Builds[pick[p.Id]]);
             if (m.Phase == Phase.Prep) m.ForceLock();
+            foreach (var p in m.Alive) last[p.Id] = p.Fielded.Select(c => c.Def.Id).ToHashSet();
             if (m.Round == 10 && lowAt10 == null)
             {
                 var al = m.Alive.OrderBy(p => p.Hp).ToList();
@@ -182,7 +199,7 @@ public static class Meta
         var top = Enum.GetValues<Tag>().Select(t => (T: t, L: win.Th(t), N: win.TagCounts().GetValueOrDefault(t))).Where(x => x.L > 0).OrderByDescending(x => x.L).ThenByDescending(x => x.N).FirstOrDefault();
         var pvp = m.History.Where(h => !h.Pve && !h.Ghost && h.Winner >= 0).ToList();
         return new Game(core, lowAt10 == null ? null : lowAt10.Contains(win.Id), pvp.Count, pvp.Count(h => h.PointsA + h.PointsB == 3),
-            top.L > 0 ? Texts.Name(top.T) : "—", win.Fielded.Any(c => c.Def.IsHero));
+            top.L > 0 ? Texts.Name(top.T) : "—", win.Fielded.Any(c => c.Def.IsHero)) { Last = last };
     }
 
     // ---------- işaret / Odak ölçümü ----------

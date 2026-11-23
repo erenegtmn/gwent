@@ -76,7 +76,7 @@ public sealed class HanCardView : Grid
             Ability.Bard => "Savaşa +1 Odakla başla", Ability.Treasure => "Her round +1 altın", Ability.Ambush => "Savaşta istediğin satıra iner", Ability.Revenge => "Önceki satır kaybedildiyse +%50",
             Ability.Zeal => "Önceki satır kazanıldıysa +%30", Ability.Summon => "Depodaki eşini sahaya çeker (2★: 1, 3★: 2)", Ability.Medic => "En güçlünü etkilerden korur", Ability.DeathEcho => "Ölünce hayalet bırakır",
             Ability.Mirror => "En güçlü dostun yarısı kadar", Ability.Plunder => "Kazandığı satıra +1 altın", Ability.Berserk => "Mardroeme ile gücü ×3",
-            Ability.RowScorch => "Rakip satır 10+ ise en güçlüyü yakar", Ability.Challenge => "Kendinden güçlü rakibe −%25",
+            Ability.RowScorch => $"Rakip satır {Tuning.RowScorchMin}+ ise en güçlü birimi yakar", Ability.Challenge => "Kendinden güçlü rakibe −%25",
             Ability.Drain => "En zayıf rakipten güç çalar", Ability.Trio => "Üç Kocakarı birlikteyse ×1,5", _ => d.Agile ? "Yakın ya da Menzilli" : ""
         };
     }

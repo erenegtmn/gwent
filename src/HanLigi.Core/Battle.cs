@@ -297,7 +297,7 @@ public sealed class Battle
             var max = cands.Max(c => c.V);
             foreach (var (s, u, _) in cands.Where(c => c.V == max)) Burn(s, u, $"Kavurma: {s.Name} tarafında {u.Def.Name} ({max}) yok oldu.");
         }
-        // 4b. Yakıcı: rakibin aynı satırı en az 10 ise oradaki en güçlü birim(ler) yanar
+        // 4b. Yakıcı: rakibin aynı satırı en az Tuning.RowScorchMin ise oradaki en güçlü TEK birim yanar (Denge 2: eşitler artık birlikte yanmaz)
         for (var si = 0; si < 2; si++)
         {
             var s = Sides[si];
@@ -310,8 +310,8 @@ public sealed class Battle
                 var cands = o.In(rs.Row).Where(u => Burnable(o, u)).ToList();
                 if (cands.Count == 0) continue;
                 var max = cands.Max(u => Value(o, u));
-                foreach (var u in cands.Where(u => Value(o, u) == max).ToList())
-                    Burn(o, u, $"Yakıcı ({rs.Def.Name}): {o.Name} tarafında {u.Def.Name} ({max}) yandı.");
+                var u1 = cands.First(u => Value(o, u) == max);
+                Burn(o, u1, $"Yakıcı ({rs.Def.Name}): {o.Name} tarafında {u1.Def.Name} ({max}) yandı.");
             }
         }
         // 6-7. Eredin, Odak
@@ -488,7 +488,7 @@ public sealed class Battle
                 u.Row = row;
                 u.Landed = true;
                 s.Units.Add(u);
-                if (s.Th(Tag.Bandit) >= 2) Pct(u, s.Th(Tag.Bandit) >= 3 ? 0.5 : 0.25);
+                if (s.Th(Tag.Bandit) >= 2) Pct(u, Tuning.BanditLand[s.Th(Tag.Bandit) >= 3 ? 1 : 0]);
                 if (s.HasHero(Hero.Iorveth) && !u.IsHero) Pct(u, Tuning.IorvethPct[Math.Max(0, s.HeroTier(Hero.Iorveth))]);
                 if (sealedLanding || (yrden[1 - i] && Tuning.YrdenMode == 4 && chosen.Contains(u.Uid))) Pct(u, -Tuning.YrdenAmbushPct);
                 log.Add($"{s.Name} pusudan {u.Def.Name} indirdi.");
@@ -532,6 +532,13 @@ public sealed class Battle
             }
             return (Sides[side].School == HanLigi.School.Viper ? 1.25 : 1) * (target.Has(Tag.Dwarf) && v.Th(Tag.Dwarf) >= 1 ? 0.5 : 1) * KnightF(victim, target);
         }
+        // Philippa: savaştaki ilk 1/2/3 Aard ya da Igni (isabet eden) iki kat
+        static int Philippa(BattleSide s)
+        {
+            if (!s.HasHero(Hero.Philippa) || s.PhilippaUses >= Tuning.PhilippaSigns[Math.Max(0, s.HeroTier(Hero.Philippa))]) return 1;
+            s.PhilippaUses++;
+            return 2;
+        }
         static string BombNote(double basePct, double f) =>
             f <= 0 ? "etkisiz (Zoltan)" : Math.Abs(f - 1) < 1e-9 ? $"−%{Texts.Pct(basePct)}" : $"−%{Texts.Pct(basePct * f)} (−%{Texts.Pct(basePct)} × {Texts.Pct(f)})";
         // 2 + 5. işaretler
@@ -544,8 +551,7 @@ public sealed class Battle
                 if (sg == Sign.Aard && Tuning.YrdenBlocksAard && yrden[o]) { log.Add($"{s.Name} Aard attı; {Sides[o].Name} Yrden ile tuttu."); fx.Add(new FxEvent("aard", i, 0, true)); continue; }
                 if (sg == Sign.Aard)
                 {
-                    var ph = s.HasHero(Hero.Philippa) && s.PhilippaUses < Tuning.PhilippaAards[Math.Max(0, s.HeroTier(Hero.Philippa))] ? 2 : 1;
-                    if (ph == 2) s.PhilippaUses++;
+                    var ph = Philippa(s);
                     var ap = 0.10 * Amp(i) * ph;
                     foe[o] -= ap; mods.Add((o, ph == 2 ? "Aard (Philippa ×2)" : "Aard", -ap));
                     log.Add($"{s.Name} Aard: {Sides[o].Name} satırı {(ph == 2 ? $"−%{Texts.Pct(ap * 100)} (Philippa ×2)" : AmpNote(i, 10))}.");
@@ -558,7 +564,13 @@ public sealed class Battle
                 if (potion[o] == Potion.BlackBlood) { victim = i; log.Add($"{s.Name} Igni attı; Kara Kan onu kendisine yansıttı."); }
                 else if (ch[o].Signs.Contains(Sign.Quen)) { quenBlocks[o]++; log.Add($"{s.Name} Igni attı; {Sides[o].Name} Quen ile engelledi."); fx.Add(new FxEvent("igni", i, 0, true)); continue; }
                 else victim = o;
-                if (Strongest(victim) is { } t) { Pct(t, -0.5 * Amp(i) * KnightF(victim, t)); if (victim == o) log.Add($"{s.Name} Igni: {t.Def.Name} {AmpNote(i, 50)}."); fx.Add(new FxEvent(victim == o ? "igni" : "igni_reflect", i, t.Uid)); }
+                if (Strongest(victim) is { } t)
+                {
+                    var ph = victim == o ? Philippa(s) : 1;
+                    Pct(t, -0.5 * Amp(i) * ph * KnightF(victim, t));
+                    if (victim == o) log.Add($"{s.Name} Igni: {t.Def.Name} {(ph == 2 ? $"−%{Texts.Pct(50 * Amp(i) * ph * KnightF(victim, t))} (Philippa ×2)" : AmpNote(i, 50))}.");
+                    fx.Add(new FxEvent(victim == o ? "igni" : "igni_reflect", i, t.Uid));
+                }
                 else { log.Add($"{s.Name} Igni attı ama hedef yok."); fx.Add(new FxEvent("igni", i)); }
             }
         }
@@ -634,7 +646,7 @@ public sealed class Battle
             if (s.Th(Tag.Dwarf) >= 3 && s.In(row).Any(u => u.Has(Tag.Dwarf))) { own[i] += 0.2; mods.Add((i, "Cüce sinerjisi", 0.2)); }
             if (s.Th(Tag.Knight) >= 3 && s.In(row).Any(u => u.Has(Tag.Knight))) { own[i] += 0.15; mods.Add((i, "Şövalye sinerjisi", 0.15)); }
             if (Window == 0 && s.Th(Tag.Sailor) >= 1)
-                foreach (var u in s.In(row).Where(u => u.Has(Tag.Sailor))) Pct(u, s.Th(Tag.Sailor) >= 3 ? 0.5 : 0.3);
+                foreach (var u in s.In(row).Where(u => u.Has(Tag.Sailor))) Pct(u, s.Th(Tag.Sailor) >= 3 ? 0.4 : 0.3);
             var horns = s.Act.Horns.Count(h => h == row);
             if (horns > 0) { own[i] += 0.5 * horns; mods.Add((i, horns > 1 ? $"Boynuz ×{horns}" : "Boynuz", 0.5 * horns)); }
         }

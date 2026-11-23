@@ -63,7 +63,8 @@ public class RulesV2Tests
         var m = Ready(3);
         var p = m.Players[0];
         Assert.Equal(4, p.Slots);
-        foreach (var _ in Enumerable.Range(0, 4)) Assert.True(m.Move(p.Id, Give(m, p, "ghoul").Uid, Zone.Close));
+        foreach (var _ in Enumerable.Range(0, 3)) Assert.True(m.Move(p.Id, Give(m, p, "ghoul").Uid, Zone.Close));
+        Assert.True(m.Move(p.Id, Give(m, p, "havekar_smuggler").Uid, Zone.Close));   // Haydut: pusudakiyle 2 Haydut, pusu yeri 2
         Assert.Equal(4, p.Used);
         var sk = Give(m, p, "elven_skirmisher");
         Assert.True(m.WouldOverflow(p.Id, sk.Uid, Zone.Ranged)); // masa dolu (konabilir ama sınırı aşar)

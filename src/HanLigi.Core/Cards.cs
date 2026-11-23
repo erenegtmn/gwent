@@ -55,7 +55,7 @@ public static class CardSet
         U("nekker", "Nekker", 1, 2, Row.Close, Tag.Monster, Ability.Summon);
         U("ghoul", "Gulyabani", 1, 1, Row.Close, Tag.Monster, Ability.Growth);
         U("poor_fucking_infantry", "Zavallı Piyade", 1, 2, Row.Close, Tag.Soldier, Ability.Bond);
-        U("kaedweni_siege_expert", "Kaedwen Kuşatma Uzmanı", 1, 1, Row.Siege, Tag.Soldier, Ability.Morale);
+        U("kaedweni_siege_expert", "Kaedwen Kuşatma Uzmanı", 4, 1, Row.Siege, Tag.Soldier, Ability.Morale);
         U("elven_skirmisher", "Elf Çatışmacı", 1, 2, Row.Ranged, Tag.Bandit, Ability.Ambush);
         U("dwarven_skirmisher", "Cüce Çatışmacı", 1, 3, Row.Close, Tag.Dwarf);
         U("sweers", "Tahsildar Sweers", 1, 1, Row.Ranged, Tag.Noble, Ability.Treasure);
@@ -63,7 +63,7 @@ public static class CardSet
         U("arachas", "Arachas", 2, 3, Row.Close, Tag.Monster, Ability.Summon);
         U("blue_stripes_commando", "Mavi Çizgili Komando", 2, 4, Row.Close, Tag.Soldier, Ability.Bond);
         U("thaler", "Thaler", 2, 1, Row.Siege, Tag.Noble, Ability.Spy);
-        U("vrihedd_brigade_recruit", "Vrihedd Acemisi", 2, 4, Row.Ranged, Tag.Bandit, Ability.Ambush, agile: true);
+        U("vrihedd_brigade_recruit", "Vrihedd Acemisi", 2, 3, Row.Ranged, Tag.Bandit, Ability.Ambush, agile: true);
         U("mahakaman_defender", "Mahakam Savunucusu", 2, 4, Row.Close, Tag.Dwarf, Ability.Revenge);
         U("sabrina_glevissig", "Sabrina Glevissig", 2, 3, Row.Ranged, Tag.Mage, Ability.Bard);
         U("dun_banner_medic", "Dun Sancağı Şifacısı", 2, 3, Row.Siege, Tag.Soldier, Ability.Medic);
@@ -71,7 +71,7 @@ public static class CardSet
         U("griffin", "Griffin", 3, 5, Row.Close, Tag.Monster, Ability.Zeal);
         U("crinfrid_reavers_dragon_hunter", "Crinfrid Ejder Avcısı", 3, 5, Row.Ranged, Tag.Soldier, Ability.Bond);
         U("dethmold", "Dethmold", 3, 6, Row.Ranged, Tag.Mage);
-        U("vrihedd_brigade_veteran", "Vrihedd Kıdemlisi", 3, 5, Row.Close, Tag.Bandit, Ability.Ambush, agile: true);
+        U("vrihedd_brigade_veteran", "Vrihedd Kıdemlisi", 3, 4, Row.Close, Tag.Bandit, Ability.Ambush, agile: true);
         U("barclay_els", "Barclay Els", 3, 6, Row.Close, Tag.Dwarf, agile: true);
         U("vattier_de_rideaux", "Vattier de Rideaux", 3, 3, Row.Close, Tag.Noble, Ability.Spy);
         U("trebuchet", "Mancınık", 3, 6, Row.Siege, Tag.Soldier);
@@ -98,25 +98,25 @@ public static class CardSet
         U("light_longship", "Hafif Uzun Gemi", 2, 3, Row.Ranged, Tag.Sailor, Ability.Summon);
         U("berserker", "Berserker", 2, 4, Row.Close, Tag.Sailor, Ability.Berserk);
         U("clan_brokvar_archer", "Brokvar Okçusu", 3, 6, Row.Ranged, Tag.Sailor, Ability.Plunder);
-        U("clan_dimun_pirate", "Dimun Korsanı", 3, 5, Row.Ranged, Tag.Sailor, Ability.RowScorch);
+        U("clan_dimun_pirate", "Dimun Korsanı", 3, 4, Row.Ranged, Tag.Sailor, Ability.RowScorch);
         U("clan_an_craite_warrior", "an Craite Savaşçısı", 4, 7, Row.Close, Tag.Sailor, Ability.Bond);
         U("war_longship", "Savaş Gemisi", 4, 8, Row.Siege, Tag.Sailor, Ability.Plunder);
         U("olaf", "Olaf", 5, 11, Row.Close, Tag.Sailor, Ability.Morale, agile: true);
         // ---- Şövalye (Nilfgaard ve Kuzey; Faz 1) ----
         U("nausicaa_cavalry_rider", "Nausicaa Süvarisi", 1, 2, Row.Close, Tag.Knight, Ability.Bond);
-        U("vreemde", "Vreemde", 1, 2, Row.Close, Tag.Knight);
-        U("impera_brigade_guard", "İmpera Muhafızı", 2, 3, Row.Close, Tag.Knight, Ability.Bond, tag2: Tag.Soldier);
+        U("vreemde", "Vreemde", 1, 2, Row.Close, Tag.Knight, Ability.Bond);
+        U("impera_brigade_guard", "İmpera Muhafızı", 2, 3, Row.Close, Tag.Knight, Ability.Bond);
         U("morteisen", "Morteisen", 2, 4, Row.Close, Tag.Knight, Ability.Challenge);
         U("rainfarn", "Rainfarn", 3, 5, Row.Close, Tag.Knight, Ability.Challenge);
-        U("ves", "Ves", 3, 5, Row.Close, Tag.Knight, Ability.Zeal, tag2: Tag.Soldier);
+        U("ves", "Ves", 3, 5, Row.Close, Tag.Knight, Ability.Zeal);
         U("siegfried_of_denesle", "Denesle'li Siegfried", 4, 8, Row.Close, Tag.Knight, Ability.Challenge);
         U("cahir_mawr_dyffryn_aep_ceallach", "Cahir", 4, 8, Row.Close, Tag.Knight, Ability.Revenge);
         U("renuald_aep_matsen", "Renuald aep Matsen", 5, 11, Row.Ranged, Tag.Knight, Ability.Morale);
         // ---- Faz 2 (2026-11-23) ----
         // Vampir
         U("vampire_fleder", "Fleder", 1, 2, Row.Close, Tag.Vampire, Ability.Drain);
-        U("vampire_ekimmara", "Ekimmara", 2, 3, Row.Close, Tag.Vampire, Ability.Drain);
-        U("vampire_garkain", "Garkain", 2, 4, Row.Close, Tag.Vampire, Ability.Summon);
+        U("vampire_ekimmara", "Ekimmara", 2, 4, Row.Close, Tag.Vampire, Ability.Drain);
+        U("vampire_garkain", "Garkain", 2, 4, Row.Close, Tag.Vampire, Ability.Bond);
         U("vampire_bruxa", "Bruxa", 3, 5, Row.Close, Tag.Vampire, Ability.Drain);
         U("vampire_katakan", "Katakan", 4, 8, Row.Close, Tag.Vampire, Ability.Drain);
         U("plague_maiden", "Veba Kızı", 5, 10, Row.Close, Tag.Vampire, Ability.Drain);   // Vampir'in T5'i (2026-11-23)
@@ -126,14 +126,14 @@ public static class CardSet
         U("toruviel", "Toruviel", 1, 2, Row.Ranged, Tag.Bandit, Ability.Ambush);
         U("ciaran_aep_easnillien", "Ciaran", 2, 3, Row.Close, Tag.Bandit, Ability.Ambush, agile: true);
         U("havekar_smuggler", "Havekar Kaçakçısı", 2, 3, Row.Close, Tag.Bandit, Ability.Treasure);
-        U("yaevinn", "Yaevinn", 3, 6, Row.Close, Tag.Bandit, Ability.Ambush, agile: true);
+        U("yaevinn", "Yaevinn", 3, 5, Row.Close, Tag.Bandit, Ability.Ambush, agile: true);
         U("dol_blathanna_archer", "Dol Blathanna Okçusu", 3, 5, Row.Ranged, Tag.Bandit, Ability.Zeal);
-        U("filavandrel_aen_fidhail", "Filavandrel", 4, 8, Row.Close, Tag.Bandit, Ability.Ambush, agile: true);
+        U("filavandrel_aen_fidhail", "Filavandrel", 4, 7, Row.Close, Tag.Bandit, Ability.Ambush, agile: true);
         U("milva", "Milva", 5, 11, Row.Ranged, Tag.Bandit, Ability.Morale);
         // Büyücü
         U("albrich", "Albrich", 1, 2, Row.Ranged, Tag.Mage, Ability.Bard);
         U("cynthia", "Cynthia", 2, 3, Row.Ranged, Tag.Mage, Ability.Spy);
-        U("keira_metz", "Keira Metz", 2, 4, Row.Ranged, Tag.Mage, Ability.Zeal);
+        U("keira_metz", "Keira Metz", 2, 5, Row.Ranged, Tag.Mage, Ability.Zeal);
         U("ida_emean_aep_sivney", "Ida Emean", 3, 6, Row.Ranged, Tag.Mage, Ability.Bard, tag2: Tag.Bandit);
         // Canavar: Kocakarılar
         U("crone_weavess", "Dokumacı Kocakarı", 4, 7, Row.Close, Tag.Monster, Ability.Trio);
@@ -141,7 +141,7 @@ public static class CardSet
         U("crone_whispess", "Fısıltıcı Kocakarı", 4, 7, Row.Close, Tag.Monster, Ability.Trio);
         // Asker, Soylu, Cüce
         U("redanian_foot_soldier", "Redanya Piyadesi", 1, 2, Row.Close, Tag.Soldier, Ability.Bond);
-        U("ballista", "Balista", 3, 6, Row.Siege, Tag.Soldier, Ability.RowScorch);
+        U("ballista", "Balista", 3, 5, Row.Siege, Tag.Soldier, Ability.RowScorch);
         U("prince_stennis", "Prens Stennis", 3, 4, Row.Close, Tag.Noble, Ability.Spy);
         U("shilard_fitz_oesterlen", "Shilard", 5, 10, Row.Close, Tag.Noble, Ability.Spy);
         U("dennis_cranmer", "Dennis Cranmer", 4, 7, Row.Close, Tag.Dwarf, Ability.Morale);
@@ -247,8 +247,8 @@ public static class Tuning
     public static int YrdenCost = 2;
     /// <summary>YrdenMode 3: simya + Aard kesilir, pusudan inen kartlar bu kadar zayıflar (iptal yerine).</summary>
     public static double YrdenAmbushPct = 0.5;
-    /// <summary>Temel pusu yeri (Haydut 2 eşiği +1).</summary>
-    public static int AmbushBase = 2;
+    /// <summary>Temel pusu yeri (Haydut 1. eşik +1). Denge 3: 2 → 1 (Haydut kazananların %32si idi).</summary>
+    public static int AmbushBase = 1;
     /// <summary>Son pencerede seçilmeyen pusu kendiliğinden iner mi. Oyunda false: pusu hep isteğe bağlı, Yrden seçileni mutlak keser.</summary>
     public static bool AutoLandLast = false;
     /// <summary>Yrden simyayı da keser mi (Meta 4: hayır; simya + pusu + Aard birlikte Yrden'i her işe yarar yapıyordu).</summary>
@@ -264,7 +264,7 @@ public static class Tuning
     /// </summary>
     private static readonly int[] Bp246 = { 2, 4, 6 }, Bp235 = { 2, 3, 5 }, Bp234 = { 2, 3, 4 };
     // Faz 2: Haydut (11 kart) ve Büyücü (9) 2/4/6'ya geçti; az kartlı Cüce ve Vampir 2/3/5
-    public static int[] Breakpoints(Tag t) => t switch { Tag.Dwarf or Tag.Vampire => Bp235, _ => Bp246 };
+    public static int[] Breakpoints(Tag t) => t switch { Tag.Dwarf or Tag.Vampire or Tag.Mage => Bp235, _ => Bp246 };
     /// <summary>Sınıf sayısından eşik basamağı (0-3).</summary>
     public static int TagLevel(Tag t, int n) { var b = Breakpoints(t); return n >= b[2] ? 3 : n >= b[1] ? 2 : n >= b[0] ? 1 : 0; }
     /// <summary>Kedi okulu: kazandığı savaş başına ek altın.</summary>
@@ -289,11 +289,13 @@ public static class Tuning
     /// <summary>Yağma: kazanılan satırdaki Yağma kartı başına 1 altın, savaş başına üst sınır.</summary>
     public const int PlunderCap = 2;
     /// <summary>Yakıcı: rakibin aynı satırının toplamı en az bu kadarsa en güçlü birimi yanar.</summary>
-    public const int RowScorchMin = 10;
+    public const int RowScorchMin = 14;
     /// <summary>Dönüşüm: Mardroeme ile Berserker gücü çarpanı.</summary>
     public const int BerserkMult = 3;
     /// <summary>Meydan Okuma: kendisinden güçlü rakip birime yüzde.</summary>
     public const double ChallengePct = 0.25;
+    /// <summary>Haydut 2. / 3. eşik: pusudan inen birimin yüzdesi (Denge 2: %25 / %50'den indi).</summary>
+    public static readonly double[] BanditLand = { 0.15, 0.35 };
     /// <summary>Kan Emme: rakibin en zayıf birimin değerinden alınan pay (Vampir 1. eşikte %75).</summary>
     public const double DrainPct = 0.5, DrainPctVampire = 0.75;
     /// <summary>Üçlü: üç farklı Kocakarı sahadaysa her biri ×1,5.</summary>
@@ -311,7 +313,7 @@ public static class Tuning
     public static readonly int[] CerysShips = { 1, 2, 3 };
     public const int CerysShipPower = 4;
     public static readonly double[] IorvethPct = { 0.15, 0.25, 0.40 };
-    public static readonly int[] PhilippaAards = { 1, 2, 99 };
+    public static readonly int[] PhilippaSigns = { 1, 2, 3 };
     public static readonly double[] RegisPct = { 0.25, 0.50, 0.75 };
     public static readonly int[] MennoProtect = { 2, 3, 3 };
     public static readonly double[] SpyRate = { 0.20, 0.35, 0.50 };
@@ -489,7 +491,7 @@ public static class Texts
         Ability.Mirror => "Yansıma: satırındaki en güçlü birimin yarısı kadar güce çıkar.",
         Ability.Plunder => "Yağma: satırını kazanırsan +1 altın (savaş başına toplam en çok 2).",
         Ability.Berserk => "Dönüşüm: sahanda Mardroeme varsa savaş başında gücü ×3 olur.",
-        Ability.RowScorch => "Yakıcı: savaş başında rakibin aynı satırının toplamı en az 10 ise oradaki en güçlü birim(ler) yanar (kahraman, Şifacı ve Kalkan korur).",
+        Ability.RowScorch => $"Yakıcı: savaş başında rakibin aynı satırının toplamı en az {Tuning.RowScorchMin} ise oradaki en güçlü birim yanar (kahraman, Şifacı ve Kalkan korur).",
         Ability.Challenge => "Meydan Okuma: satırının penceresinde rakibin aynı satırdaki en güçlü birimi bu karttan güçlüyse −%25.",
         Ability.Drain => "Kan Emme: satırının penceresinde rakibin aynı satırdaki en zayıf biriminin gücünün yarısını alır (ondan düşer, kendine ekler).",
         Ability.Trio => "Üçlü: üç farklı Kocakarı (Dokumacı, Ocakçı, Fısıltıcı) sahandaysa her biri ×1,5.",
@@ -522,7 +524,7 @@ public static class Texts
         Hero.Letho => "Savaş başında rakibin en güçlü birimi bütün savaş boyunca −%30.",
         Hero.Cerys => "Savaş başında satırına 4 güçlü bir Uzun Gemi çağırır.",
         Hero.Iorveth => "Pusudan inen birimlerin +%15.",
-        Hero.Philippa => "Savaştaki ilk Aard'ının etkisi iki kat.",
+        Hero.Philippa => "Savaştaki ilk Aard ya da Igni'sinin etkisi iki kat.",
         Hero.Regis => "Satırındaki Vampirlerin Kan Emme oranı +%25.",
         Hero.Menno => "Şifacı: en güçlü iki birimini hava, Kavurma ve Igni'den korur.",
         _ => ""
@@ -542,7 +544,7 @@ public static class Texts
         Hero.Letho => new[] { "En güçlü birim −%45.", "En güçlü birim −%60." },
         Hero.Cerys => new[] { "İki Uzun Gemi.", "Üç Uzun Gemi." },
         Hero.Iorveth => new[] { "Pusudan inenler +%25.", "Pusudan inenler +%40." },
-        Hero.Philippa => new[] { "İlk iki Aard iki kat.", "Her Aard iki kat." },
+        Hero.Philippa => new[] { "İlk iki Aard/Igni iki kat.", "İlk üç Aard/Igni iki kat." },
         Hero.Regis => new[] { "Kan Emme +%50.", "Kan Emme +%75." },
         Hero.Menno => new[] { "Üç birimi korur.", "Üç birimi korur, ayrıca bir birime diriliş (yanarsa yarı güçle döner)." },
         _ => new[] { "", "" }
@@ -554,9 +556,9 @@ public static class Texts
         Tag.Monster => new[] { "Canavarlar +1", "Canavarlar +2", "Canavarlar +3" },
         Tag.Soldier => new[] { "Askerler havada 2", "Askerler havadan etkilenmez", "Askerler +2, havadan etkilenmez" },
         Tag.Mage => new[] { "İşaretler +%25", "+1 Odak, işaretler +%50", "Savaş başına bir işaret bedava" },
-        Tag.Bandit => new[] { "Pusu yeri 3 kart", "Pusudan inen +%25", "Pusudan inen +%50 · Pusu Yrden'den etkilenmez" },
+        Tag.Bandit => new[] { $"Pusu yeri {Tuning.AmbushBase + 1} kart", $"Pusudan inen +%{Pct(Tuning.BanditLand[0] * 100)}", $"Pusudan inen +%{Pct(Tuning.BanditLand[1] * 100)} · Pusu Yrden'den etkilenmez" },
         Tag.Noble => new[] { "İlk yenileme bedava", "Round başı +1 altın", "Round başı +3 altın" },
-        Tag.Sailor => new[] { "İlk pencerede Denizciler +%30", "Denizciler +2", "Denizciler +3, ilk pencerede +%50" },
+        Tag.Sailor => new[] { "İlk pencerede Denizciler +%30", "Denizciler +2", "Denizciler +3, ilk pencerede +%40" },
         Tag.Knight => new[] { "Şövalyeler Igni ve bombalardan yarı etkilenir", "Şövalyeler +2", "Şövalye satırlarına +%15, Igni ve bombalara bağışık" },
         Tag.Vampire => new[] { "Kan Emme %75", "Yanan Vampir yarı güçle döner", "Kan Emme iki hedeften" },
         _ => new[] { "Cüceler bombalardan yarı etkilenir", "Cüceler +1, Kavurma'dan korunur", "Cücelerin satırına +%20" }

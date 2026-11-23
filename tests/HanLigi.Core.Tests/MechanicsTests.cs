@@ -310,15 +310,15 @@ public class MechanicsTests
     }
 
     [Fact]
-    public void Bandit_six_landing_bonus_fifty()
+    public void Bandit_six_landing_bonus()
     {
         var (a, b) = (Side("A", tags: (Tag.Bandit, 6)), Side("B"));
         var u = Hide(a, "elven_skirmisher", 2);
         Add(b, "ghoul", power: 1);
         var bt = Start(a, b);
         var o = Play(bt, WindowChoice.With(Array.Empty<Sign>(), null, new[] { u.Uid }), N);
-        Assert.Equal(3, Val(o, u));                  // Haydut 6: pusudan inen +%50: 2 → 3
-        Assert.Equal(3, bt.AmbushCap(a));
+        Assert.Equal(2.7m, Val(o, u));               // Haydut 6: pusudan inen +%35 (Denge 2): 2 → 2,7
+        Assert.Equal(Tuning.AmbushBase + 1, bt.AmbushCap(a));
     }
 
     [Fact]
@@ -822,6 +822,21 @@ public class MechanicsTests
         Assert.Equal(8, o1.ValueB);                          // −%20
         var o2 = Play(bt, C(Sign.Aard), N);
         Assert.Equal(9, o2.ValueB);                          // −%10
+    }
+
+    [Fact]
+    public void Philippa_doubles_igni_too_and_shares_the_count()
+    {
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "philippa", Row.Siege);
+        var f = Add(b, "fiend", Row.Close, power: 10);
+        var r = Add(b, "dethmold", Row.Ranged, power: 10);
+        var bt = Start(a, b);
+        var o1 = Play(bt, C(Sign.Igni), N);
+        Assert.Equal(0, Val(o1, f));                         // −%50 × 2
+        bt.Sides[0].Focus = 5;
+        var o2 = Play(bt, C(Sign.Igni), N);
+        Assert.Equal(5, Val(o2, r));                         // tek kullanım bitti: −%50
     }
 
     [Fact]
