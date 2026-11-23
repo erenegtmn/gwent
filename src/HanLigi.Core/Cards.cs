@@ -120,6 +120,8 @@ public static class CardSet
         U("vampire_bruxa", "Bruxa", 3, 5, Row.Close, Tag.Vampire, Ability.Drain);
         U("vampire_katakan", "Katakan", 4, 8, Row.Close, Tag.Vampire, Ability.Drain);
         U("plague_maiden", "Veba Kızı", 5, 10, Row.Close, Tag.Vampire, Ability.Drain);   // Vampir'in T5'i (2026-11-23)
+        // görsel orijinal W3 Gwent'inde yok: Gwent (Crimson Curse) kartından kırpıldı, assets/cards/vampire_dettlaff.png (2026-11-23)
+        U("vampire_dettlaff", "Dettlaff", 5, 12, Row.Close, Tag.Vampire, Ability.Drain);
         // Haydut (Scoia'tael)
         U("toruviel", "Toruviel", 1, 2, Row.Ranged, Tag.Bandit, Ability.Ambush);
         U("ciaran_aep_easnillien", "Ciaran", 2, 3, Row.Close, Tag.Bandit, Ability.Ambush, agile: true);
