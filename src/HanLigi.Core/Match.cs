@@ -422,8 +422,11 @@ public sealed class Match
         if (d.Ability == Ability.Ambush) yield return Zone.Ambush;
     }
 
-    /// <summary>Özel kartın hedef satırı seçilebilir mi (Boynuz, Kalkan).</summary>
-    public static bool Aimable(CardDef d) => d.Special is Special.Horn or Special.Shield;
+    /// <summary>Özel kartın hedef satırı seçilebilir mi (Boynuz, Kalkan, Mardroeme).</summary>
+    public static bool Aimable(CardDef d) => d.Special is Special.Horn or Special.Shield or Special.Mardroeme;
+
+    /// <summary>Oyuncunun Mardroeme'si hedefsizse hangi satıra işler (sahadaki Berserker gücü en çok olan satır).</summary>
+    public static Row MardroemeRow(PlayerState p) => Battle.MardroemeDefault(p.Cards.Where(c => c.Fielded).Select(c => (c.Def, c.Power, c.Row)));
 
     /// <summary>Hava kartının etkilediği satır (Ayaz yakın, Sis menzilli, Yağmur kuşatma); yoksa null.</summary>
     /// <summary>Hava kartının (masada gösterildiği) satırı; Fırtına Menzilli'de durur.</summary>
@@ -567,6 +570,7 @@ public sealed class Match
                 s.Specials.Add(c.Def.Special);
                 if (c.Aim is { } r && c.Def.Special == Special.Horn) s.HornAims.Add(r);
                 if (c.Aim is { } r2 && c.Def.Special == Special.Shield) s.ShieldAims.Add(r2);
+                if (c.Def.Special == Special.Mardroeme) s.MardroemeAims.Add(c.Aim ?? MardroemeRow(p));
                 continue;
             }
             var u = new BattleUnit { Uid = c.Uid, Def = c.Def, Star = c.Star, Power = c.Power, Row = c.Row ?? Row.Close };

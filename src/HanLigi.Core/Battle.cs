@@ -54,6 +54,8 @@ public sealed class BattleSide
     /// <summary>Hazırlıkta seçilmiş Boynuz / Kalkan satırları (aktivasyonun varsayılanı).</summary>
     public List<Row> HornAims { get; } = new();
     public List<Row> ShieldAims { get; } = new();
+    /// <summary>Hazırlıkta seçilmiş Mardroeme satırları (yalnız o satırın Berserker'ları dönüşür).</summary>
+    public List<Row> MardroemeAims { get; } = new();
     /// <summary>Depodaki kartlar (Çağrı için).</summary>
     public List<(CardDef Def, int Star)> Bench { get; } = new();
     public List<Potion> Potions { get; } = new();
@@ -181,7 +183,7 @@ public sealed class Battle
         if (u.Has(Tag.Monster)) v += s.Th(Tag.Monster);
         if (u.Has(Tag.Soldier) && s.Th(Tag.Soldier) >= 3) v += 2;
         if (u.Has(Tag.Dwarf) && s.Th(Tag.Dwarf) >= 2) v += 1;
-        if (u.Has(Tag.Sailor) && s.Th(Tag.Sailor) >= 2) v += s.Th(Tag.Sailor) >= 3 ? 3 : 2;
+        if (u.Has(Tag.Sailor) && s.Th(Tag.Sailor) >= 2) v += Tuning.SailorFlat[s.Th(Tag.Sailor) >= 3 ? 1 : 0];
         if (u.Has(Tag.Knight) && s.Th(Tag.Knight) >= 2) v += 2;
         if (mirror && !u.Token && u.Def.Ability == Ability.Mirror)
         {
@@ -197,6 +199,16 @@ public sealed class Battle
         var s = Sides[side];
         decimal sum = s.In(r).Sum(u => Value(s, u));
         return Tuning.ApplyPct(sum, 0.5 * s.Act.Horns.Count(h => h == r));
+    }
+
+    /// <summary>Mardroeme'nin varsayılan satırı: Berserker gücü en çok olan satır (yoksa Yakın).</summary>
+    public static Row MardroemeDefault(IEnumerable<(CardDef Def, int Power, Row? Row)> units)
+    {
+        var sums = new int[3];
+        foreach (var (d, p, r) in units) if (r is { } rr && d.Ability == Ability.Berserk) sums[(int)rr] += p;
+        var best = 0;
+        for (var i = 1; i < 3; i++) if (sums[i] > sums[best]) best = i;
+        return (Row)best;
     }
 
     // ---------- aktivasyon ----------
@@ -269,14 +281,17 @@ public sealed class Battle
                 if ((m.Star >= 3 || mt >= 2) && s.Units.Where(u => !u.IsHero && !u.Protected).OrderByDescending(u => u.Power).FirstOrDefault() is { } rv) rv.Revive = true;
             }
         }
-        // 2b. Mardroeme: Berserker'lar dönüşür
+        // 2b. Mardroeme: yalnız konduğu satırdaki Berserker'lar dönüşür (hedef seçilmemişse Berserker gücü en çok olan satır)
         foreach (var s in Sides)
-            if (s.Count(Special.Mardroeme) > 0)
-                foreach (var u in s.Units.Concat(s.Ambush).Where(u => !u.Token && u.Def.Ability == Ability.Berserk))
+        {
+            var rows = s.MardroemeAims.Take(s.Count(Special.Mardroeme)).ToList();
+            while (rows.Count < s.Count(Special.Mardroeme)) rows.Add(MardroemeDefault(s.Units.Select(u => (u.Def, u.Power, (Row?)u.Row))));
+            foreach (var u in s.Units.Where(u => !u.Token && u.Def.Ability == Ability.Berserk && rows.Contains(u.Row)))
                 {
                     u.Power *= Tuning.BerserkMult;
                     PreLog.Add($"{s.Name}: Mardroeme ile {u.Def.Name} dönüştü ({u.Power}).");
                 }
+        }
         // 3. hava
         foreach (var s in Sides)
             foreach (var sp in s.Specials)
@@ -468,8 +483,18 @@ public sealed class Battle
                 ambush[i] = Array.Empty<int>();
                 hit = true;
             }
-            if (!hit) log.Add($"{Sides[1 - i].Name} Yrden attı, boşa gitti.");
-            fx.Add(new FxEvent("yrden", 1 - i, 0, hit));
+            // Tuzak (2026-11-24): pusu inişi de Aard da tutulmadıysa Yrden boşa gitmez, rakibin bu satırını yavaşlatır (pususuz maçta da işe yarasın)
+            var aardCaught = Tuning.YrdenBlocksAard && ch[i].Signs.Contains(Sign.Aard);
+            var trap = 0;
+            if (!hit && !aardCaught && Tuning.YrdenTrapPct > 0)
+            {
+                var tp = Tuning.YrdenTrapPct * Amp(1 - i);
+                foe[i] -= tp; mods.Add((i, "Yrden tuzağı", -tp));
+                trap = (int)Math.Round(tp * 100);
+                log.Add($"{Sides[1 - i].Name} Yrden tuzağı: {s.Name} satırı {AmpNote(1 - i, Tuning.YrdenTrapPct * 100)}.");
+            }
+            else if (!hit && !aardCaught) log.Add($"{Sides[1 - i].Name} Yrden attı, boşa gitti.");
+            fx.Add(new FxEvent("yrden", 1 - i, trap, hit));
         }
         // 3. pusu inişleri (son pencerede kalanlar kendiliğinden iner)
         for (var i = 0; i < 2; i++)
@@ -646,7 +671,7 @@ public sealed class Battle
             if (s.Th(Tag.Dwarf) >= 3 && s.In(row).Any(u => u.Has(Tag.Dwarf))) { own[i] += 0.2; mods.Add((i, "Cüce sinerjisi", 0.2)); }
             if (s.Th(Tag.Knight) >= 3 && s.In(row).Any(u => u.Has(Tag.Knight))) { own[i] += 0.15; mods.Add((i, "Şövalye sinerjisi", 0.15)); }
             if (Window == 0 && s.Th(Tag.Sailor) >= 1)
-                foreach (var u in s.In(row).Where(u => u.Has(Tag.Sailor))) Pct(u, s.Th(Tag.Sailor) >= 3 ? 0.4 : 0.3);
+                foreach (var u in s.In(row).Where(u => u.Has(Tag.Sailor))) Pct(u, Tuning.SailorFirst[s.Th(Tag.Sailor) >= 3 ? 1 : 0]);
             var horns = s.Act.Horns.Count(h => h == row);
             if (horns > 0) { own[i] += 0.5 * horns; mods.Add((i, horns > 1 ? $"Boynuz ×{horns}" : "Boynuz", 0.5 * horns)); }
         }

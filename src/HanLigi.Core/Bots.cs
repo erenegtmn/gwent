@@ -200,7 +200,9 @@ public static class HanBot
         }
         Consider(Sign.Aard, w * 0.10 * est - c);
         Consider(Sign.Quen, w * pi * 0.22 * own);
-        Consider(Sign.Yrden, w * (b.AmbushSeen[side] is > 0 ? 0.4 : 0.15) * 0.2 * own - c);
+        // Yrden: pusu inişini / Aard'ı tutar; ikisi de olmazsa tuzak rakibin satırına Aard kadar vurur (2 Odak)
+        var pa = op.Focus >= 1 ? 0.3 : 0;
+        Consider(Sign.Yrden, w * Math.Max((b.AmbushSeen[side] is > 0 ? 0.4 : 0.15) * 0.2 * own, Tuning.YrdenTrapPct * est + pa * 0.10 * own) - 2 * c);
         Consider(Sign.Igni, w * 0.22 * est * (1 - pq) - 2 * c);
 
         Potion? potion = null;

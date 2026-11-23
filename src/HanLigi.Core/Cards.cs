@@ -93,10 +93,10 @@ public static class CardSet
         U("fringilla_vigo", "Fringilla Vigo", 5, 10, Row.Ranged, Tag.Mage, Ability.Mirror);
         // ---- Denizci (Skellige klanları; Faz 1, 2026-11-23) ----
         U("clan_heymaey_skald", "Heymaey Ozanı", 1, 2, Row.Close, Tag.Sailor, Ability.Bard);
-        U("young_berserker", "Genç Berserker", 1, 2, Row.Ranged, Tag.Sailor, Ability.Berserk);
+        U("young_berserker", "Genç Berserker", 2, 2, Row.Ranged, Tag.Sailor, Ability.Berserk);
         U("clan_drummond_shield_maiden", "Drummond Kalkan Kızı", 2, 4, Row.Close, Tag.Sailor, Ability.Bond);
         U("light_longship", "Hafif Uzun Gemi", 2, 3, Row.Ranged, Tag.Sailor, Ability.Summon);
-        U("berserker", "Berserker", 2, 4, Row.Close, Tag.Sailor, Ability.Berserk);
+        U("berserker", "Berserker", 3, 4, Row.Close, Tag.Sailor, Ability.Berserk);
         U("clan_brokvar_archer", "Brokvar Okçusu", 3, 6, Row.Ranged, Tag.Sailor, Ability.Plunder);
         U("clan_dimun_pirate", "Dimun Korsanı", 3, 4, Row.Ranged, Tag.Sailor, Ability.RowScorch);
         U("clan_an_craite_warrior", "an Craite Savaşçısı", 4, 7, Row.Close, Tag.Sailor, Ability.Bond);
@@ -153,7 +153,7 @@ public static class CardSet
         S("shield", "Kalkan Alayı", 4, Special.Shield, "decoy");
         S("scorch", "Kavurma", 4, Special.Scorch, "scorch");
         S("mardroeme", "Mardroeme", 3, Special.Mardroeme, "mardroeme");
-        S("storm", "Skellige Fırtınası", 4, Special.Storm, "skellige_storm");
+        S("storm", "Skellige Fırtınası", 5, Special.Storm, "skellige_storm");   // iki satır kapatır: kahraman kademesinde (2026-11-24)
         // ---- Kahramanlar (18-22; evolve olmaz) ----
         H("geralt", "Rivyalı Geralt", 22, Row.Close, Hero.Geralt, "geralt_of_rivia", Tag.Soldier);
         H("ciri", "Cirilla", 20, Row.Close, Hero.Ciri, "cirilla_fiona_elen_riannon", Tag.Bandit, Ability.Ambush);
@@ -245,6 +245,8 @@ public static class Tuning
     /// dokunmaz). Meta 4: son pencerede bütün pusuyu kesen Yrden açık ara en güçlüydü (hep Yrden ort. sıra 2,4); 3-4 de baskındı.</summary>
     public static int YrdenMode = 5;
     public static int YrdenCost = 2;
+    /// <summary>Yrden tuzağı: Yrden ne pusu inişini ne Aard'ı tuttuysa rakibin satırına bu yüzde (Aard gibi okul/Büyücü ile büyür; 0 = eski kural, boşa gider).</summary>
+    public static double YrdenTrapPct = 0.10;
     /// <summary>YrdenMode 3: simya + Aard kesilir, pusudan inen kartlar bu kadar zayıflar (iptal yerine).</summary>
     public static double YrdenAmbushPct = 0.5;
     /// <summary>Temel pusu yeri (Haydut 1. eşik +1). Denge 3: 2 → 1 (Haydut kazananların %32si idi).</summary>
@@ -290,8 +292,11 @@ public static class Tuning
     public const int PlunderCap = 2;
     /// <summary>Yakıcı: rakibin aynı satırının toplamı en az bu kadarsa en güçlü birimi yanar.</summary>
     public const int RowScorchMin = 14;
-    /// <summary>Dönüşüm: Mardroeme ile Berserker gücü çarpanı.</summary>
-    public const int BerserkMult = 3;
+    /// <summary>Dönüşüm: Mardroeme'nin satırındaki Berserker'ın güç çarpanı (2026-11-24: 3 → 2; Berserker'lar T2/T3'e çıktı).</summary>
+    public const int BerserkMult = 2;
+    /// <summary>Denizci eşikleri: ilk pencere yüzdesi [1-2. eşik, 3. eşik] ve düz güç [2. eşik, 3. eşik] (2026-11-24: %30/%40, +2/+3'ten indi).</summary>
+    public static readonly double[] SailorFirst = { 0.20, 0.30 };
+    public static readonly int[] SailorFlat = { 1, 2 };
     /// <summary>Meydan Okuma: kendisinden güçlü rakip birime yüzde.</summary>
     public const double ChallengePct = 0.25;
     /// <summary>Haydut 2. / 3. eşik: pusudan inen birimin yüzdesi (Denge 2: %25 / %50'den indi).</summary>
@@ -415,7 +420,7 @@ public static class Texts
             Sign.Aard => $"1 Odak · Rakibin bu satırı {Live(10, amp, why)}. Kahramanlara da işler; Yrden tutar.",
             Sign.Igni => $"2 Odak · Rakibin bu satırdaki en güçlü kartı {Live(50, amp, why)}. Quen engeller; Kara Kan kendine yansıtır.",
             Sign.Quen => "1 Odak · Sana atılan Igni'yi engeller; engellerse Odak geri gelir.",
-            _ => "2 Odak · Rakibin bu penceredeki Aard'ını keser ve pusudan indirmek istediği kartı indirtmez. İlk iki satırda kart pusuda kalır, sonraki satırda yeniden indirilebilir; son satırda ise hiç inemez.",
+            _ => $"2 Odak · Rakibin bu penceredeki Aard'ını keser ve pusudan indirmek istediği kartı indirtmez. İlk iki satırda kart pusuda kalır, sonraki satırda yeniden indirilebilir; son satırda ise hiç inemez. İkisini de tutmazsa tuzak rakibin bu satırını {Live(Tuning.YrdenTrapPct * 100, amp, why)} yavaşlatır.",
         };
     }
 
@@ -490,7 +495,7 @@ public static class Texts
         Ability.DeathEcho => "Ölüm Yankısı: yok olunca satırına bir hayalet bırakır (2 / 3 / 5).",
         Ability.Mirror => "Yansıma: satırındaki en güçlü birimin yarısı kadar güce çıkar.",
         Ability.Plunder => "Yağma: satırını kazanırsan +1 altın (savaş başına toplam en çok 2).",
-        Ability.Berserk => "Dönüşüm: sahanda Mardroeme varsa savaş başında gücü ×3 olur.",
+        Ability.Berserk => $"Dönüşüm: Mardroeme'nin konduğu satırdaysa savaş başında gücü ×{Tuning.BerserkMult} olur.",
         Ability.RowScorch => $"Yakıcı: savaş başında rakibin aynı satırının toplamı en az {Tuning.RowScorchMin} ise oradaki en güçlü birim yanar (kahraman, Şifacı ve Kalkan korur).",
         Ability.Challenge => "Meydan Okuma: satırının penceresinde rakibin aynı satırdaki en güçlü birimi bu karttan güçlüyse −%25.",
         Ability.Drain => "Kan Emme: satırının penceresinde rakibin aynı satırdaki en zayıf biriminin gücünün yarısını alır (ondan düşer, kendine ekler).",
@@ -507,7 +512,7 @@ public static class Texts
         Special.Horn => "Boynuz: seçtiğin satıra +%50.",
         Special.Shield => "Kalkan: seçtiğin satırını hava ve Kavurma'dan korur.",
         Special.Storm => "Skellige Fırtınası: iki tarafın Menzilli ve Kuşatma satırlarındaki birimler 1 olur.",
-        Special.Mardroeme => "Mardroeme: savaş başında sahandaki Berserker'lar dönüşür (gücü ×3). Berserker yoksa etkisiz.",
+        Special.Mardroeme => $"Mardroeme: seçtiğin satırdaki Berserker'lar savaş başında dönüşür (gücü ×{Tuning.BerserkMult}). O satırda Berserker yoksa etkisiz.",
         _ => ""
     };
 
@@ -558,7 +563,7 @@ public static class Texts
         Tag.Mage => new[] { "İşaretler +%25", "+1 Odak, işaretler +%50", "Savaş başına bir işaret bedava" },
         Tag.Bandit => new[] { $"Pusu yeri {Tuning.AmbushBase + 1} kart", $"Pusudan inen +%{Pct(Tuning.BanditLand[0] * 100)}", $"Pusudan inen +%{Pct(Tuning.BanditLand[1] * 100)} · Pusu Yrden'den etkilenmez" },
         Tag.Noble => new[] { "İlk yenileme bedava", "Round başı +1 altın", "Round başı +3 altın" },
-        Tag.Sailor => new[] { "İlk pencerede Denizciler +%30", "Denizciler +2", "Denizciler +3, ilk pencerede +%40" },
+        Tag.Sailor => new[] { $"İlk pencerede Denizciler +%{Pct(Tuning.SailorFirst[0] * 100)}", $"Denizciler +{Tuning.SailorFlat[0]}", $"Denizciler +{Tuning.SailorFlat[1]}, ilk pencerede +%{Pct(Tuning.SailorFirst[1] * 100)}" },
         Tag.Knight => new[] { "Şövalyeler Igni ve bombalardan yarı etkilenir", "Şövalyeler +2", "Şövalye satırlarına +%15, Igni ve bombalara bağışık" },
         Tag.Vampire => new[] { "Kan Emme %75", "Yanan Vampir yarı güçle döner", "Kan Emme iki hedeften" },
         _ => new[] { "Cüceler bombalardan yarı etkilenir", "Cüceler +1, Kavurma'dan korunur", "Cücelerin satırına +%20" }

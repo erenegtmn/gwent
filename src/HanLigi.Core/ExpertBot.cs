@@ -28,6 +28,11 @@ public static class ExpertBot
         public static HashSet<Special>? Allowed;
         /// <summary>Sahadaki özel kart başına kazanma şansı payı (ölçümle seçilir).</summary>
         public static double SpecialMargin = 0.03;
+        /// <summary>Yön değiştirme (<see cref="Pivot"/>): en erken round, en az yatırım, eski sınıfa göre oran.</summary>
+        public static int PivotRound = 4;
+        /// <summary>Pencere kararı: 0 klasik (HanBot, gürültüsüz), 1 <see cref="SmartWindow"/> (2026-11-24).</summary>
+        public static int WindowMode = 1;
+        public static double PivotMin = 4, PivotRatio = 1.4;
     }
 
     /// <summary>
@@ -66,14 +71,52 @@ public static class ExpertBot
         return build;
     }
 
+    /// <summary>
+    /// Sınıflara yatırım: sahip olunan her farklı kart (açık sınıflarda) kademesi ve kopya sayısıyla tartılır; kahraman ağır sayar
+    /// (kahramanın basamakları kendi sınıfının eşiğine bağlı).
+    /// </summary>
+    public static Dictionary<Tag, double> Commitment(Match m, PlayerState p)
+    {
+        var d = new Dictionary<Tag, double>();
+        foreach (var g in p.Cards.Where(c => c.Def.IsUnit).GroupBy(c => c.Def.Id))
+        {
+            var def = g.First().Def;
+            var copies = g.Sum(c => c.Star == 1 ? 1 : c.Star == 2 ? 3 : 9);
+            var w = def.IsHero ? 3.0 : 1 + 0.25 * def.Tier + 0.4 * Math.Min(copies - 1, 4);
+            foreach (var t in def.Tags) if (m.ActiveTags.Contains(t)) d[t] = d.GetValueOrDefault(t) + w;
+        }
+        return d;
+    }
+
+    /// <summary>
+    /// Duruma göre yön (2026-11-24): bot başta seçtiği düzene körü körüne bağlı kalmaz. 4. round'dan sonra eline gelen kartlar
+    /// (ve kahramanı) başka bir açık sınıfta belirgin biçimde ağır basıyorsa o sınıfa döner; sınıfsız düzenler (ekonomi, seviye,
+    /// Boynuz, casus...) kendi tarzını korur ama en güçlü sınıfını da kovalar. Durumdan türetilir (hafızasız): online kopyalarda aynı.
+    /// </summary>
+    public static Build? Pivot(Match m, PlayerState p, Build? build)
+    {
+        if (m.Round < K.PivotRound) return build;
+        var com = Commitment(m, p);
+        if (com.Count == 0) return build;
+        var (best, bv) = com.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).Select(kv => (kv.Key, kv.Value)).First();
+        var cur = build?.Tag is { } bt ? com.GetValueOrDefault(bt) : 0;
+        if (build?.Tag == best || bv < K.PivotMin || bv < cur * K.PivotRatio + 1) return build;
+        var plain = Meta.Builds.FirstOrDefault(b => b.Tag == best && b.Abilities == null && b.Row == null && b.SpecialBonus == 0) ?? Meta.Builds.First(b => b.Tag == best);
+        if (build == null || build.Tag != null) return plain;
+        var prefer = (build.Prefer ?? Array.Empty<Special>()).Concat(plain.Prefer ?? Array.Empty<Special>()).Distinct().ToArray();
+        return build with { Tag = best, Prefer = prefer.Length > 0 ? prefer : null };   // satır eğilimi (Menzilli/Kuşatma hattı) korunur
+    }
+
     [ThreadStatic] private static Build? _b;
 
     // ---------- hazırlık ----------
 
-    public static void Prep(Match m, int pid, Random rng, Build? build)
+    /// <param name="adapt">Duruma göre yön değiştirsin mi (<see cref="Pivot"/>). Oyunda açık; meta ölçümü düzeni sabit tutar.</param>
+    public static void Prep(Match m, int pid, Random rng, Build? build, bool adapt = true)
     {
         var old = _b;
         build = Effective(m, pid, build);
+        if (adapt) build = Pivot(m, m.Players[pid], build);
         _b = build;
         try { Prep(m, pid, rng); }
         finally { _b = old; }
@@ -417,10 +460,93 @@ public static class ExpertBot
 
     // ---------- savaş ----------
 
+    /// <summary>
+    /// Pencere kararı (2026-11-24). Meta ölçümünde eski karar ("Uyarlanır", ort. sıra 4,53) "hep Aard"tan (4,05) ve "Igni
+    /// öncelikli"den (4,09) kötüydü: Odak biriktiriyor, savaş sonunda Odak artıyordu, Aard'ı neredeyse hiç seçmiyordu (%2).
+    /// Bu karar her işaretin satıra beklenen etkisini (puan) Odak bedeliyle tartar, Odak'ı kalan pencerelere yayar ama
+    /// biriktirmez; rakibin olası cevabını (Quen, Yrden) yalnız Odak'ından tahmin eder (gizli bilgi yok).
+    /// </summary>
+    public static WindowChoice SmartWindow(Battle b, int side, Random rng)
+    {
+        if (b.Pve && b.NoDamage && b.Sides[side].PlayerId < 0) return WindowChoice.None;
+        var me = b.Sides[side];
+        var op = b.Sides[1 - side];
+        var row = b.CurrentRow;
+        var w = b.Window;
+        var own = (double)b.PlainRow(side, row);
+        var seen = Enumerable.Range(0, w).Select(i => (double)op.RowValues[i]).ToList();
+        var myAvg = Enum.GetValues<Row>().Average(r => (double)b.PlainRow(side, r));
+        var est = seen.Count > 0 ? 0.6 * seen.Average() + 0.4 * myAvg : myAvg;
+        var spied = b.Revealed[side].Where(x => x.Zone == Texts.Name(row)).Select(x => (double)Tuning.Power(x.Def, x.Star)).ToList();
+        est = Math.Max(Math.Max(1, est), spied.Sum());
+        var (mine, theirs) = (me.Points, op.Points);
+        var last = w == 2;
+        var dead = last && Math.Abs(mine - theirs) == 2;
+        if (dead) return Fallback(b, side, WindowChoice.None);
+        var decisive = (last && mine == theirs) || (w == 1 && (mine == 1 || theirs == 1));
+        var margin = (own - est) / Math.Max(4, est);
+        var remaining = 3 - w;
+        // Odak: belirleyici ve son pencerede hepsi; yoksa bir sonraki pencereye en az 1 bırak (kaybedilen satır +1 de getirir)
+        var budget = last || decisive ? me.Focus : Math.Max(1, me.Focus - (remaining > 1 ? 1 : 0));
+        // satır umutsuz ya da çok rahatsa işaret boşa: Odak sonraki pencereye
+        if (!last && !decisive && Math.Abs(margin) > 0.9) budget = 0;
+        var amp = Texts.SignAmp(me.School, me.Th(Tag.Mage)).Amp;
+        var strongest = Math.Max(spied.DefaultIfEmpty(0).Max(), est * 0.4);
+        var ownStrongest = b.Sides[side].In(row).Select(u => (double)b.Value(me, u)).DefaultIfEmpty(0).Max();
+        var pQuen = op.Focus >= 1 ? 0.3 : 0;
+        var pIgni = op.Focus >= 2 ? 0.35 : 0;
+        var pAard = op.Focus >= 1 ? 0.3 : 0;
+        var pYrden = op.Focus >= 2 ? 0.08 : 0;
+        var ambushThreat = b.AmbushSeen[side] is > 0 || (last && op.Ambush.Count > 0);
+        // satır farkı küçüldükçe etki daha değerli (kazanmayı çevirir)
+        var swing = 0.5 + Math.Exp(-Math.Pow(margin / 0.5, 2));
+        var vals = new Dictionary<Sign, double>
+        {
+            [Sign.Aard] = 0.10 * amp * est * (1 - pYrden),
+            [Sign.Igni] = 0.5 * amp * strongest * (1 - pQuen),
+            [Sign.Quen] = pIgni * 0.5 * ownStrongest * (margin > -0.2 ? 1 : 0.4),
+            [Sign.Yrden] = ambushThreat ? 0.45 * est : Tuning.YrdenTrapPct * amp * est + pAard * 0.10 * own,
+        };
+        Sign? sign = null;
+        var best = 0.0;
+        foreach (var (sg, v) in vals)
+        {
+            var c = new WindowChoice(new[] { sg });
+            var cost = b.Cost(side, c);
+            if (cost > budget || !b.Valid(side, c)) continue;
+            // Odak'ın fırsat bedeli: kalan pencere varken pahalı işaret biraz cezalı
+            var score = v * swing - cost * (last ? 0 : 0.04 * est) + rng.NextDouble() * 0.01;
+            if (score > best) { best = score; sign = sg; }
+        }
+
+        Potion? potion = null;
+        if (me.Potions.Count > 0 && (decisive || last || Math.Abs(margin) < 0.35))
+        {
+            if (b.Weather.Contains(row) && me.Potions.Contains(Potion.Swallow)) potion = Potion.Swallow;
+            else if (margin > 0 && op.Focus >= 2 && me.Potions.Contains(Potion.BlackBlood)) potion = Potion.BlackBlood;
+            else foreach (var x in new[] { Potion.NorthernWind, Potion.Thunderbolt, Potion.DancingStar }) if (me.Potions.Contains(x)) { potion = x; break; }
+        }
+        var ambush = new List<int>();
+        if (me.Ambush.Count > 0 && last) ambush.AddRange(me.Ambush.Select(u => u.Uid));
+        else if (me.Ambush.Count > 0 && (decisive || (margin < 0.15 && margin > -0.6)))
+            ambush.Add(me.Ambush.OrderByDescending(u => u.Power).First().Uid);
+        return Fallback(b, side, WindowChoice.With(sign is { } s2 ? new[] { s2 } : Array.Empty<Sign>(), potion, ambush));
+    }
+
+    private static WindowChoice Fallback(Battle b, int side, WindowChoice choice)
+    {
+        if (b.Valid(side, choice)) return choice;
+        var c = WindowChoice.With(choice.Signs, null, choice.AmbushUids);
+        if (b.Valid(side, c)) return c;
+        c = WindowChoice.With(Array.Empty<Sign>(), choice.Potion, choice.AmbushUids);
+        return b.Valid(side, c) ? c : WindowChoice.None;
+    }
+
     /// <summary>Pencere kararı (açık bilgiyle). Rastgelelik yalnız eşitlikleri bozar.</summary>
     public static WindowChoice Window(Battle b, int side, Random rng)
     {
         if (b.Pve && b.NoDamage && b.Sides[side].PlayerId < 0) return WindowChoice.None;
+        if (K.WindowMode == 1) return SmartWindow(b, side, rng);
         if (!K.ExpertWindows) return HanBot.Window(b, side, rng, K.Noise);   // ölçüm: klasik pencere kararı daha iyi çıktı
         var me = b.Sides[side];
         var op = b.Sides[1 - side];
@@ -462,6 +588,8 @@ public static class ExpertBot
         if (margin > -0.1) Consider(Sign.Quen, importance * opIgniThreat * (own * 0.25) / Math.Max(3, own) * 10 * Math.Max(close, 0.5) - 0.4);
         if (op.Potions.Count > 0 || b.AmbushSeen[side] is > 0 || (w == 2 && op.Ambush.Count > 0))
             Consider(Sign.Yrden, importance * close * (op.Potions.Count > 0 ? 2.2 : 1.6) - 0.6);
+        else   // tuzak: Aard kadar vurur, rakibin Aard'ını da tutar (2 Odak)
+            Consider(Sign.Yrden, importance * close * (est * Tuning.YrdenTrapPct + 1) / Math.Max(3, est) * 10 - 1.1 + (opAny ? 0.3 : 0));
 
         Potion? potion = null;
         if (me.Potions.Count > 0 && importance >= 1 && close > 0.35)

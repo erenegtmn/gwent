@@ -312,7 +312,7 @@ public sealed partial class HanView
         // özel kartlar: satırların sol sütununda, etkilediği satırın hizasında. Boynuz/Kalkan'ın satırını oyuncu seçer (savaşta
         // varsayılan hedef olur); hava kartı kendi satırında durur (Ayaz yakın, Sis menzilli, Yağmur kuşatma); Kavurma ortada.
         var specials = Me.Cards.Where(c => c.Zone == Zone.Special).ToList();
-        Row SpecialRow(OwnedCard c) => c.Aim ?? Match.WeatherRow(c.Def.Special) ?? (Match.Aimable(c.Def) ? preview.Sides[0].Act.Horns.Concat(preview.Sides[0].Act.Shields).FirstOrDefault() : Row.Ranged);
+        Row SpecialRow(OwnedCard c) => c.Aim ?? Match.WeatherRow(c.Def.Special) ?? (c.Def.Special == Special.Mardroeme ? Match.MardroemeRow(Me) : Match.Aimable(c.Def) ?preview.Sides[0].Act.Horns.Concat(preview.Sides[0].Act.Shields).FirstOrDefault() : Row.Ranged);
         if (sel != null && !sel.Def.IsUnit)
         {
             var uid = sel.Uid;
@@ -324,7 +324,7 @@ public sealed partial class HanView
                 var rr = r;
                 var ok = M.CanMove(Session.Me, uid, Zone.Special, aimable ? rr : null);
                 var over = M.WouldOverflow(Session.Me, uid, Zone.Special);
-                var label = !ok ? "Konamaz" : (aimable ? (sel.Def.Special == Special.Horn ? "Boynuz\nburaya" : "Kalkan\nburaya") : "Özel\nkart") + (over ? "\nsınır aşılır" : "");
+                var label = !ok ? "Konamaz" : (aimable ? (sel.Def.Special switch { Special.Horn => "Boynuz", Special.Mardroeme => "Mardroeme", _ => "Kalkan" }) + "\nburaya" : "Özel\nkart") + (over ? "\nsınır aşılır" : "");
                 BoardZone(new Rect(ColX, RowY(true, rr), ColW, RowH), "han-move:" + Zone.Special + (aimable ? ":" + (int)rr : ""), label,
                     () => Do(() => Session.Act(HanActKind.Move, uid, (int)Zone.Special, aimable ? (int)rr : -1)), ok,
                     over ? OverTip : null);
@@ -780,11 +780,13 @@ public sealed partial class HanView
             // birleşme uyarısı: kartın sağ üst köşesinde (tezgâh kartı hep 1★, köşe boş). Kartla birlikte süzülür; kartın üstünde
             // dururken üst şeritteki rakip satırının üstüne biniyordu. Zemini koyu ve opak, gölgeli: yarı saydam yeşil zeminde yazı
             // kart resmine karışıp okunmuyordu.
-            var owned = Me.Cards.Count(c => c.Def == d && c.Star == 1);
-            if (owned > 0 && d.IsUnit && !d.IsHero)
+            // sahadaki ve depodaki bütün kopyalar sayılır (yalnız 1★ sayılınca sahadaki 2★ kartın eşi markete gelince uyarı çıkmıyordu)
+            var copies = Me.Cards.Where(c => c.Def == d).ToList();
+            if (copies.Count > 0 && d.IsUnit && !d.IsHero)
             {
-                var merge = owned == 2;
-                var chip = HanUi.Chip(merge ? "★ Birleşir" : $"sende {owned}", merge ? HanUi.Good : HanUi.Muted, 11);
+                var merge = copies.Count(c => c.Star == 1) == 2;
+                var have = string.Join(" ", copies.GroupBy(c => c.Star).OrderByDescending(g => g.Key).Select(g => (g.Count() > 1 ? g.Count() + "×" : "") + g.Key + "★"));
+                var chip = HanUi.Chip(merge ? "★ Birleşir" : $"sende {have}", merge ? HanUi.Good : HanUi.Muted, 11);
                 chip.Padding = new Thickness(5, 2, 5, 3);   // güç madalyonunun üstüne binmesin
                 chip.Background = merge
                     ? new LinearGradientBrush(Color.FromRgb(0x1d, 0x33, 0x14), Color.FromRgb(0x0e, 0x18, 0x0a), 90)

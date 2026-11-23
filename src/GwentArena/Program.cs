@@ -115,6 +115,14 @@ if (args.Length > 0 && args[0] == "han-bots")
     var abi = Array.IndexOf(args, "--ab");
     if (abi >= 0) { abA = args[abi + 1] == "none" ? null : byId[args[abi + 1]]; abB = args[abi + 2] == "none" ? null : byId[args[abi + 2]]; }
     var builds = args.Contains("--builds");
+    var adaptAb = args.Contains("--adapt-ab");
+    if (Array.IndexOf(args, "--pivot") is var pvi and >= 0)   // --pivot round,min,oran
+    {
+        var pv = args[pvi + 1].Split(',');
+        HanLigi.ExpertBot.K.PivotRound = int.Parse(pv[0]);
+        HanLigi.ExpertBot.K.PivotMin = double.Parse(pv[1], System.Globalization.CultureInfo.InvariantCulture);
+        HanLigi.ExpertBot.K.PivotRatio = double.Parse(pv[2], System.Globalization.CultureInfo.InvariantCulture);
+    }   // çift koltuklar duruma göre yön değiştirir, tekler başladığı düzende kalır
     var check = args.Contains("--check");   // özel kart kararını gerçek rakibe karşı sına, idman sahasının gücünü yaz (yavaş)
     if (Array.IndexOf(args, "--only") is var oi and >= 0) HanLigi.ExpertBot.K.Allowed = args[oi + 1].Split(',').Select(Enum.Parse<HanLigi.Special>).ToHashSet();
     if (Array.IndexOf(args, "--margin") is var mgi and >= 0) HanLigi.ExpertBot.K.SpecialMargin = double.Parse(args[mgi + 1], System.Globalization.CultureInfo.InvariantCulture);
@@ -135,7 +143,7 @@ if (args.Length > 0 && args[0] == "han-bots")
         HanLigi.ExpertBot.Build? BuildOf(int pid) => abi >= 0 ? (pid % 2 == 0 ? abA : abB) : builds ? HanLigi.ExpertBot.BuildFor(m.Seed, pid) : null;
         for (var guard = 0; guard < 80 && m.Phase != HanLigi.Phase.Finished; guard++)
         {
-            foreach (var p in m.Alive.ToList()) HanLigi.ExpertBot.Prep(m, p.Id, rng, BuildOf(p.Id));
+            foreach (var p in m.Alive.ToList()) HanLigi.ExpertBot.Prep(m, p.Id, rng, BuildOf(p.Id), adapt: !adaptAb || p.Id % 2 == 0);
             if (m.Phase == HanLigi.Phase.Prep) m.ForceLock();
             if (check && m.Round is 4 or 7 or 10 or 14)
                 lock (lk)
@@ -157,7 +165,7 @@ if (args.Length > 0 && args[0] == "han-bots")
                             if (c.Fielded) { sp[c.Def.Special] = sp.GetValueOrDefault(c.Def.Special) + 1; heldSpecial++; }
                         }
                         foreach (var c in p.Cards.Where(c => c.Fielded && c.Def.IsUnit && c.Row != null)) rowsPow[(int)c.Row!.Value] += c.Power;
-                        var bk = BuildOf(p.Id)?.Id ?? "balanced(null)";
+                        var bk = adaptAb ? (p.Id % 2 == 0 ? "uyarlanır" : "sabit düzen") : BuildOf(p.Id)?.Id ?? "balanced(null)";
                         if (!per.TryGetValue(bk, out var pv)) per[bk] = pv = new double[10];
                         pv[0]++;
                         foreach (var c in p.Cards.Where(c => c.Fielded && c.Def.IsUnit && c.Row != null)) pv[1 + (int)c.Row!.Value] += c.Power;
@@ -192,7 +200,7 @@ if (args.Length > 0 && args[0] == "han-bots")
         lock (lk)
             foreach (var p in m.Players)
             {
-                var k = BuildOf(p.Id)?.Id ?? "balanced(null)";
+                var k = adaptAb ? (p.Id % 2 == 0 ? "uyarlanır" : "sabit düzen") : BuildOf(p.Id)?.Id ?? "balanced(null)";
                 if (!places.TryGetValue(k, out var l)) places[k] = l = new();
                 l.Add(p.Place);
             }
@@ -233,6 +241,12 @@ if (args.Length > 0 && args[0] == "han-meta")
     if (Array.IndexOf(args, "--ambush-base") is var ab and >= 0) HanLigi.Tuning.AmbushBase = int.Parse(args[ab + 1]);
     if (args.Contains("--no-yrden-potion")) HanLigi.Tuning.YrdenPotion = false;
     if (Array.IndexOf(args, "--yrden-amb") is var ya and >= 0) HanLigi.Tuning.YrdenAmbushPct = double.Parse(args[ya + 1], System.Globalization.CultureInfo.InvariantCulture);
+    if (Array.IndexOf(args, "--yrden-trap") is var yt and >= 0) HanLigi.Tuning.YrdenTrapPct = double.Parse(args[yt + 1], System.Globalization.CultureInfo.InvariantCulture);
+    double[] Nums(string v) => v.Split(',').Select(x => double.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+    if (Array.IndexOf(args, "--sailor-first") is var sf and >= 0) Nums(args[sf + 1]).CopyTo(HanLigi.Tuning.SailorFirst, 0);   // Denizci ilk pencere yüzdeleri: 0.2,0.3
+    if (Array.IndexOf(args, "--sailor-flat") is var sfl and >= 0) Nums(args[sfl + 1]).Select(x => (int)x).ToArray().CopyTo(HanLigi.Tuning.SailorFlat, 0);
+    if (Array.IndexOf(args, "--window") is var wi and >= 0) HanLigi.ExpertBot.K.WindowMode = int.Parse(args[wi + 1]);   // botun pencere kararı: 0 klasik, 1 SmartWindow
+    HanLigi.Meta.Adapt = args.Contains("--adapt");   // botlar duruma göre yön değiştirsin (düzen tablosu "başlangıç düzeni" olur)
     HanLigi.Meta.SignPolicies = args.Contains("--signs");
     var mg = args.Length > 1 ? int.Parse(args[1]) : 1000;
     var ms = args.Length > 2 ? int.Parse(args[2]) : 1;

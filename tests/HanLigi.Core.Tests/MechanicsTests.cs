@@ -201,6 +201,36 @@ public class MechanicsTests
     }
 
     [Fact]
+    public void Yrden_trap_slows_the_row_only_when_it_catches_nothing()
+    {
+        // pususuz maç: Yrden boşa gitmez, rakibin satırı −%10
+        var (a, b) = (Side("A"), Side("B"));
+        Add(a, "fiend");
+        Add(b, "fiend");
+        var bt = Start(a, b);
+        var o = Play(bt, C(Sign.Yrden), N);
+        Assert.Equal(7.2m, o.ValueB);
+        Assert.Contains(o.Fx, f => f.Kind == "yrden" && f.Side == 0 && f.Target == 10 && !f.Blocked);
+        // Aard'ı tuttuysa tuzak yok
+        (a, b) = (Side("A"), Side("B"));
+        Add(a, "fiend");
+        Add(b, "fiend");
+        bt = Start(a, b);
+        o = Play(bt, C(Sign.Yrden), C(Sign.Aard));
+        Assert.Equal(8, o.ValueA);
+        Assert.Equal(8, o.ValueB);
+        // pusu inişini tuttuysa tuzak yok
+        (a, b) = (Side("A"), Side("B"));
+        Add(a, "fiend");
+        Add(b, "fiend");
+        var h = Hide(b, "vrihedd_brigade_veteran");
+        bt = Start(a, b);
+        o = Play(bt, C(Sign.Yrden), new WindowChoice(Array.Empty<Sign>(), null, h.Uid));
+        Assert.Equal(8, o.ValueB);
+        Assert.Contains(o.Fx, f => f.Kind == "yrden" && f.Side == 0 && f.Blocked);
+    }
+
+    [Fact]
     public void Yrden_does_not_touch_potions_since_meta4()
     {
         var (a, b) = (Side("A"), Side("B"));
@@ -209,7 +239,7 @@ public class MechanicsTests
         Add(b, "fiend");
         var bt = Start(a, b);
         var o = Play(bt, P(Potion.Thunderbolt), C(Sign.Yrden));
-        Assert.Equal(10, o.ValueA);   // 8 +%25
+        Assert.Equal(9.2m, o.ValueA);   // 8 × (1 + %25 − %10): Yrden simyaya dokunmaz, hiçbir şey tutmadığı için tuzak −%10
         Assert.Empty(a.Potions);
     }
 
@@ -576,16 +606,27 @@ public class MechanicsTests
     // ===== Faz 1: Denizci, Şövalye, Yağma, Dönüşüm/Mardroeme, Yakıcı, Meydan Okuma =====
 
     [Fact]
-    public void Mardroeme_triples_berserkers_only_with_the_special()
+    public void Mardroeme_transforms_berserkers_only_in_its_row()
     {
+        // hedefsiz: Berserker gücü en çok olan satır (Yakın: Berserker 4 > Genç Berserker 2)
         var (a, b) = (Side("A"), Side("B"));
         var be = Add(a, "berserker");
         var yb = Add(a, "young_berserker");
         Add(b, "ghoul", power: 1);
         a.Specials.Add(Special.Mardroeme);
         Start(a, b);
-        Assert.Equal(12, be.Power);
-        Assert.Equal(6, yb.Power);
+        Assert.Equal(4 * Tuning.BerserkMult, be.Power);
+        Assert.Equal(2, yb.Power);
+        // Menzilli'ye konmuş Mardroeme yalnız Genç Berserker'ı dönüştürür
+        var (e, f) = (Side("E"), Side("F"));
+        var be3 = Add(e, "berserker");
+        var yb3 = Add(e, "young_berserker");
+        Add(f, "ghoul", power: 1);
+        e.Specials.Add(Special.Mardroeme);
+        e.MardroemeAims.Add(Row.Ranged);
+        Start(e, f);
+        Assert.Equal(4, be3.Power);
+        Assert.Equal(2 * Tuning.BerserkMult, yb3.Power);
         var (c, d) = (Side("C"), Side("D"));
         var be2 = Add(c, "berserker");
         Add(d, "ghoul", power: 1);
@@ -659,7 +700,7 @@ public class MechanicsTests
         Add(b, "ghoul", power: 1);
         var bt = Start(a, b);
         var o1 = Play(bt, N, N);
-        Assert.Equal(13, Val(o1, s1));                       // +%30
+        Assert.Equal(12, Val(o1, s1));                       // +%20
         var o2 = Play(bt, N, N);
         Assert.Equal(10, Val(o2, s2));
     }
@@ -746,7 +787,7 @@ public class MechanicsTests
     [Fact]
     public void Sailor_thresholds_give_flat_power()
     {
-        foreach (var (n, plus) in new[] { (2, 0), (4, 2), (6, 3) })
+        foreach (var (n, plus) in new[] { (2, 0), (4, 1), (6, 2) })
         {
             var (a, b) = (Side("A", 5, null, (Tag.Sailor, n)), Side("B"));
             var u = Add(a, "clan_an_craite_warrior", Row.Ranged, power: 10);   // Bağ: satırda tek, +0

@@ -213,7 +213,7 @@ public class MathAudit(ITestOutputHelper output)
     {
         var bt = Duel(b: B => B.Potions.Add(Potion.Thunderbolt));
         var o = Round(bt, S(Sign.Yrden), new WindowChoice(Array.Empty<Sign>(), Potion.Thunderbolt));
-        Assert.Equal(10, o.ValueB);                   // Meta 4: Yrden simyaya dokunmaz (8 +%25)
+        Assert.Equal(9.2m, o.ValueB);                 // Meta 4: Yrden simyaya dokunmaz (8 +%25); hiçbir şey tutmadı: tuzak −%10
         Assert.Empty(bt.Sides[1].Potions);            // kart harcandı
         Assert.Equal(Tuning.StartFocus - Tuning.YrdenCost + 1, bt.Sides[0].Focus);   // Yrden bedeli + 1 Öfke (satırı kaybetti)
     }

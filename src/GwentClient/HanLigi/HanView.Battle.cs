@@ -914,7 +914,7 @@ public sealed partial class HanView
                         Fx.After(500, () => { HanFx.Yrden(_fx, _engine, SealAt(!mine), 300, true); Sfx.Play("han_yrden_shock"); });
                         Fx.After(1300, () => Sfx.Play("han_yrden_hit"));
                     })
-                    : new Step(mine, "Yrden", "Pusudan inen olmadı · " + Odak(side), HanArt.SignColor(global::HanLigi.Sign.Yrden), Short, () =>
+                    : new Step(mine, f.Target > 0 ? "Yrden tuzağı" : "Yrden", (f.Target > 0 ? (mine ? $"Tuzak rakibin satırını yavaşlattı: −%{f.Target}" : $"Tuzak satırını yavaşlattı: −%{f.Target}") : "Pusudan inen olmadı") + " · " + Odak(side), HanArt.SignColor(global::HanLigi.Sign.Yrden), Short, () =>
                     {
                         Glyph(global::HanLigi.Sign.Yrden, "han_yrden");
                         Fx.After(500, () => HanFx.Yrden(_fx, _engine, SealAt(!mine), 200, false));

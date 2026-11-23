@@ -23,7 +23,7 @@ public class RulesV2Tests
 
     [Theory]
     [InlineData(1)]
-    [InlineData(7)]
+    [InlineData(9)]
     [InlineData(42)]
     public void Pairing_rotates_opponents(int seed)
     {

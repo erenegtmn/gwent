@@ -7,6 +7,9 @@ namespace HanLigi;
 /// </summary>
 public static class Meta
 {
+    /// <summary>Botlar duruma göre yön değiştirsin mi (<see cref="ExpertBot.Pivot"/>). Ölçümde kapalı: düzen sabit kalsın ki düzen tablosu anlamlı olsun.</summary>
+    public static bool Adapt;
+
     public static readonly ExpertBot.Build[] Builds =
     {
         new("balanced", "Dengeli (yönsüz)"),
@@ -159,7 +162,7 @@ public static class Meta
         var last = Enumerable.Range(0, 8).Select(_ => new HashSet<string>()).ToArray();
         for (var guard = 0; guard < 80 && m.Phase != Phase.Finished; guard++)
         {
-            foreach (var p in m.Alive.ToList()) ExpertBot.Prep(m, p.Id, rng, Builds[pick[p.Id]]);
+            foreach (var p in m.Alive.ToList()) ExpertBot.Prep(m, p.Id, rng, Builds[pick[p.Id]], adapt: Adapt);
             if (m.Phase == Phase.Prep) m.ForceLock();
             foreach (var p in m.Alive) last[p.Id] = p.Fielded.Select(c => c.Def.Id).ToHashSet();
             if (m.Round == 10 && lowAt10 == null)
