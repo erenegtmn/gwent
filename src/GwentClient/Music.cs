@@ -47,7 +47,10 @@ public static class Music
     {
         var name = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
         var region = name.StartsWith("novigrad") ? "Novigrad Hanı"
+            : name.StartsWith("skellige_minigames") ? "Skellige Han Oyunları"
             : name.StartsWith("skellige") ? "Skellige Hanı"
+            : name.StartsWith("toussaint_mandragora") ? "Mandragora Hanı (Kan ve Şarap)"
+            : name.StartsWith("toussaint_drunken") ? "Sarhoş Usta (Kan ve Şarap)"
             : name.StartsWith("toussaint") ? "Toussaint Hanı (Kan ve Şarap)"
             : name;
         var digits = new string(name.Reverse().TakeWhile(char.IsDigit).Reverse().ToArray());
