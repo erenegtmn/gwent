@@ -87,6 +87,20 @@ public static partial class UiSelfTest
         for (var i = 0; i < 40 && s.M.Round < 7 && s.Player.Alive && !s.Over; i++) s.AutoRound(rng);
         if (s.Player.RewardOptions.Length > 0) s.Act(HanActKind.Reward, 0);
         if (s.Player.PotionOptions.Length > 0) s.Act(HanActKind.Potion, 0);
+        // HAN_PERF_PLUNDER=1: masadaki ilk üç birim 3★ Yağma kartlarıyla değişir (Menzilli ve Kuşatma); kazanılan satırda Yağma
+        // altını ekranda belirir (HAN_CINE_FRAMES ile kare kare görülür)
+        if (Environment.GetEnvironmentVariable("HAN_PERF_PLUNDER") == "1")
+        {
+            var ids = new[] { "clan_brokvar_archer", "war_longship", "clan_brokvar_archer" };
+            var field = s.Player.Cards.Where(c => c.Def.IsUnit && c.Zone is Zone.Close or Zone.Ranged or Zone.Siege).Take(ids.Length).ToList();
+            for (var i = 0; i < field.Count; i++)
+            {
+                var def = CardSet.Get(ids[i]);
+                s.Player.Cards.Remove(field[i]);
+                s.Player.Cards.Add(new OwnedCard { Uid = 990100 + i, Def = def, Star = 3, Zone = def.Row == Row.Siege ? Zone.Siege : Zone.Ranged });
+            }
+            Console.WriteLine($"Yağma: {field.Count} kart değişti");
+        }
         s.Timed = true;
         var view = new HanView(s, () => { }, () => { }, animate: true);
         var win = new Window { Width = 1600, Height = 900, Content = view, WindowStartupLocation = WindowStartupLocation.CenterScreen, Title = "Han Ligi ölçüm", Topmost = true };
