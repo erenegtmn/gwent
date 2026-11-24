@@ -324,7 +324,8 @@ public sealed partial class HanView : Grid
         {
             // Esc: açık pencereyi kapatır; yoksa çıkışı sorar
             e.Handled = true;
-            if (_exitAsk) { _exitAsk = false; Render(); }
+            if (_settingsLayer != null) CloseSettings();
+            else if (_exitAsk) { _exitAsk = false; Render(); }
             else if (_help) { _help = false; Render(); }
             else AskExit();
             return;
@@ -746,6 +747,29 @@ public sealed partial class HanView : Grid
     {
         Put(Act("?", null, "han-help", () => { _help = true; Render(); }, HanButtonKind.Ghost, 38, 34, tip: "Nasıl oynanır"), 12, 14);
         Put(Act("✕", null, "han-exit", AskExit, HanButtonKind.Ghost, 38, 34, tip: "Maçtan çık (Esc)"), 56, 14);
+        Put(Act("⚙", null, "han-settings", OpenSettings, HanButtonKind.Ghost, 38, 34, tip: "Ayarlar (ses, müzik, tam ekran)"), 100, 14);
+    }
+
+    /// <summary>Ayarlar penceresi: sahnenin en üstünde yüzer; ekran yeniden çizilince silinmez (kaydırıcı sürüklenirken bozulmasın).</summary>
+    private Grid? _settingsLayer;
+
+    private void OpenSettings()
+    {
+        if (_settingsLayer != null) return;
+        var layer = new Grid { Width = 1920, Height = 1080, Background = Theme.B("#d0000000") };
+        layer.Children.Add(new SettingsView(CloseSettings, embedded: true, showBack: true));
+        layer.PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; CloseSettings(); } };
+        _settingsLayer = layer;
+        _stage.Children.Add(layer);
+    }
+
+    private void CloseSettings()
+    {
+        if (_settingsLayer == null) return;
+        Settings.Save();
+        _stage.Children.Remove(_settingsLayer);
+        _settingsLayer = null;
+        Focus();
     }
 
     private bool _exitAsk;
@@ -775,9 +799,12 @@ public sealed partial class HanView : Grid
         var stay = Btn("Masada kal", "han-exit-cancel", () => { _exitAsk = false; Render(); }, true, width: 230, height: 52);
         stay.Margin = new Thickness(0, 0, 16, 0);
         row.Children.Add(stay);
+        var cfg = Btn("Ayarlar", "han-settings", OpenSettings, width: 170, height: 52);
+        cfg.Margin = new Thickness(0, 0, 16, 0);
+        row.Children.Add(cfg);
         row.Children.Add(Btn("Maçtan çık", "han-exit-confirm", Exit, width: 210, height: 52));
         sp.Children.Add(row);
-        Put(Panel(740, 330, sp, 0xf0, null, 16), 590, 360);
+        Put(Panel(860, 330, sp, 0xf0, null, 16), 530, 360);
     }
 
     /// <summary>Sağ kenar: oyuncular (portre, can, seviye), cana göre sıralı. Rakip kırmızı, sen altın çerçeveli.</summary>

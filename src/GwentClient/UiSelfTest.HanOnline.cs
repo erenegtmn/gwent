@@ -118,7 +118,7 @@ public static partial class UiSelfTest
     private static void HanClick(HanView view, Random rng)
     {
         string T(FrameworkElement f) => f.Tag as string ?? "";
-        var buttons = FindAll<Button>(view, b => b.IsEnabled && T(b).StartsWith("han-") && T(b) is not ("han-exit" or "han-help" or "han-menu" or "han-again" or "han-timed")).ToList();
+        var buttons = FindAll<Button>(view, b => b.IsEnabled && T(b).StartsWith("han-") && T(b) is not ("han-exit" or "han-help" or "han-menu" or "han-again" or "han-timed" or "han-settings")).ToList();
         var cards = FindAll<HanCardView>(view, c => T(c).StartsWith("han-")).ToList();
         var modal = buttons.Where(b => T(b).StartsWith("han-potion:")).Cast<FrameworkElement>().Concat(cards.Where(c => T(c).StartsWith("han-reward:"))).ToList();
         FrameworkElement? pick;

@@ -84,8 +84,13 @@ public static partial class UiSelfTest
                         Check(!back && FindAll<Button>(view, b => T(b) == "han-exit-confirm").Any(), "maç sürerken çıkış sorulmadı");
                         if (FindAll<Button>(view, b => T(b) == "han-exit-cancel").FirstOrDefault() is { } stay) { Raise(stay, ButtonBase.ClickEvent); Layout(view); }
                         Check(!FindAll<Button>(view, b => T(b) == "han-exit-confirm").Any(), "çıkış penceresi kapanmadı");
+                        // ayarlar: üst şeritteki düğmeyle açılır, "Geri" ile kapanır
+                        Raise(FindAll<Button>(view, b => T(b) == "han-settings").First(), ButtonBase.ClickEvent); Layout(view);
+                        Check(FindAll<SettingsView>(view, _ => true).Any(), "ayarlar açılmadı");
+                        if (FindAll<Button>(view, b => b.Content as string == "Geri").FirstOrDefault() is { } geri) { Raise(geri, ButtonBase.ClickEvent); Layout(view); }
+                        Check(!FindAll<SettingsView>(view, _ => true).Any(), "ayarlar kapanmadı");
                     }
-                    var buttons = FindAll<Button>(view, b => b.IsEnabled && T(b).StartsWith("han-") && T(b) is not ("han-exit" or "han-help" or "han-menu" or "han-again")).ToList();
+                    var buttons = FindAll<Button>(view, b => b.IsEnabled && T(b).StartsWith("han-") && T(b) is not ("han-exit" or "han-help" or "han-menu" or "han-again" or "han-settings")).ToList();
                     var cards = FindAll<HanCardView>(view, c => T(c).StartsWith("han-")).ToList();
                     // seçim penceresi açıkken yalnız onun öğeleri tıklanabilir
                     var modal = buttons.Where(b => T(b).StartsWith("han-potion:")).Cast<FrameworkElement>().Concat(cards.Where(c => T(c).StartsWith("han-reward:"))).ToList();

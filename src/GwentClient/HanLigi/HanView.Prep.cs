@@ -393,7 +393,9 @@ public sealed partial class HanView
                     HanCardView? el = null;
                     el = CardEl(d, 1, 184, "han-reward:" + i, () => { _flyFrom = el is { } e ? StageBounds(e) : null; _flyDef = d; Do(() => Session.Act(HanActKind.Reward, i), "han_buy"); }, aspect: 1.34);
                     var gist = HanCardView.Gist(d);
-                    return ((FrameworkElement)el, d.Name + "\n" + (gist.Length > 0 ? gist : HanCardView.Keyword(d)));
+                    FrameworkElement shown = el;
+                    if (CopyChip(d, 184) is { } chip) shown = new Grid { Children = { el, chip } };   // marketteki gibi birleşme / "sende" uyarısı
+                    return (shown, d.Name + "\n" + (gist.Length > 0 ? gist : HanCardView.Keyword(d)));
                 }).ToList());
         else if (Me.PotionOptions.Length > 0)
             DrawChoice("Simya kartını seç", "Savaşta, bir satır açılmadan önce oynarsın. Tek kullanımlık.",
@@ -781,24 +783,7 @@ public sealed partial class HanView
             // dururken üst şeritteki rakip satırının üstüne biniyordu. Zemini koyu ve opak, gölgeli: yarı saydam yeşil zeminde yazı
             // kart resmine karışıp okunmuyordu.
             // sahadaki ve depodaki bütün kopyalar sayılır (yalnız 1★ sayılınca sahadaki 2★ kartın eşi markete gelince uyarı çıkmıyordu)
-            var copies = Me.Cards.Where(c => c.Def == d).ToList();
-            if (copies.Count > 0 && d.IsUnit && !d.IsHero)
-            {
-                var merge = copies.Count(c => c.Star == 1) == 2;
-                var have = string.Join(" ", copies.GroupBy(c => c.Star).OrderByDescending(g => g.Key).Select(g => (g.Count() > 1 ? g.Count() + "×" : "") + g.Key + "★"));
-                var chip = HanUi.Chip(merge ? "★ Birleşir" : $"sende {have}", merge ? HanUi.Good : HanUi.Muted, 11);
-                chip.Padding = new Thickness(5, 2, 5, 3);   // güç madalyonunun üstüne binmesin
-                chip.Background = merge
-                    ? new LinearGradientBrush(Color.FromRgb(0x1d, 0x33, 0x14), Color.FromRgb(0x0e, 0x18, 0x0a), 90)
-                    : HanUi.Br(HanUi.Ink, 0xf0);
-                if (merge) chip.BorderBrush = HanUi.Br(HanUi.Good);
-                chip.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 1.5, Direction = 270, Opacity = 0.9 };
-                chip.HorizontalAlignment = HorizontalAlignment.Right;
-                chip.VerticalAlignment = VerticalAlignment.Top;
-                chip.Margin = new Thickness(0, HanCardView.GemBottom(DesignW) + 3, 4, 0);   // tier taşının altında
-                chip.IsHitTestVisible = false;
-                holder.Children.Add(chip);
-            }
+            if (CopyChip(d, DesignW) is { } chip) holder.Children.Add(chip);
         }
         // satış: sürüklenen kart banda bırakılır
         if (sel != null && _pressUid == sel.Uid)
@@ -807,6 +792,33 @@ public sealed partial class HanView
             var zone = DropZone(new RectangleGeometry(new Rect(bx, ShopBandY - DesignH * k - 20, bw, ShopBandH + DesignH * k + 20), 10, 10), new Rect(bx, ShopBandY - DesignH * k - 20, bw, ShopBandH + DesignH * k + 20), "han-sell-drop", $"Sat  +{Tuning.SellValue(sel.Def, sel.Star)} altın", () => Do(() => Session.Act(HanActKind.Sell, uid), "han_sell"), true);
             _shop.Children.Add(zone);
         }
+    }
+
+    /// <summary>
+    /// Tezgâh ve ödül kartlarının köşe uyarısı: "★ Birleşir" (elde bu karttan iki tane 1★ var) ya da "sende ..." (kopya özeti).
+    /// Elde kopya yoksa (ya da kart birim değilse / kahramansa) null. <paramref name="w"/> kartın genişliği (tier taşının yeri için).
+    /// </summary>
+    private Border? CopyChip(CardDef d, double w)
+    {
+        // sahadaki ve depodaki bütün kopyalar sayılır (yalnız 1★ sayılınca sahadaki 2★ kartın eşi markete gelince uyarı çıkmıyordu)
+        // 3★ kopya için hiçbir uyarı yok (daha yükselmez); 2★ için yalnız "sende var"; 1★ kopyalar sayılır
+        var copies = Me.Cards.Where(c => c.Def == d && c.Star < 3).ToList();
+        if (copies.Count == 0 || !d.IsUnit || d.IsHero) return null;
+        var ones = copies.Count(c => c.Star == 1);
+        var merge = ones == 2;
+        var have = ones > 0 ? "sende " + (ones > 1 ? ones + "×" : "") + "1★" : "sende var";
+        var chip = HanUi.Chip(merge ? "★ Birleşir" : have, merge ? HanUi.Good : HanUi.Muted, 11);
+        chip.Padding = new Thickness(5, 2, 5, 3);   // güç madalyonunun üstüne binmesin
+        chip.Background = merge
+            ? new LinearGradientBrush(Color.FromRgb(0x1d, 0x33, 0x14), Color.FromRgb(0x0e, 0x18, 0x0a), 90)
+            : HanUi.Br(HanUi.Ink, 0xf0);
+        if (merge) chip.BorderBrush = HanUi.Br(HanUi.Good);
+        chip.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 8, ShadowDepth = 1.5, Direction = 270, Opacity = 0.9 };
+        chip.HorizontalAlignment = HorizontalAlignment.Right;
+        chip.VerticalAlignment = VerticalAlignment.Top;
+        chip.Margin = new Thickness(0, HanCardView.GemBottom(w) + 3, 4, 0);   // tier taşının altında
+        chip.IsHitTestVisible = false;
+        return chip;
     }
 
     /// <summary>Evolve anı: kartın üstünde altın parlama ve "★" yazısı.</summary>
@@ -889,8 +901,11 @@ public sealed partial class HanView
     /// <summary>Ekranın üstünde açılan seçim penceresi (ödül, simya).</summary>
     private void DrawChoice(string title, string sub, List<(FrameworkElement El, string Desc)> options)
     {
-        Put(new Border { Width = 1920, Height = 1080, Background = Theme.B("#c8000000") }, 0, 0);
-        var sp = new StackPanel { Margin = new Thickness(40, 32, 40, 28) };
+        // seçim katmanı sayaçların (satır gücü, altın, can) üstünde olmalı: _c sayaç katmanının altında kalır, bu yüzden _shop'a konur
+        // (modal açıkken tezgâh gizli, katman her çizimde temizlenir; önbelleksiz, animasyonu etkilemez)
+        T PutTop<T>(T e, double x, double y) where T : UIElement { Canvas.SetLeft(e, x); Canvas.SetTop(e, y); _shop.Children.Add(e); return e; }
+        PutTop(new Border { Width = 1920, Height = 1080, Background = Theme.B("#c8000000") }, 0, 0);
+        var sp =new StackPanel { Margin = new Thickness(40, 32, 40, 28) };
         var k = HanUi.Label("Seçim", 12);
         k.HorizontalAlignment = HorizontalAlignment.Center;
         sp.Children.Add(k);
@@ -923,7 +938,7 @@ public sealed partial class HanView
             DropIn(el, 0, -20);
         }
         sp.Children.Add(row);
-        Put(Panel(1060, 540, sp, 0xf0, null, 16), 430, 220);
+        PutTop(Panel(1060, 540, sp, 0xf0, null, 16), 430, 220);
     }
 
     /// <summary>Tahtadaki bir satırı örten sis (perspektifli; durağan).</summary>
