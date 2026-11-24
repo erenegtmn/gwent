@@ -225,7 +225,7 @@ public sealed class SettingsView : Grid
             foreach (var (text, i) in rows)
             {
                 var cur = i == Music.Current;
-                text.Text = (cur ? "♪  " : "    ") + Music.TitleOf(i);
+                text.Text = (cur ? "♪  " : "    ") + Music.TitleOf(i) + "  ·  " + Music.GroupOf(i);
                 text.Foreground = cur ? Theme.B("#f0d890") : Theme.Text;
                 text.FontWeight = cur ? FontWeights.Bold : FontWeights.Normal;
             }

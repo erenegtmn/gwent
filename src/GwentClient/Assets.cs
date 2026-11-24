@@ -73,13 +73,13 @@ public static class Assets
     /// <summary>Kart resmi (cards/&lt;kimlik&gt;.png; dağıtım paketinde boyut için .jpg — köşeleri <see cref="GwintCard"/> yuvarlak kırpar).</summary>
     public static ImageSource? Card(string cardId) => Load(Path.Combine("cards", cardId + ".png")) ?? Load(Path.Combine("cards", cardId + ".jpg"));
 
-    /// <summary>Müzik dosyaları (assets/music/*.mp3).</summary>
+    /// <summary>Müzik dosyaları: assets/music/*.mp3 (Gwent) ve havuz klasörleri (menu, han, kaermorhen, career).</summary>
     public static IReadOnlyList<string> Music()
     {
         var dir = Dir;
         if (dir == null) return Array.Empty<string>();
         var m = Path.Combine(dir, "music");
-        return Directory.Exists(m) ? Directory.GetFiles(m, "*.mp3").OrderBy(f => f).ToList() : Array.Empty<string>();
+        return Directory.Exists(m) ? Directory.GetFiles(m, "*.mp3", SearchOption.AllDirectories).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList() : Array.Empty<string>();
     }
 
     /// <summary>Ses efektleri klasörü (assets/sfx).</summary>

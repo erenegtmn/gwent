@@ -19,6 +19,9 @@ public partial class MainWindow : Window
             e.Handled = true;
         };
         Closed += (_, _) => { var c = _online; _online = null; if (c != null) _ = Task.Run(() => c.DisposeAsync(leave: false).AsTask()); };   // kapanış "teslim" sayılmaz: yarım kalan maç sürdürülebilir
+        // Ekran değişince müzik havuzu da değişir (ana menü / Gwent / Han Ligi / Kaer Morhen / Collect 'Em All)
+        System.ComponentModel.DependencyPropertyDescriptor.FromProperty(System.Windows.Controls.ContentControl.ContentProperty, typeof(System.Windows.Controls.ContentControl))
+            .AddValueChanged(Host, (_, _) => { if (MusicContextFor(Host.Content, Music.Context) is { } ctx) Music.SetContext(ctx); });
         ShowMenu();
         Music.TrackChanged += ShowTrackToast;
         Closed += (_, _) => Music.TrackChanged -= ShowTrackToast;
@@ -38,6 +41,19 @@ public partial class MainWindow : Window
         anim.KeyFrames.Add(new System.Windows.Media.Animation.LinearDoubleKeyFrame(0, TimeSpan.FromMilliseconds(5200)));
         Toast.BeginAnimation(OpacityProperty, anim);
     }
+
+    /// <summary>Ekranın müzik havuzu; null = havuz değişmez (ara ekranlar: VS, deste kurucu, bekleme odaları, sonuç...). Masa, Collect 'Em All ve Kaer Morhen'de o modun havuzunda kalır.</summary>
+    internal static MusicContext? MusicContextFor(object? content, MusicContext current) => content switch
+    {
+        null => null,
+        HubView or PlayHubView or MenuView or OnlineMenuView or GuideView or ProfileView or SettingsView => MusicContext.Menu,
+        GwintView => current is MusicContext.Career or MusicContext.KaerMorhen ? current : MusicContext.Gwent,
+        DraftView or LobbyView or TournamentLobbyView or BracketView => MusicContext.Gwent,
+        CareerView or CareerShopView or CareerTournamentView => MusicContext.Career,
+        _ when content.GetType().Namespace == "GwentClient.HanLigi" => MusicContext.Han,
+        _ when content.GetType().Namespace == "GwentClient.KaerMorhen" => MusicContext.KaerMorhen,
+        _ => null
+    };
 
     private string? _lastFaction;
     private bool _lastNextGen;
